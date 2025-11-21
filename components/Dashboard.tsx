@@ -84,7 +84,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             dormitoryData: finalDormitoryData,
             totalStudentsReport: finalTotalStudents,
             totalSick: finalTotalSick,
-            titleSuffix: `(ประจำวันที่ ${displayDateString})`,
+            titleSuffix: `(${displayDateString})`,
             displayDate: `ข้อมูลวันที่ ${displayDateString}`
         };
 
@@ -169,7 +169,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
             <div className="hidden print:block text-center my-8">
                 <div className="flex justify-center items-center gap-4">
                     <img 
@@ -187,59 +187,57 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
             
             {/* Overall Statistics Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
-                 <div className="bg-blue-600 p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform">
-                    <h3 className="text-lg font-semibold opacity-90">นักเรียนทั้งหมดในระบบ</h3>
-                    <p className="text-4xl font-bold mt-2">{students.length} คน</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 no-print">
+                 <div className="bg-blue-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full">
+                    <h3 className="text-xs md:text-lg font-semibold opacity-90 truncate">นักเรียนทั้งหมด</h3>
+                    <p className="text-2xl md:text-4xl font-bold mt-1 md:mt-2">{students.length} <span className="text-sm md:text-xl font-normal">คน</span></p>
                 </div>
-                <div className="bg-purple-600 p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform">
-                    <h3 className="text-lg font-semibold opacity-90">บุคลากรทั้งหมดในระบบ</h3>
-                    <p className="text-4xl font-bold mt-2">{personnel.length} คน</p>
+                <div className="bg-purple-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full">
+                    <h3 className="text-xs md:text-lg font-semibold opacity-90 truncate">บุคลากรทั้งหมด</h3>
+                    <p className="text-2xl md:text-4xl font-bold mt-1 md:mt-2">{personnel.length} <span className="text-sm md:text-xl font-normal">คน</span></p>
                 </div>
-                <StatsCard title={`นักเรียนมา (${titleSuffix})`} value={totalStudentsReport.toString()} />
-                <StatsCard title={`นักเรียนป่วย (${titleSuffix})`} value={totalSick.toString()} />
+                <StatsCard title={`นักเรียนมา ${titleSuffix}`} value={totalStudentsReport.toString()} />
+                <StatsCard title={`นักเรียนป่วย ${titleSuffix}`} value={totalSick.toString()} />
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-lg printable-content">
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4">
+            <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg printable-content">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
                     <div className="flex flex-col">
-                        <h2 className="text-xl font-bold text-navy shrink-0">ภาพรวมนักเรียนแต่ละเรือนนอน {titleSuffix}</h2>
-                        <p className="text-sm text-gray-500 no-print">{displayDate}</p>
+                        <h2 className="text-lg md:text-xl font-bold text-navy shrink-0">ภาพรวม {titleSuffix}</h2>
+                        <p className="text-xs md:text-sm text-gray-500 no-print">{displayDate}</p>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-2 no-print w-full xl:w-auto">
-                        <label className="text-sm font-medium text-gray-700">ข้อมูลประจำเดือน:</label>
-                        {/* Date Picker */}
+                    <div className="flex flex-row items-center gap-2 no-print w-full md:w-auto bg-gray-50 p-2 rounded-lg">
                         <input 
                             type="date" 
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue flex-grow md:flex-grow-0"
                         />
 
                         {/* Export Dropdown */}
-                        <div className="relative ml-2">
+                        <div className="relative">
                             <button
                                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+                                className="bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 px-3 rounded-lg shadow-md transition duration-300 flex items-center gap-1 text-xs md:text-sm whitespace-nowrap"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
-                                <span>บันทึกข้อมูล</span>
+                                <span>บันทึก</span>
                             </button>
                             
                             {isExportMenuOpen && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
                                     <div className="py-1">
                                         <button onClick={() => { window.print(); setIsExportMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                            พิมพ์ / บันทึกเป็น PDF
+                                            พิมพ์ / PDF
                                         </button>
                                         <button onClick={exportToCSV} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                            ดาวน์โหลด Excel (CSV)
+                                            Excel (CSV)
                                         </button>
                                         <button onClick={exportToDoc} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                            ดาวน์โหลด Word (DOC)
+                                            Word (DOC)
                                         </button>
                                     </div>
                                 </div>
@@ -248,7 +246,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                 </div>
                 
-                <ReportChart data={dormitoryData} />
+                <div className="overflow-x-auto">
+                     <ReportChart data={dormitoryData} />
+                </div>
 
                 {/* Data Table for Print View (Hidden on Screen) */}
                 <div className="hidden print:block mt-8">

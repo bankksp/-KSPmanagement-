@@ -28,22 +28,24 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage, schoolName, sc
 
     return (
         <header className="bg-gradient-to-r from-primary-blue to-blue-700 text-white shadow-lg sticky top-0 z-20 no-print">
-            <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-                <div className="flex items-center space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar w-full">
-                    <div className="flex-shrink-0 flex items-center gap-2 mr-2">
+            <div className="container mx-auto px-3 py-2 md:py-3 flex justify-between items-center">
+                <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
+                    <div className="flex-shrink-0 flex items-center gap-2">
                         <img 
                             src={logoSrc} 
                             alt="School Logo" 
-                            className="h-10 w-10 object-contain bg-white p-1 rounded-full"
+                            className="h-8 w-8 md:h-10 md:w-10 object-contain bg-white p-1 rounded-full"
                             onError={(e) => (e.currentTarget.src = 'https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png')}
                         />
-                         <h1 className="text-lg font-bold hidden lg:block whitespace-nowrap">{schoolName}</h1>
+                         <h1 className="text-sm md:text-lg font-bold whitespace-nowrap truncate">{schoolName}</h1>
                     </div>
-                    
-                    <div className="sm:hidden ml-auto">
+                </div>
+                
+                <div className="flex items-center">
+                    <div className="sm:hidden ml-2">
                         <button
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            className="p-2 rounded-md hover:bg-white/20 transition-colors"
+                            className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
                             aria-label="Open navigation menu"
                         >
                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -55,49 +57,50 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage, schoolName, sc
                             </svg>
                         </button>
                     </div>
+
                     <div className="hidden sm:flex items-center gap-1 overflow-x-auto flex-grow justify-end">
                          <button 
                             onClick={() => onNavigate('stats')}
                             className={`${navButtonStyle} ${currentPage === 'stats' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             สถิติข้อมูลการรายงาน
+                             สถิติ
                          </button>
                          <button 
                             onClick={() => onNavigate('attendance')}
                             className={`${navButtonStyle} ${currentPage === 'attendance' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             ระบบเช็คชื่อ
+                             เช็คชื่อ
                          </button>
                          <button 
                             onClick={() => onNavigate('reports')}
                             className={`${navButtonStyle} ${currentPage === 'reports' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             รายงานเรือนนอน
+                             รายงาน
                          </button>
                          <button 
                             onClick={() => onNavigate('students')}
                             className={`${navButtonStyle} ${currentPage === 'students' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             ข้อมูลนักเรียน
+                             นักเรียน
                          </button>
                          <button 
                             onClick={() => onNavigate('personnel')}
                             className={`${navButtonStyle} ${currentPage === 'personnel' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             ข้อมูลบุคลากร
+                             บุคลากร
                          </button>
                          <button 
                             onClick={() => onNavigate('admin')}
                             className={`${navButtonStyle} ${currentPage === 'admin' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             ระบบ Admin
+                             Admin
                          </button>
                     </div>
                 </div>
             </div>
             {/* Mobile Menu Dropdown */}
             {isMobileMenuOpen && (
-                <div className="sm:hidden bg-primary-blue/95 backdrop-blur-sm shadow-lg">
+                <div className="sm:hidden bg-primary-blue/95 backdrop-blur-sm shadow-lg border-t border-white/10">
                     <div className="container mx-auto px-2 pt-2 pb-3 space-y-1">
                          <button 
                             onClick={() => handleMobileNav('stats')}
