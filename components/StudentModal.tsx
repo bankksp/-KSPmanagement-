@@ -1,0 +1,321 @@
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Student, Personnel } from '../types';
+import { STUDENT_CLASSES, STUDENT_CLASSROOMS } from '../constants';
+import { getFirstImageSource, safeParseArray } from '../utils';
+
+interface StudentModalProps {
+    onClose: () => void;
+    onSave: (student: Student) => void;
+    studentToEdit: Student | null;
+    dormitories: string[];
+    personnel: Personnel[];
+    isSaving: boolean;
+}
+
+const initialFormData: Omit<Student, 'id' | 'studentClass'> = {
+    studentTitle: 'เด็กชาย',
+    studentName: '', studentNickname: '', dormitory: '', studentIdCard: '',
+    studentDob: '', studentAddress: '', studentPhone: '', fatherName: '',
+    fatherPhone: '', fatherIdCard: '', fatherAddress: '', motherName: '',
+    motherPhone: '', motherIdCard: '', motherAddress: '', guardianName: '',
+    guardianPhone: '', guardianIdCard: '', guardianAddress: '',
+    homeroomTeachers: [],
+    studentProfileImage: [],
+    studentIdCardImage: [], studentDisabilityCardImage: [], guardianIdCardImage: []
+};
+
+// Helper function to convert Buddhist date string (DD/MM/BBBB) to ISO string (YYYY-MM-DD)
+const buddhistToISO = (buddhistDate: string): string => {
+    if (!buddhistDate || typeof buddhistDate !== 'string') return '';
+    const parts = buddhistDate.split('/');
+    if (parts.length !== 3) return '';
+    const [day, month, year] = parts.map(Number);
+    if (isNaN(day) || isNaN(month) || isNaN(year) || year < 543) return '';
+    const gregorianYear = year - 543;
+    return `${gregorianYear.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+};
+
+// Helper function to convert ISO string (YYYY-MM-DD) to Buddhist date string (DD/MM/BBBB)
+const isoToBuddhist = (isoDate: string): string => {
+    if (!isoDate || typeof isoDate !== 'string') return '';
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) return '';
+    const [year, month, day] = parts.map(Number);
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
+    const buddhistYear = year + 543;
+    return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${buddhistYear}`;
+};
+
+const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToEdit, dormitories, personnel, isSaving }) => {
+    const [formData, setFormData] = useState<Omit<Student, 'id' | 'studentClass'>>(initialFormData);
+    const [currentClass, setCurrentClass] = useState(STUDENT_CLASSES[0]);
+    const [currentRoom, setCurrentRoom] = useState(STUDENT_CLASSROOMS[0]);
+    const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false);
+
+    const isEditing = !!studentToEdit;
+    const studentTitles = ['เด็กชาย', 'เด็กหญิง', 'นาย', 'นางสาว'];
+
+    useEffect(() => {
+        if (studentToEdit) {
+            const { studentClass, ...rest } = studentToEdit;
+            const [cls, room] = studentClass.split('/');
+            setFormData({
+                ...rest,
+                studentProfileImage: studentToEdit.studentProfileImage || [],
+                studentIdCardImage: studentToEdit.studentIdCardImage || [],
+                studentDisabilityCardImage: studentToEdit.studentDisabilityCardImage || [],
+                guardianIdCardImage: studentToEdit.guardianIdCardImage || [],
+            });
+            setCurrentClass(cls || STUDENT_CLASSES[0]);
+            setCurrentRoom(room || STUDENT_CLASSROOMS[0]);
+        } else {
+            const defaultDorm = dormitories.filter(d => d !== 'เรือนพยาบาล')[0] || '';
+            setFormData({ ...initialFormData, dormitory: defaultDorm });
+            setCurrentClass(STUDENT_CLASSES[0]);
+            setCurrentRoom(STUDENT_CLASSROOMS[0]);
+        }
+    }, [studentToEdit, dormitories]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: isoToBuddhist(value) }));
+    };
+    
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, files } = e.target;
+        if (files) {
+            const filesArray = name === 'studentProfileImage' ? (files.length > 0 ? [files[0]] : []) : Array.from(files);
+            setFormData(prev => ({ ...prev, [name]: filesArray as File[] }));
+        }
+    };
+    
+    const handleHomeroomTeacherChange = (teacherId: number) => {
+        const currentTeachers = formData.homeroomTeachers || [];
+        const newTeachers = currentTeachers.includes(teacherId)
+            ? currentTeachers.filter(id => id !== teacherId)
+            : [...currentTeachers, teacherId];
+        setFormData(prev => ({ ...prev, homeroomTeachers: newTeachers }));
+    };
+
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const studentData: Student = {
+            ...(formData as Omit<Student, 'id'>),
+            id: isEditing ? studentToEdit.id : Date.now(),
+            studentClass: `${currentClass}/${currentRoom}`,
+        };
+        onSave(studentData);
+    };
+
+    const profileImageUrl = useMemo(() => {
+        return getFirstImageSource(formData.studentProfileImage);
+    }, [formData.studentProfileImage]);
+    
+    const selectedTeachers = useMemo(() => {
+        return (formData.homeroomTeachers || [])
+            .map(id => personnel.find(p => p.id === id))
+            .filter((p): p is Personnel => !!p);
+    }, [formData.homeroomTeachers, personnel]);
+
+
+    useEffect(() => {
+        return () => {
+            if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(profileImageUrl);
+            }
+        };
+    }, [profileImageUrl]);
+
+    const renderImagePreview = (files: (File | string)[] | undefined) => {
+        const safeFiles = safeParseArray(files);
+        if (!safeFiles || safeFiles.length === 0) return <p className="text-xs text-gray-500">ยังไม่มีไฟล์</p>;
+        return safeFiles.map((file, index) => {
+             const fileName = file instanceof File ? file.name : 'ไฟล์ที่มีอยู่แล้ว';
+             return <div key={index} className="text-xs text-green-700 truncate">{fileName}</div>
+        });
+    };
+
+    const FormSection: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
+        <fieldset className="border p-4 rounded-lg">
+            <legend className="text-lg font-bold text-navy px-2">{title}</legend>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+                {children}
+            </div>
+        </fieldset>
+    );
+
+    const InputField: React.FC<{ name: keyof Omit<Student, 'id' | 'studentClass'>, label: string, required?: boolean, wrapperClass?: string }> = ({ name, label, required = false, wrapperClass = '' }) => (
+        <div className={wrapperClass}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+            <input type="text" name={name} value={String(formData[name] || '')} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required={required} />
+        </div>
+    );
+    
+     const AddressField: React.FC<{ name: keyof Omit<Student, 'id' | 'studentClass'>, label: string }> = ({ name, label }) => (
+        <div className="md:col-span-2 lg:col-span-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+            <textarea name={name} value={String(formData[name] || '')} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+        </div>
+    );
+
+    const FileUploadField: React.FC<{ name: keyof Omit<Student, 'id' | 'studentClass'>, label: string }> = ({ name, label }) => (
+        <div className="lg:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+            <input type="file" name={name} onChange={handleImageChange} accept="image/*,application/pdf" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" />
+            <div className="mt-1">{renderImagePreview(formData[name] as (File | string)[] | undefined)}</div>
+        </div>
+    );
+
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b">
+                    <h2 className="text-2xl font-bold text-navy">{isEditing ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มข้อมูลนักเรียน'}</h2>
+                </div>
+                <form id="student-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-6 space-y-6">
+                     <fieldset className="border p-4 rounded-lg">
+                        <legend className="text-lg font-bold text-navy px-2">ข้อมูลนักเรียน</legend>
+                        <div className="flex flex-col sm:flex-row gap-6 items-start mt-2">
+                            <div className="flex-shrink-0">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">รูปโปรไฟล์</label>
+                                <div className="mt-1 relative">
+                                    <div className="w-32 h-40 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
+                                        {profileImageUrl ? (
+                                            <img src={profileImageUrl} alt="Profile Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                        )}
+                                    </div>
+                                    <label htmlFor="studentProfileImage-upload" className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        <input id="studentProfileImage-upload" name="studentProfileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="lg:col-span-3 grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า</label>
+                                        <select name="studentTitle" value={formData.studentTitle} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
+                                            {studentTitles.map(title => <option key={title} value={title}>{title}</option>)}
+                                        </select>
+                                    </div>
+                                    <InputField name="studentName" label="ชื่อ-นามสกุล" required wrapperClass="col-span-2"/>
+                                </div>
+                                <InputField name="studentNickname" label="ชื่อเล่น" />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ชั้น</label>
+                                    <select value={currentClass} onChange={(e) => setCurrentClass(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                        {STUDENT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ห้อง</label>
+                                    <select value={currentRoom} onChange={(e) => setCurrentRoom(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                        {STUDENT_CLASSROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                                 <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">เรือนนอน</label>
+                                    <select name="dormitory" value={formData.dormitory} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
+                                        <option value="" disabled>-- เลือกเรือนนอน --</option>
+                                        {dormitories.filter(d => d !== 'เรือนพยาบาล').map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <InputField name="studentIdCard" label="เลขบัตรประชาชน" />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">วันเกิด</label>
+                                    <input
+                                        type="date"
+                                        name="studentDob"
+                                        value={buddhistToISO(String(formData.studentDob || ''))}
+                                        onChange={handleDateChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                </div>
+                                <InputField name="studentPhone" label="เบอร์โทร" />
+                                <div className="relative lg:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ครูประจำชั้น</label>
+                                    <button type="button" onClick={() => setIsTeacherDropdownOpen(!isTeacherDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left">
+                                        เลือกครู...
+                                    </button>
+                                    {isTeacherDropdownOpen && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                            {personnel.map(p => (
+                                                <div key={p.id} className="flex items-center p-2 hover:bg-gray-100">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`teacher-${p.id}`}
+                                                        checked={(formData.homeroomTeachers || []).includes(p.id)}
+                                                        onChange={() => handleHomeroomTeacherChange(p.id)}
+                                                        className="h-4 w-4 rounded border-gray-300 text-primary-blue focus:ring-primary-blue"
+                                                    />
+                                                    <label htmlFor={`teacher-${p.id}`} className="ml-2 text-sm text-gray-700">{`${p.personnelTitle} ${p.personnelName}`}</label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {selectedTeachers.map(p => (
+                                            <div key={p.id} className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">
+                                                <span>{`${p.personnelTitle === 'อื่นๆ' ? p.personnelTitleOther : p.personnelTitle} ${p.personnelName}`}</span>
+                                                <button type="button" onClick={() => handleHomeroomTeacherChange(p.id)} className="ml-2 text-blue-600 hover:text-blue-800 font-bold">&times;</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <AddressField name="studentAddress" label="ที่อยู่" />
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <FormSection title="ข้อมูลบิดา">
+                        <InputField name="fatherName" label="ชื่อ-นามสกุลบิดา" />
+                        <InputField name="fatherIdCard" label="เลขบัตรประชาชนบิดา" />
+                        <InputField name="fatherPhone" label="เบอร์โทรบิดา" />
+                        <AddressField name="fatherAddress" label="ที่อยู่บิดา" />
+                    </FormSection>
+                    
+                    <FormSection title="ข้อมูลมารดา">
+                        <InputField name="motherName" label="ชื่อ-นามสกุลมารดา" />
+                        <InputField name="motherIdCard" label="เลขบัตรประชาชนมารดา" />
+                        <InputField name="motherPhone" label="เบอร์โทรมารดา" />
+                        <AddressField name="motherAddress" label="ที่อยู่มารดา" />
+                    </FormSection>
+
+                    <FormSection title="ข้อมูลผู้ปกครอง">
+                        <InputField name="guardianName" label="ชื่อ-นามสกุลผู้ปกครอง" />
+                        <InputField name="guardianIdCard" label="เลขบัตรประชาชนผู้ปกครอง" />
+                        <InputField name="guardianPhone" label="เบอร์โทรผู้ปกครอง" />
+                        <AddressField name="guardianAddress" label="ที่อยู่ผู้ปกครอง" />
+                    </FormSection>
+
+                    <FormSection title="เอกสาร">
+                       <FileUploadField name="studentIdCardImage" label="บัตรประชาชนนักเรียน" />
+                       <FileUploadField name="studentDisabilityCardImage" label="บัตรคนพิการ" />
+                       <FileUploadField name="guardianIdCardImage" label="บัตรประชาชนผู้ปกครอง" />
+                    </FormSection>
+
+                </form>
+                <div className="p-6 border-t flex justify-end items-center space-x-3 bg-light-gray rounded-b-xl">
+                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" form="student-form" disabled={isSaving} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isSaving ? 'กำลังบันทึก...' : (isEditing ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูล')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default StudentModal;
