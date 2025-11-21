@@ -72,7 +72,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage, schoolName, sc
                             onClick={() => onNavigate('reports')}
                             className={`${navButtonStyle} ${currentPage === 'reports' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             ระบบรายงาน
+                             รายงานเรือนนอน
                          </button>
                          <button 
                             onClick={() => onNavigate('students')}
@@ -115,7 +115,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage, schoolName, sc
                             onClick={() => handleMobileNav('reports')}
                             className={`${navButtonStyle} w-full text-left ${currentPage === 'reports' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             ระบบรายงาน
+                             รายงานเรือนนอน
                          </button>
                          <button 
                             onClick={() => handleMobileNav('students')}

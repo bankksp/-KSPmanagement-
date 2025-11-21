@@ -44,7 +44,7 @@ const ReportPage: React.FC<ReportPageProps> = ({ reports, deleteReports, onViewR
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                 <h2 className="text-2xl font-bold text-navy">ระบบรายงาน</h2>
+                 <h2 className="text-2xl font-bold text-navy">รายงานเรือนนอน</h2>
                  <button
                         onClick={onAddReport}
                         className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"

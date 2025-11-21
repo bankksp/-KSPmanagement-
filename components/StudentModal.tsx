@@ -47,6 +47,92 @@ const isoToBuddhist = (isoDate: string): string => {
     return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${buddhistYear}`;
 };
 
+// --- Sub-components defined OUTSIDE to prevent re-mounts and focus loss ---
+
+const FormSection: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
+    <fieldset className="border p-4 rounded-lg">
+        <legend className="text-lg font-bold text-navy px-2">{title}</legend>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+            {children}
+        </div>
+    </fieldset>
+);
+
+interface InputFieldProps {
+    name: string;
+    label: string;
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    required?: boolean;
+    wrapperClass?: string;
+}
+
+const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, required = false, wrapperClass = '' }) => (
+    <div className={wrapperClass}>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <input 
+            type="text" 
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+            required={required} 
+        />
+    </div>
+);
+
+interface AddressFieldProps {
+    name: string;
+    label: string;
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}
+
+const AddressField: React.FC<AddressFieldProps> = ({ name, label, value, onChange }) => (
+    <div className="md:col-span-2 lg:col-span-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <textarea 
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            rows={2} 
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+        />
+    </div>
+);
+
+const renderImagePreview = (files: (File | string)[] | undefined) => {
+    const safeFiles = safeParseArray(files);
+    if (!safeFiles || safeFiles.length === 0) return <p className="text-xs text-gray-500">ยังไม่มีไฟล์</p>;
+    return safeFiles.map((file, index) => {
+            const fileName = file instanceof File ? file.name : 'ไฟล์ที่มีอยู่แล้ว';
+            return <div key={index} className="text-xs text-green-700 truncate">{fileName}</div>
+    });
+};
+
+interface FileUploadFieldProps {
+    name: string;
+    label: string;
+    files: (File | string)[] | undefined;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+const FileUploadField: React.FC<FileUploadFieldProps> = ({ name, label, files, onChange }) => (
+    <div className="lg:col-span-1">
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <input 
+            type="file" 
+            name={name} 
+            onChange={onChange} 
+            accept="image/*,application/pdf" 
+            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" 
+        />
+        <div className="mt-1">{renderImagePreview(files)}</div>
+    </div>
+);
+
+// --- Main Component ---
+
 const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToEdit, dormitories, personnel, isSaving }) => {
     const [formData, setFormData] = useState<Omit<Student, 'id' | 'studentClass'>>(initialFormData);
     const [currentClass, setCurrentClass] = useState(STUDENT_CLASSES[0]);
@@ -133,47 +219,6 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
         };
     }, [profileImageUrl]);
 
-    const renderImagePreview = (files: (File | string)[] | undefined) => {
-        const safeFiles = safeParseArray(files);
-        if (!safeFiles || safeFiles.length === 0) return <p className="text-xs text-gray-500">ยังไม่มีไฟล์</p>;
-        return safeFiles.map((file, index) => {
-             const fileName = file instanceof File ? file.name : 'ไฟล์ที่มีอยู่แล้ว';
-             return <div key={index} className="text-xs text-green-700 truncate">{fileName}</div>
-        });
-    };
-
-    const FormSection: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
-        <fieldset className="border p-4 rounded-lg">
-            <legend className="text-lg font-bold text-navy px-2">{title}</legend>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
-                {children}
-            </div>
-        </fieldset>
-    );
-
-    const InputField: React.FC<{ name: keyof Omit<Student, 'id' | 'studentClass'>, label: string, required?: boolean, wrapperClass?: string }> = ({ name, label, required = false, wrapperClass = '' }) => (
-        <div className={wrapperClass}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <input type="text" name={name} value={String(formData[name] || '')} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required={required} />
-        </div>
-    );
-    
-     const AddressField: React.FC<{ name: keyof Omit<Student, 'id' | 'studentClass'>, label: string }> = ({ name, label }) => (
-        <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <textarea name={name} value={String(formData[name] || '')} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-        </div>
-    );
-
-    const FileUploadField: React.FC<{ name: keyof Omit<Student, 'id' | 'studentClass'>, label: string }> = ({ name, label }) => (
-        <div className="lg:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <input type="file" name={name} onChange={handleImageChange} accept="image/*,application/pdf" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" />
-            <div className="mt-1">{renderImagePreview(formData[name] as (File | string)[] | undefined)}</div>
-        </div>
-    );
-
-
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
@@ -208,9 +253,21 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                                             {studentTitles.map(title => <option key={title} value={title}>{title}</option>)}
                                         </select>
                                     </div>
-                                    <InputField name="studentName" label="ชื่อ-นามสกุล" required wrapperClass="col-span-2"/>
+                                    <InputField 
+                                        name="studentName" 
+                                        label="ชื่อ-นามสกุล" 
+                                        value={String(formData.studentName || '')} 
+                                        onChange={handleChange} 
+                                        required 
+                                        wrapperClass="col-span-2"
+                                    />
                                 </div>
-                                <InputField name="studentNickname" label="ชื่อเล่น" />
+                                <InputField 
+                                    name="studentNickname" 
+                                    label="ชื่อเล่น" 
+                                    value={String(formData.studentNickname || '')} 
+                                    onChange={handleChange} 
+                                />
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ชั้น</label>
                                     <select value={currentClass} onChange={(e) => setCurrentClass(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
@@ -230,7 +287,12 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                                         {dormitories.filter(d => d !== 'เรือนพยาบาล').map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
                                 </div>
-                                <InputField name="studentIdCard" label="เลขบัตรประชาชน" />
+                                <InputField 
+                                    name="studentIdCard" 
+                                    label="เลขบัตรประชาชน" 
+                                    value={String(formData.studentIdCard || '')} 
+                                    onChange={handleChange} 
+                                />
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">วันเกิด</label>
                                     <input
@@ -241,7 +303,12 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                     />
                                 </div>
-                                <InputField name="studentPhone" label="เบอร์โทร" />
+                                <InputField 
+                                    name="studentPhone" 
+                                    label="เบอร์โทร" 
+                                    value={String(formData.studentPhone || '')} 
+                                    onChange={handleChange} 
+                                />
                                 <div className="relative lg:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ครูประจำชั้น</label>
                                     <button type="button" onClick={() => setIsTeacherDropdownOpen(!isTeacherDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left">
@@ -272,36 +339,41 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                                         ))}
                                     </div>
                                 </div>
-                                <AddressField name="studentAddress" label="ที่อยู่" />
+                                <AddressField 
+                                    name="studentAddress" 
+                                    label="ที่อยู่" 
+                                    value={String(formData.studentAddress || '')} 
+                                    onChange={handleChange} 
+                                />
                             </div>
                         </div>
                     </fieldset>
 
                     <FormSection title="ข้อมูลบิดา">
-                        <InputField name="fatherName" label="ชื่อ-นามสกุลบิดา" />
-                        <InputField name="fatherIdCard" label="เลขบัตรประชาชนบิดา" />
-                        <InputField name="fatherPhone" label="เบอร์โทรบิดา" />
-                        <AddressField name="fatherAddress" label="ที่อยู่บิดา" />
+                        <InputField name="fatherName" label="ชื่อ-นามสกุลบิดา" value={String(formData.fatherName || '')} onChange={handleChange} />
+                        <InputField name="fatherIdCard" label="เลขบัตรประชาชนบิดา" value={String(formData.fatherIdCard || '')} onChange={handleChange} />
+                        <InputField name="fatherPhone" label="เบอร์โทรบิดา" value={String(formData.fatherPhone || '')} onChange={handleChange} />
+                        <AddressField name="fatherAddress" label="ที่อยู่บิดา" value={String(formData.fatherAddress || '')} onChange={handleChange} />
                     </FormSection>
                     
                     <FormSection title="ข้อมูลมารดา">
-                        <InputField name="motherName" label="ชื่อ-นามสกุลมารดา" />
-                        <InputField name="motherIdCard" label="เลขบัตรประชาชนมารดา" />
-                        <InputField name="motherPhone" label="เบอร์โทรมารดา" />
-                        <AddressField name="motherAddress" label="ที่อยู่มารดา" />
+                        <InputField name="motherName" label="ชื่อ-นามสกุลมารดา" value={String(formData.motherName || '')} onChange={handleChange} />
+                        <InputField name="motherIdCard" label="เลขบัตรประชาชนมารดา" value={String(formData.motherIdCard || '')} onChange={handleChange} />
+                        <InputField name="motherPhone" label="เบอร์โทรมารดา" value={String(formData.motherPhone || '')} onChange={handleChange} />
+                        <AddressField name="motherAddress" label="ที่อยู่มารดา" value={String(formData.motherAddress || '')} onChange={handleChange} />
                     </FormSection>
 
                     <FormSection title="ข้อมูลผู้ปกครอง">
-                        <InputField name="guardianName" label="ชื่อ-นามสกุลผู้ปกครอง" />
-                        <InputField name="guardianIdCard" label="เลขบัตรประชาชนผู้ปกครอง" />
-                        <InputField name="guardianPhone" label="เบอร์โทรผู้ปกครอง" />
-                        <AddressField name="guardianAddress" label="ที่อยู่ผู้ปกครอง" />
+                        <InputField name="guardianName" label="ชื่อ-นามสกุลผู้ปกครอง" value={String(formData.guardianName || '')} onChange={handleChange} />
+                        <InputField name="guardianIdCard" label="เลขบัตรประชาชนผู้ปกครอง" value={String(formData.guardianIdCard || '')} onChange={handleChange} />
+                        <InputField name="guardianPhone" label="เบอร์โทรผู้ปกครอง" value={String(formData.guardianPhone || '')} onChange={handleChange} />
+                        <AddressField name="guardianAddress" label="ที่อยู่ผู้ปกครอง" value={String(formData.guardianAddress || '')} onChange={handleChange} />
                     </FormSection>
 
                     <FormSection title="เอกสาร">
-                       <FileUploadField name="studentIdCardImage" label="บัตรประชาชนนักเรียน" />
-                       <FileUploadField name="studentDisabilityCardImage" label="บัตรคนพิการ" />
-                       <FileUploadField name="guardianIdCardImage" label="บัตรประชาชนผู้ปกครอง" />
+                       <FileUploadField name="studentIdCardImage" label="บัตรประชาชนนักเรียน" files={formData.studentIdCardImage} onChange={handleImageChange} />
+                       <FileUploadField name="studentDisabilityCardImage" label="บัตรคนพิการ" files={formData.studentDisabilityCardImage} onChange={handleImageChange} />
+                       <FileUploadField name="guardianIdCardImage" label="บัตรประชาชนผู้ปกครอง" files={formData.guardianIdCardImage} onChange={handleImageChange} />
                     </FormSection>
 
                 </form>

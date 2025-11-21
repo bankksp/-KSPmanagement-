@@ -30,13 +30,22 @@ const ReportModal: React.FC<ReportModalProps> = ({
     isSaving,
     personnel,
  }) => {
-    const [formData, setFormData] = useState({
+    // Changed counts to string | number to allow empty state
+    const [formData, setFormData] = useState<{
+        reporterName: string;
+        position: string;
+        academicYear: string;
+        dormitory: string;
+        presentCount: number | string; 
+        sickCount: number | string;
+        log: string;
+    }>({
         reporterName: '',
         position: '',
         academicYear: (new Date().getFullYear() + 543).toString(),
         dormitory: '',
-        presentCount: 0,
-        sickCount: 0,
+        presentCount: '', // Initialize as empty string instead of 0
+        sickCount: '',    // Initialize as empty string instead of 0
         log: '',
     });
     const [images, setImages] = useState<File[]>([]);
@@ -70,8 +79,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 position: defaultPosition,
                 academicYear: (new Date().getFullYear() + 543).toString(),
                 dormitory: dormitories.filter(d => d !== 'เรือนพยาบาล')[0] || '',
-                presentCount: 0,
-                sickCount: 0,
+                presentCount: '',
+                sickCount: '',
                 log: '',
             });
              setImages([]);
@@ -111,8 +120,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 dormitory: value,
                 presentCount: isNowInfirmary ? 0 : prev.presentCount,
             }));
+        } else if (name === 'presentCount' || name === 'sickCount') {
+            // Allow the value to be whatever the user types (string), don't force parsing yet
+            setFormData(prev => ({ ...prev, [name]: value }));
         } else {
-            setFormData(prev => ({ ...prev, [name]: name === 'presentCount' || name === 'sickCount' ? parseInt(value) || 0 : value }));
+            setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
 
@@ -136,6 +148,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
         
         const savedReport: Report = {
            ...formData,
+           // Convert empty strings to 0 upon submission
+           presentCount: formData.presentCount === '' ? 0 : Number(formData.presentCount),
+           sickCount: formData.sickCount === '' ? 0 : Number(formData.sickCount),
            id: isEditing ? reportToEdit.id : Date.now(), // ID is temporary for client, GSheets will assign its own
            reportDate: isEditing ? reportToEdit.reportDate : getBuddhistDate(),
            reportTime: isEditing ? reportToEdit.reportTime : getCurrentTime(),
