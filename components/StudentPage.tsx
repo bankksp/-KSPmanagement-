@@ -2,11 +2,12 @@
 import React, { useState, useMemo } from 'react';
 import { Student } from '../types';
 import StudentTable from './StudentTable';
-import { STUDENT_CLASSES, STUDENT_CLASSROOMS } from '../constants';
 
 interface StudentPageProps {
     students: Student[];
     dormitories: string[];
+    studentClasses: string[];
+    studentClassrooms: string[];
     onAddStudent: () => void;
     onEditStudent: (student: Student) => void;
     onViewStudent: (student: Student) => void;
@@ -37,7 +38,10 @@ const calculateAge = (dobString: string): number => {
 
 const ageRanges = ["ทั้งหมด", "ต่ำกว่า 7 ปี", "7-10 ปี", "11-14 ปี", "15-18 ปี", "มากกว่า 18 ปี"];
 
-const StudentPage: React.FC<StudentPageProps> = ({ students, dormitories, onAddStudent, onEditStudent, onViewStudent, onDeleteStudents }) => {
+const StudentPage: React.FC<StudentPageProps> = ({ 
+    students, dormitories, studentClasses, studentClassrooms, 
+    onAddStudent, onEditStudent, onViewStudent, onDeleteStudents 
+}) => {
     const [filters, setFilters] = useState({
         class: '',
         classroom: '',
@@ -111,11 +115,11 @@ const StudentPage: React.FC<StudentPageProps> = ({ students, dormitories, onAddS
                 <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end no-print">
                     <FilterSelect label="ชั้น" name="class" value={filters.class} onChange={handleFilterChange}>
                          <option value="">ทั้งหมด</option>
-                         {STUDENT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                         {studentClasses.map(c => <option key={c} value={c}>{c}</option>)}
                     </FilterSelect>
                     <FilterSelect label="ห้อง" name="classroom" value={filters.classroom} onChange={handleFilterChange}>
                         <option value="">ทั้งหมด</option>
-                        {STUDENT_CLASSROOMS.map(c => <option key={c} value={c}>{c}</option>)}
+                        {studentClassrooms.map(c => <option key={c} value={c}>{c}</option>)}
                     </FilterSelect>
                     <FilterSelect label="เรือนนอน" name="dormitory" value={filters.dormitory} onChange={handleFilterChange}>
                         <option value="">ทั้งหมด</option>

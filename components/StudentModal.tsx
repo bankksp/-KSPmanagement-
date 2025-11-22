@@ -1,6 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, Personnel } from '../types';
-import { STUDENT_CLASSES, STUDENT_CLASSROOMS } from '../constants';
 import { getFirstImageSource, safeParseArray } from '../utils';
 
 interface StudentModalProps {
@@ -8,6 +8,8 @@ interface StudentModalProps {
     onSave: (student: Student) => void;
     studentToEdit: Student | null;
     dormitories: string[];
+    studentClasses: string[];
+    studentClassrooms: string[];
     personnel: Personnel[];
     isSaving: boolean;
 }
@@ -132,10 +134,14 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({ name, label, files, o
 
 // --- Main Component ---
 
-const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToEdit, dormitories, personnel, isSaving }) => {
+const StudentModal: React.FC<StudentModalProps> = ({ 
+    onClose, onSave, studentToEdit, 
+    dormitories, studentClasses, studentClassrooms,
+    personnel, isSaving 
+}) => {
     const [formData, setFormData] = useState<Omit<Student, 'id' | 'studentClass'>>(initialFormData);
-    const [currentClass, setCurrentClass] = useState(STUDENT_CLASSES[0]);
-    const [currentRoom, setCurrentRoom] = useState(STUDENT_CLASSROOMS[0]);
+    const [currentClass, setCurrentClass] = useState(studentClasses[0] || '');
+    const [currentRoom, setCurrentRoom] = useState(studentClassrooms[0] || '');
     const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false);
 
     const isEditing = !!studentToEdit;
@@ -162,15 +168,15 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                 studentDisabilityCardImage: studentToEdit.studentDisabilityCardImage || [],
                 guardianIdCardImage: studentToEdit.guardianIdCardImage || [],
             });
-            setCurrentClass(cls || STUDENT_CLASSES[0]);
-            setCurrentRoom(room || STUDENT_CLASSROOMS[0]);
+            setCurrentClass(cls || studentClasses[0] || '');
+            setCurrentRoom(room || studentClassrooms[0] || '');
         } else {
             const defaultDorm = dormitories.filter(d => d !== 'เรือนพยาบาล')[0] || '';
             setFormData({ ...initialFormData, dormitory: defaultDorm });
-            setCurrentClass(STUDENT_CLASSES[0]);
-            setCurrentRoom(STUDENT_CLASSROOMS[0]);
+            setCurrentClass(studentClasses[0] || '');
+            setCurrentRoom(studentClassrooms[0] || '');
         }
-    }, [studentToEdit, dormitories]);
+    }, [studentToEdit, dormitories, studentClasses, studentClassrooms]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -280,13 +286,13 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ชั้น</label>
                                     <select value={currentClass} onChange={(e) => setCurrentClass(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                        {STUDENT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {studentClasses.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ห้อง</label>
                                     <select value={currentRoom} onChange={(e) => setCurrentRoom(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                        {STUDENT_CLASSROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                        {studentClassrooms.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                 </div>
                                  <div>

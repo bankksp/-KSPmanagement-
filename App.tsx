@@ -666,6 +666,8 @@ const App: React.FC = () => {
                 return <StudentPage 
                             students={students}
                             dormitories={settings.dormitories}
+                            studentClasses={settings.studentClasses}
+                            studentClassrooms={settings.studentClassrooms}
                             onAddStudent={handleOpenStudentModal}
                             onEditStudent={handleEditStudent}
                             onViewStudent={handleViewStudent}
@@ -763,6 +765,8 @@ const App: React.FC = () => {
                     onSave={handleSaveStudent}
                     studentToEdit={editingStudent}
                     dormitories={settings.dormitories}
+                    studentClasses={settings.studentClasses}
+                    studentClassrooms={settings.studentClassrooms}
                     personnel={personnel}
                     isSaving={isSaving}
                 />

@@ -83,6 +83,8 @@ export interface Settings {
     dormitories: string[];
     positions: string[];
     academicYears: string[];
+    studentClasses: string[];
+    studentClassrooms: string[];
     googleScriptUrl: string;
     adminPassword?: string;
 }

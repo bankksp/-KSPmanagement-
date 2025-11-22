@@ -34,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
     dormitories: DORMITORIES,
     positions: POSITIONS,
     academicYears: ACADEMIC_YEARS,
+    studentClasses: STUDENT_CLASSES,
+    studentClassrooms: STUDENT_CLASSROOMS,
     googleScriptUrl: GOOGLE_SCRIPT_URL,
     adminPassword: 'ksp'
 };

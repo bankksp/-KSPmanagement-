@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Settings, ThemeColors } from '../types';
+import { Settings } from '../types';
 import { getDirectDriveImageSrc } from '../utils';
 
 interface AdminDashboardProps {
@@ -13,10 +13,15 @@ interface AdminDashboardProps {
 type AdminTab = 'general' | 'appearance' | 'lists' | 'system';
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExit, isSaving }) => {
-    // Authentication state removed as per user request; access is guarded by Role in App.tsx
     const [activeTab, setActiveTab] = useState<AdminTab>('general');
     const [localSettings, setLocalSettings] = useState<Settings>(settings);
-    const [newItem, setNewItem] = useState({ dormitory: '', position: '', academicYear: '' });
+    const [newItem, setNewItem] = useState({ 
+        dormitory: '', 
+        position: '', 
+        academicYear: '',
+        studentClass: '',
+        studentClassroom: ''
+    });
 
     const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -45,7 +50,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
     
-    const handleAddItem = (key: 'dormitories' | 'positions' | 'academicYears', valueKey: 'dormitory' | 'position' | 'academicYear') => {
+    const handleAddItem = (
+        key: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms', 
+        valueKey: 'dormitory' | 'position' | 'academicYear' | 'studentClass' | 'studentClassroom'
+    ) => {
         const value = newItem[valueKey].trim();
         if (value && !localSettings[key].includes(value)) {
             setLocalSettings(prev => ({
@@ -56,15 +64,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
 
-    const handleRemoveItem = (key: 'dormitories' | 'positions' | 'academicYears', index: number) => {
+    const handleRemoveItem = (
+        key: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms', 
+        index: number
+    ) => {
         setLocalSettings(prev => ({
             ...prev,
             [key]: prev[key].filter((_, i) => i !== index)
         }));
     };
     
-    const ListEditor: React.FC<{ title: string; items: string[]; itemKey: 'dormitories' | 'positions' | 'academicYears'; valueKey: 'dormitory' | 'position' | 'academicYear'; }> = 
-    ({ title, items, itemKey, valueKey }) => (
+    const ListEditor: React.FC<{ 
+        title: string; 
+        items: string[]; 
+        itemKey: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms'; 
+        valueKey: 'dormitory' | 'position' | 'academicYear' | 'studentClass' | 'studentClassroom'; 
+    }> = ({ title, items, itemKey, valueKey }) => (
         <div className="space-y-2">
             <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
             <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded-lg max-h-40 overflow-y-auto">
@@ -139,6 +154,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                  return (
                     <div className="space-y-6">
                         <ListEditor title="เรือนนอน" items={localSettings.dormitories} itemKey="dormitories" valueKey="dormitory" />
+                        <ListEditor title="ชั้นเรียน" items={localSettings.studentClasses} itemKey="studentClasses" valueKey="studentClass" />
+                        <ListEditor title="ห้องเรียน" items={localSettings.studentClassrooms} itemKey="studentClassrooms" valueKey="studentClassroom" />
                         <ListEditor title="ตำแหน่ง" items={localSettings.positions} itemKey="positions" valueKey="position" />
                         <ListEditor title="ปีการศึกษา" items={localSettings.academicYears} itemKey="academicYears" valueKey="academicYear" />
                     </div>
@@ -150,7 +167,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                             <label className="block text-sm font-medium text-gray-700 mb-1">Google Script URL</label>
                             <input type="text" name="googleScriptUrl" value={localSettings.googleScriptUrl} onChange={handleSettingsChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
                         </div>
-                        {/* Retaining the admin password field here as a general system setting, though not used for dashboard access anymore */}
                          <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านระบบ (System Password)</label>
                             <input type="password" name="adminPassword" value={localSettings.adminPassword || ''} onChange={handleSettingsChange} placeholder="กำหนดรหัสผ่านสำหรับยืนยันการลบ" className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
