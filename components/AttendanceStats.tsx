@@ -2,23 +2,55 @@
 import React, { useMemo } from 'react';
 import { StudentAttendance, PersonnelAttendance, Student, Personnel } from '../types';
 
+interface CalculatedStats {
+    studentStats: {
+        period: string;
+        total: number;
+        checked: number;
+        present: number;
+        absent: number;
+        sick: number;
+        leave: number;
+    }[];
+    personnelStats: {
+        period: string;
+        total: number;
+        checked: number;
+        present: number;
+        absent: number;
+        sick: number;
+        leave: number;
+        tidy: number;
+        untidy: number;
+    }[];
+}
+
 interface AttendanceStatsProps {
-    studentAttendance: StudentAttendance[];
-    personnelAttendance: PersonnelAttendance[];
-    students: Student[];
-    personnel: Personnel[];
+    // Optional: If provided, use these calculated stats. If not, calculate from raw data (backward compatibility)
+    stats?: CalculatedStats;
+    
+    // Optional raw data for internal calculation if stats not provided
+    studentAttendance?: StudentAttendance[];
+    personnelAttendance?: PersonnelAttendance[];
+    students?: Student[];
+    personnel?: Personnel[];
+    
     selectedDate: string;
 }
 
 const AttendanceStats: React.FC<AttendanceStatsProps> = ({ 
-    studentAttendance, 
-    personnelAttendance, 
-    students, 
-    personnel,
+    stats,
+    studentAttendance = [], 
+    personnelAttendance = [], 
+    students = [], 
+    personnel = [],
     selectedDate 
 }) => {
     
-    const stats = useMemo(() => {
+    const displayStats = useMemo(() => {
+        if (stats) return stats;
+
+        // Fallback calculation if stats prop isn't passed
         const periods = ['morning', 'lunch', 'evening'] as const;
         const periodNames = { morning: 'เช้า', lunch: 'กลางวัน', evening: 'เย็น' };
 
@@ -52,7 +84,7 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
         });
 
         return { studentStats, personnelStats };
-    }, [studentAttendance, personnelAttendance, students.length, personnel.length, selectedDate]);
+    }, [stats, studentAttendance, personnelAttendance, students.length, personnel.length, selectedDate]);
 
     const StatRow = ({ period, present, absent, sick, leave, color }: { period: string, present: number, absent: number, sick?: number, leave: number, color: string }) => (
         <div className="flex items-center justify-between py-3 border-b last:border-0">
@@ -92,7 +124,7 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                     <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{selectedDate}</span>
                 </div>
                 <div className="p-4">
-                    {stats.studentStats.map(stat => (
+                    {displayStats.studentStats.map(stat => (
                         <StatRow 
                             key={stat.period} 
                             period={stat.period} 
@@ -116,14 +148,14 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                     <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{selectedDate}</span>
                 </div>
                 <div className="p-4">
-                    {stats.personnelStats.map(stat => (
+                    {displayStats.personnelStats.map(stat => (
                         <StatRow 
                             key={stat.period} 
                             period={stat.period} 
                             present={stat.present} 
                             absent={stat.absent} 
                             leave={stat.leave}
-                            sick={stat.sick} // Add sick just in case
+                            sick={stat.sick} 
                             color="purple" 
                         />
                     ))}

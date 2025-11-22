@@ -147,58 +147,103 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                 <meta charset='utf-8'>
                 <title>Export HTML to Word</title>
                 <style>
-                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; }
+                    @page Section1 {
+                        size: 21.0cm 29.7cm;
+                        margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                        mso-header-margin: 35.4pt;
+                        mso-footer-margin: 35.4pt;
+                        mso-paper-source: 0;
+                    }
+                    div.Section1 { page:Section1; }
+                    body {
+                        font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif;
+                    }
                     .header { text-align: center; margin-bottom: 20px; }
-                    .title { font-size: 24pt; font-weight: bold; }
-                    .subtitle { font-size: 22pt; font-weight: bold; }
-                    .section-title { font-size: 20pt; font-weight: bold; border-bottom: 1px solid #000; margin-top: 20px; margin-bottom: 10px; }
+                    .title { font-size: 22pt; font-weight: bold; margin: 0; }
+                    .subtitle { font-size: 20pt; font-weight: bold; margin: 0; }
+                    
+                    .section-title { 
+                        font-size: 18pt; 
+                        font-weight: bold; 
+                        border-bottom: 1px solid #000; 
+                        margin-top: 20px; 
+                        margin-bottom: 10px; 
+                    }
+                    
                     table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-                    td { padding: 4px; vertical-align: bottom; }
-                    .label { font-size: 18pt; font-weight: bold; white-space: nowrap; }
-                    .value { font-size: 16pt; border-bottom: 1px dotted #000; padding-left: 5px; width: 100%; }
-                    .value-static { font-size: 16pt; border-bottom: 1px dotted #000; padding-left: 5px; }
-                    .photo-box { border: 1px solid #000; width: 120px; height: 150px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+                    td { vertical-align: bottom; padding: 2px 4px; }
+                    
+                    .label { 
+                        font-size: 18pt; 
+                        font-weight: bold; 
+                        white-space: nowrap;
+                        width: 1%; /* Auto shrink */
+                    }
+                    
+                    .value { 
+                        font-size: 16pt; 
+                        border-bottom: 1px dotted #000; 
+                        padding-left: 5px;
+                    }
+                    
+                    .photo-box { 
+                        border: 1px solid #000; 
+                        width: 120px; 
+                        height: 150px; 
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center; 
+                        margin-left: auto; 
+                    }
+                    
+                    /* Utility to force width for multi-column tables */
+                    .w-10 { width: 10%; }
+                    .w-15 { width: 15%; }
+                    .w-20 { width: 20%; }
+                    .w-40 { width: 40%; }
+                    .w-50 { width: 50%; }
                 </style>
             </head>
-            <body>
+            <body><div class="Section1">
         `;
-        const postHtml = "</body></html>";
+        const postHtml = "</div></body></html>";
         
-        // Using Table layout for Word to enforce the "Image Right" design
         const content = `
-            <div style="padding: 20px;">
+            <div style="padding: 10px;">
                 <div class="header">
                     <div class="title">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
                     <div class="subtitle">ระเบียนประวัตินักเรียน</div>
+                    <div style="text-align: right; font-size: 16pt;">สถานะ: กำลังศึกษา</div>
                 </div>
                 
-                <table>
+                <table style="margin-bottom: 20px;">
                     <tr>
-                        <td style="vertical-align: top;">
+                        <td style="vertical-align: top; padding-right: 20px;">
+                            <!-- Personal Info Table -->
                             <table>
                                 <tr>
-                                    <td class="label" style="width: 100px;">ชื่อ-นามสกุล:</td>
+                                    <td class="label">ชื่อ-นามสกุล:</td>
                                     <td class="value">${student.studentTitle} ${student.studentName}</td>
                                 </tr>
                                 <tr>
                                     <td class="label">ชื่อเล่น:</td>
                                     <td class="value">${student.studentNickname || '-'}</td>
                                 </tr>
+                                <tr>
+                                    <td class="label">เลขบัตรฯ:</td>
+                                    <td class="value">${student.studentIdCard}</td>
+                                </tr>
                                  <tr>
-                                    <td class="label">ชั้นเรียน:</td>
+                                    <td class="label">ระดับชั้น:</td>
                                     <td class="value">${student.studentClass}</td>
                                 </tr>
                                  <tr>
                                     <td class="label">เรือนนอน:</td>
                                     <td class="value">${student.dormitory}</td>
                                 </tr>
-                                <tr>
-                                    <td class="label">รหัสประจำตัว:</td>
-                                    <td class="value">${student.studentIdCard}</td>
-                                </tr>
                             </table>
                         </td>
-                        <td style="width: 150px; text-align: right; vertical-align: top; padding-left: 20px;">
+                        <td style="width: 130px; text-align: right; vertical-align: top;">
                              <div class="photo-box">
                                 ${profileImageUrl ? `<img src="${profileImageUrl}" width="120" height="150" style="object-fit: cover;" />` : '<span style="font-size: 14pt;">รูปถ่าย</span>'}
                              </div>
@@ -206,25 +251,28 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                     </tr>
                 </table>
 
+                <!-- Details Row 1 -->
                 <table>
                     <tr>
-                         <td class="label" style="width: 70px;">วันเกิด:</td>
-                         <td class="value">${student.studentDob}</td>
-                         <td class="label" style="width: 70px; padding-left: 15px;">เบอร์โทร:</td>
+                         <td class="label">วันเกิด:</td>
+                         <td class="value" style="width: 35%;">${student.studentDob}</td>
+                         <td class="label" style="padding-left: 15px;">เบอร์โทร:</td>
                          <td class="value">${student.studentPhone || '-'}</td>
                     </tr>
                 </table>
                 
+                <!-- Details Row 2 -->
                 <table>
                     <tr>
-                        <td class="label" style="width: 60px;">ที่อยู่:</td>
+                        <td class="label">ที่อยู่:</td>
                         <td class="value">${student.studentAddress || '-'}</td>
                     </tr>
                 </table>
 
+                <!-- Details Row 3 -->
                 <table>
                     <tr>
-                        <td class="label" style="width: 100px;">ครูประจำชั้น:</td>
+                        <td class="label">ครูประจำชั้น:</td>
                         <td class="value">${homeroomTeacherNames || '-'}</td>
                     </tr>
                 </table>
@@ -233,21 +281,21 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                 
                 <table>
                     <tr>
-                        <td class="label" style="width: 60px;">บิดา:</td>
-                        <td class="value">${student.fatherName || '-'}</td>
-                        <td class="label" style="width: 50px; padding-left: 10px;">โทร:</td>
-                        <td class="value" style="width: 150px;">${student.fatherPhone || '-'}</td>
+                        <td class="label">บิดา:</td>
+                        <td class="value" style="width: 40%;">${student.fatherName || '-'}</td>
+                        <td class="label" style="padding-left: 15px;">โทร:</td>
+                        <td class="value">${student.fatherPhone || '-'}</td>
                     </tr>
                      <tr>
                         <td class="label">มารดา:</td>
-                        <td class="value">${student.motherName || '-'}</td>
-                        <td class="label" style="padding-left: 10px;">โทร:</td>
+                        <td class="value" style="width: 40%;">${student.motherName || '-'}</td>
+                        <td class="label" style="padding-left: 15px;">โทร:</td>
                         <td class="value">${student.motherPhone || '-'}</td>
                     </tr>
                      <tr>
                         <td class="label">ผู้ปกครอง:</td>
-                        <td class="value">${student.guardianName || '-'}</td>
-                        <td class="label" style="padding-left: 10px;">โทร:</td>
+                        <td class="value" style="width: 40%;">${student.guardianName || '-'}</td>
+                        <td class="label" style="padding-left: 15px;">โทร:</td>
                         <td class="value">${student.guardianPhone || '-'}</td>
                     </tr>
                 </table>
@@ -255,9 +303,9 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                 <br/><br/>
                 
                 <div style="text-align: right; margin-top: 30px;">
-                     <p style="font-size: 16pt;">ลงชื่อ ........................................................... ผู้บันทึก</p>
-                     <p style="font-size: 16pt;">(...........................................................)</p>
-                     <p style="font-size: 16pt;">วันที่ ........./........./.............</p>
+                     <p style="font-size: 16pt; margin: 5px 0;">ลงชื่อ ........................................................... ผู้บันทึกข้อมูล</p>
+                     <p style="font-size: 16pt; margin: 5px 0;">(...........................................................)</p>
+                     <p style="font-size: 16pt; margin: 5px 0;">วันที่ ........./........./.............</p>
                 </div>
             </div>
         `;

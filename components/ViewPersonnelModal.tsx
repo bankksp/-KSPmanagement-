@@ -109,34 +109,68 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                 <meta charset='utf-8'>
                 <title>Export HTML to Word</title>
                 <style>
-                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; }
+                    @page Section1 {
+                        size: 21.0cm 29.7cm;
+                        margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                        mso-header-margin: 35.4pt;
+                        mso-footer-margin: 35.4pt;
+                        mso-paper-source: 0;
+                    }
+                    div.Section1 { page:Section1; }
+                    
+                    body {
+                        font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif;
+                    }
+                    
                     .header { text-align: center; margin-bottom: 20px; }
-                    .title { font-size: 24pt; font-weight: bold; }
-                    .subtitle { font-size: 22pt; font-weight: bold; }
+                    .title { font-size: 22pt; font-weight: bold; margin: 0; }
+                    .subtitle { font-size: 20pt; font-weight: bold; margin: 0; }
+                    
                     table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-                    td { padding: 4px; vertical-align: bottom; }
-                    .label { font-size: 18pt; font-weight: bold; white-space: nowrap; }
-                    .value { font-size: 16pt; border-bottom: 1px dotted #000; padding-left: 5px; width: 100%; }
-                    .photo-box { border: 1px solid #000; width: 120px; height: 150px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+                    td { vertical-align: bottom; padding: 2px 4px; }
+                    
+                    .label { 
+                        font-size: 18pt; 
+                        font-weight: bold; 
+                        white-space: nowrap;
+                        width: 1%; /* Auto shrink */
+                    }
+                    
+                    .value { 
+                        font-size: 16pt; 
+                        border-bottom: 1px dotted #000; 
+                        padding-left: 5px;
+                        width: auto;
+                    }
+                    
+                    .photo-box { 
+                        border: 1px solid #000; 
+                        width: 120px; 
+                        height: 150px; 
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center; 
+                        margin-left: auto; 
+                    }
                 </style>
             </head>
-            <body>
+            <body><div class="Section1">
         `;
-        const postHtml = "</body></html>";
+        const postHtml = "</div></body></html>";
         
         const content = `
-            <div style="padding: 20px;">
+            <div style="padding: 10px;">
                 <div class="header">
                     <div class="title">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
                     <div class="subtitle">ประวัติบุคลากร</div>
                 </div>
 
-                <table>
+                <table style="margin-bottom: 20px;">
                     <tr>
-                        <td style="vertical-align: top;">
+                        <td style="vertical-align: top; padding-right: 20px;">
                             <table>
                                 <tr>
-                                    <td class="label" style="width: 100px;">ชื่อ-นามสกุล:</td>
+                                    <td class="label">ชื่อ-นามสกุล:</td>
                                     <td class="value">${fullName}</td>
                                 </tr>
                                 <tr>
@@ -157,7 +191,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                 </tr>
                             </table>
                         </td>
-                        <td style="width: 150px; text-align: right; vertical-align: top; padding-left: 20px;">
+                        <td style="width: 130px; text-align: right; vertical-align: top;">
                              <div class="photo-box">
                                 ${profileImageUrl ? `<img src="${profileImageUrl}" width="120" height="150" style="object-fit: cover;" />` : '<span style="font-size: 14pt;">รูปถ่าย</span>'}
                              </div>
@@ -167,25 +201,25 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                 
                 <table>
                     <tr>
-                         <td class="label" style="width: 100px;">วันที่บรรจุ:</td>
-                         <td class="value">${personnel.appointmentDate}</td>
-                         <td class="label" style="width: 70px; padding-left: 15px;">เบอร์โทร:</td>
+                         <td class="label">วันที่บรรจุ:</td>
+                         <td class="value" style="width: 35%;">${personnel.appointmentDate}</td>
+                         <td class="label" style="padding-left: 15px;">เบอร์โทร:</td>
                          <td class="value">${personnel.phone || '-'}</td>
                     </tr>
                 </table>
 
                 <table>
                     <tr>
-                        <td class="label" style="width: 100px;">ครูที่ปรึกษา:</td>
+                        <td class="label">ครูที่ปรึกษา:</td>
                         <td class="value">${advisoryClassesText}</td>
                     </tr>
                 </table>
 
                 <br/><br/>
                 <div style="text-align: right; margin-top: 30px;">
-                     <p style="font-size: 16pt;">ลงชื่อ ........................................................... เจ้าของประวัติ</p>
-                     <p style="font-size: 16pt;">(${fullName})</p>
-                     <p style="font-size: 16pt;">วันที่ ........./........./.............</p>
+                     <p style="font-size: 16pt; margin: 5px 0;">ลงชื่อ ........................................................... เจ้าของประวัติ</p>
+                     <p style="font-size: 16pt; margin: 5px 0;">(${fullName})</p>
+                     <p style="font-size: 16pt; margin: 5px 0;">วันที่ ........./........./.............</p>
                 </div>
             </div>
         `;

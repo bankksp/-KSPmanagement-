@@ -39,6 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
+    // --- Data Processing ---
+
     const { dormitoryData, totalStudentsReport, totalSick, totalHome, displayDate, buddhistDate } = useMemo(() => {
         const [yearStr, monthStr, dayStr] = selectedDate.split('-');
         const targetDay = parseInt(dayStr);
@@ -48,20 +50,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         const buddhistYear = targetYear + 543;
         const displayDateString = `${targetDay}/${targetMonth + 1}/${buddhistYear}`;
 
-        // 1. Filter reports for the selected date
         const dayReports = reports.filter(r => {
             const d = parseThaiDate(r.reportDate);
             return d.getDate() === targetDay && d.getMonth() === targetMonth && d.getFullYear() === targetYear;
         });
 
-        // 2. Deduplicate: Use the LATEST report for each dormitory
-        // Assuming reports with higher IDs are newer (or later in the array)
         const latestReportsMap = new Map<string, Report>();
-        
         dayReports.forEach(report => {
-            // If map already has this dorm, overwrite it (assuming loop order is oldest to newest or ID based)
-            // If reports are not sorted, we might need to sort by ID first.
-            // Let's assume the API returns them roughly in order, or check ID.
             const existing = latestReportsMap.get(report.dormitory);
             if (!existing || report.id > existing.id) {
                 latestReportsMap.set(report.dormitory, report);
@@ -70,42 +65,24 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         const uniqueReports = Array.from(latestReportsMap.values());
         
-        // 3. Aggregate Data
-        const aggregatedStats = {
-            present: 0,
-            sick: 0,
-            home: 0
-        };
-        
-        // Helper to get total students in a dorm for fallback calculation
+        const aggregatedStats = { present: 0, sick: 0, home: 0 };
         const getDormStudentCount = (dormName: string) => students.filter(s => s.dormitory === dormName).length;
 
         const finalDormitoryData: DormitoryStat[] = dormitories.map(dormName => {
-             // Skip Infirmary for the main bar chart usually, but user might want it. 
-             // Usually Infirmary is separate chart, but let's include if it's in dormitories list.
              if (dormName === "เรือนพยาบาล") return null;
 
              const report = latestReportsMap.get(dormName);
-             
-             let present = 0;
-             let sick = 0;
-             let home = 0;
+             let present = 0, sick = 0, home = 0;
 
              if (report) {
                  present = report.presentCount || 0;
                  sick = report.sickCount || 0;
-                 
-                 // Use homeCount from report if available, otherwise calculate fallback
                  if (report.homeCount !== undefined) {
                      home = report.homeCount;
                  } else {
-                     // Fallback for old records: Total Students - Present - Sick
                      const totalInDorm = getDormStudentCount(dormName);
                      home = Math.max(0, totalInDorm - present - sick);
                  }
-             } else {
-                 // No report for this dorm today, everything is 0 or handle as "No Data"
-                 // Let's show as 0 to keep chart clean
              }
 
              return {
@@ -117,15 +94,12 @@ const Dashboard: React.FC<DashboardProps> = ({
              };
         }).filter(Boolean) as DormitoryStat[];
 
-        // Calculate totals from the Unique Reports (including Infirmary logic if needed)
         uniqueReports.forEach(r => {
             if (r.dormitory === 'เรือนพยาบาล') {
-                // Infirmary just adds to sick count usually
                 aggregatedStats.sick += r.sickCount;
             } else {
                 aggregatedStats.present += r.presentCount;
                 aggregatedStats.sick += r.sickCount;
-                // Logic for home count
                 if (r.homeCount !== undefined) {
                     aggregatedStats.home += r.homeCount;
                 } else {
@@ -146,7 +120,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     }, [reports, dormitories, selectedDate, students]);
     
-    // Calculate 7 Days History for Infirmary/Dorm Sickness (Same logic, just ensuring deduplication if needed)
     const historyData = useMemo(() => {
         const history = [];
         const current = new Date(selectedDate); 
@@ -159,10 +132,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             const buddhistYear = year + 543;
             const matchDate = `${d.getDate()}/${d.getMonth() + 1}/${buddhistYear}`;
             
-            // Filter reports for this date
             const dayReports = reports.filter(r => r.reportDate === matchDate);
-            
-            // Deduplicate for history too
             const uniqueDayReports = new Map<string, Report>();
             dayReports.forEach(r => {
                  const existing = uniqueDayReports.get(r.dormitory);
@@ -189,48 +159,438 @@ const Dashboard: React.FC<DashboardProps> = ({
         return history;
     }, [reports, selectedDate]);
 
+    // Calculate Attendance Stats for Export
+    const attendanceStatsData = useMemo(() => {
+        const periods = ['morning', 'lunch', 'evening'] as const;
+        const periodNames = { morning: 'เช้า', lunch: 'กลางวัน', evening: 'เย็น' };
+
+        const studentStats = periods.map(period => {
+            const records = studentAttendance.filter(r => r.date === buddhistDate && r.period === period);
+            return {
+                period: periodNames[period],
+                total: students.length,
+                checked: records.length, 
+                present: records.filter(r => r.status === 'present').length,
+                absent: records.filter(r => r.status === 'absent').length,
+                sick: records.filter(r => r.status === 'sick').length,
+                leave: records.filter(r => r.status === 'leave').length,
+            };
+        });
+
+        const personnelStats = periods.map(period => {
+            const records = personnelAttendance.filter(r => r.date === buddhistDate && r.period === period);
+            const presentOrActivity = records.filter(r => r.status === 'present' || r.status === 'activity');
+            return {
+                period: periodNames[period],
+                total: personnel.length,
+                checked: records.length,
+                present: presentOrActivity.length, 
+                absent: records.filter(r => r.status === 'absent').length,
+                sick: records.filter(r => r.status === 'sick').length,
+                leave: records.filter(r => r.status === 'leave').length,
+                tidy: presentOrActivity.filter(r => r.dressCode !== 'untidy').length, 
+                untidy: presentOrActivity.filter(r => r.dressCode === 'untidy').length
+            };
+        });
+
+        return { studentStats, personnelStats };
+    }, [studentAttendance, personnelAttendance, students.length, personnel.length, buddhistDate]);
+
     const logoSrc = getDirectDriveImageSrc(schoolLogo);
 
+    // --- Export Functions ---
+
     const exportToCSV = () => {
-         const headers = ['เรือนนอน', 'มาเรียน', 'ป่วย', 'อยู่บ้าน'];
+        const headers = ['เรือนนอน', 'มาเรียน', 'ป่วย', 'อยู่บ้าน'];
         const rows = dormitoryData.map(d => [d.name, d.present, d.sick, d.home]);
         
-        let csvContent = "data:text/csv;charset=utf-8," 
-            + "\uFEFF" 
+        const csvContent = "\uFEFF" 
             + headers.join(",") + "\n" 
             + rows.map(e => e.join(",")).join("\n");
         
-        const encodedUri = encodeURI(csvContent);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", url);
         link.setAttribute("download", `report_stats_${selectedDate}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setIsExportMenuOpen(false);
+    };
+
+    const handleExportWord = () => {
+        const preHtml = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Export Stats to Word</title>
+                <style>
+                    @page Section1 {
+                        size: 21.0cm 29.7cm;
+                        margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                        mso-header-margin: 35.4pt;
+                        mso-footer-margin: 35.4pt;
+                        mso-paper-source: 0;
+                    }
+                    div.Section1 { page:Section1; }
+                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; }
+                    
+                    .header { text-align: center; margin-bottom: 20px; }
+                    .title { font-size: 18pt; font-weight: bold; margin: 0; }
+                    .subtitle { font-size: 16pt; font-weight: bold; margin: 0; }
+                    .date { font-size: 16pt; margin: 5px 0; }
+                    
+                    h3 { font-size: 18pt; font-weight: bold; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; }
+                    
+                    table { width: 100%; border-collapse: collapse; font-size: 16pt; margin-bottom: 10px; }
+                    th, td { border: 1px solid black; padding: 4px; text-align: center; }
+                    th { background-color: #f0f0f0; font-weight: bold; }
+                    .text-left { text-align: left; padding-left: 8px; }
+                    .text-right { text-align: right; padding-right: 8px; }
+                    
+                    .signature-section { margin-top: 50px; text-align: right; font-size: 16pt; }
+                    .signature-box { display: inline-block; text-align: center; width: 250px; }
+                    
+                    .summary-box { border: 1px solid #000; padding: 10px; text-align: center; width: 23%; display: inline-block; margin-right: 1%; vertical-align: top; }
+                </style>
+            </head>
+            <body><div class="Section1">
+        `;
+
+        // 1. Summary Section
+        const summaryHtml = `
+            <div class="header">
+                <div class="title">${schoolName}</div>
+                <div class="subtitle">รายงานสถิติประจำวัน</div>
+                <div class="date">${displayDate}</div>
+            </div>
+            
+            <h3>ภาพรวมสถิติ</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>นักเรียนทั้งหมด</th>
+                        <th>มาเรียน</th>
+                        <th>ป่วย</th>
+                        <th>อยู่บ้าน</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${students.length}</td>
+                        <td style="color: green; font-weight: bold;">${totalStudentsReport}</td>
+                        <td style="color: red; font-weight: bold;">${totalSick}</td>
+                        <td>${totalHome}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+
+        // 2. Attendance Stats (Student)
+        const studentStatsRows = attendanceStatsData.studentStats.map(s => `
+            <tr>
+                <td class="text-left">${s.period}</td>
+                <td>${s.present}</td>
+                <td>${s.absent}</td>
+                <td>${s.sick}</td>
+                <td>${s.leave}</td>
+            </tr>
+        `).join('');
+        
+        const studentStatsHtml = `
+            <h3>สถิตินักเรียน</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ช่วงเวลา</th>
+                        <th>มา</th>
+                        <th>ขาด</th>
+                        <th>ป่วย</th>
+                        <th>ลา</th>
+                    </tr>
+                </thead>
+                <tbody>${studentStatsRows}</tbody>
+            </table>
+        `;
+
+        // 3. Attendance Stats (Personnel)
+        const personnelStatsRows = attendanceStatsData.personnelStats.map(s => `
+            <tr>
+                <td class="text-left">${s.period}</td>
+                <td>${s.present}</td>
+                <td>${s.absent}</td>
+                <td>${s.leave}</td>
+                <td>${s.tidy} / ${s.untidy}</td>
+            </tr>
+        `).join('');
+
+        const personnelStatsHtml = `
+            <h3>สถิติบุคลากร</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ช่วงเวลา</th>
+                        <th>มา</th>
+                        <th>ขาด</th>
+                        <th>ลา</th>
+                        <th>แต่งกาย (เรียบร้อย/ไม่)</th>
+                    </tr>
+                </thead>
+                <tbody>${personnelStatsRows}</tbody>
+            </table>
+        `;
+
+        // 4. Dormitory Stats
+        const dormRows = dormitoryData.map(d => `
+            <tr>
+                <td class="text-left">${d.name}</td>
+                <td>${d.present}</td>
+                <td>${d.sick}</td>
+                <td>${d.home}</td>
+                <td>${d.total}</td>
+            </tr>
+        `).join('');
+
+        const dormTableHtml = `
+            <h3>สถิติจำนวนนักเรียนรายเรือนนอน</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>เรือนนอน</th>
+                        <th>มาเรียน</th>
+                        <th>ป่วย</th>
+                        <th>อยู่บ้าน</th>
+                        <th>รวม</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${dormRows}
+                    <tr style="font-weight: bold; background-color: #f9f9f9;">
+                        <td class="text-right">รวม</td>
+                        <td>${totalStudentsReport}</td>
+                        <td>${totalSick}</td>
+                        <td>${totalHome}</td>
+                        <td>${totalStudentsReport + totalSick + totalHome}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+
+        // 5. History Trends
+        const historyRows = historyData.map(h => `
+            <tr>
+                <td class="text-left">${h.date}</td>
+                <td>${h.sickDorm}</td>
+                <td>${h.sickInfirmary}</td>
+                <td>${h.sickDorm + h.sickInfirmary}</td>
+            </tr>
+        `).join('');
+
+        const historyHtml = `
+            <h3>แนวโน้มสถิติผู้ป่วย (7 วันย้อนหลัง)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>วันที่</th>
+                        <th>ป่วย (ตามเรือนนอน)</th>
+                        <th>ป่วย (เรือนพยาบาล)</th>
+                        <th>รวม</th>
+                    </tr>
+                </thead>
+                <tbody>${historyRows}</tbody>
+            </table>
+        `;
+
+        const signatureHtml = `
+            <div class="signature-section">
+                <div class="signature-box">
+                    <p>ลงชื่อ ........................................................... ผู้รายงาน</p>
+                    <p>(...........................................................)</p>
+                    <p>วันที่ ........./........./.............</p>
+                </div>
+            </div>
+        `;
+
+        const content = summaryHtml + studentStatsHtml + personnelStatsHtml + dormTableHtml + historyHtml + signatureHtml;
+        const html = preHtml + content + "</div></body></html>";
+        
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `full_stats_report_${selectedDate}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
         setIsExportMenuOpen(false);
     };
 
     return (
         <div className="space-y-6 md:space-y-8">
-            {/* Header Section */}
-            <div className="hidden print:block text-center my-8">
-                <div className="flex justify-center items-center gap-4">
-                    <img 
-                        src={logoSrc} 
-                        alt="School Logo" 
-                        className="h-20 w-20 object-contain"
-                        onError={(e) => (e.currentTarget.src = 'https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png')}
-                    />
-                    <div>
-                        <h1 className="text-2xl font-bold text-navy">{schoolName}</h1>
-                        <h2 className="text-xl font-semibold text-secondary-gray">รายงานสถิติประจำวัน</h2>
+             {/* ---------------- PRINT LAYOUT (A4) ---------------- */}
+             <div className="hidden print:block font-sarabun text-black">
+                <div className="text-center mb-6">
+                    <h1 className="text-[18pt] font-bold">{schoolName}</h1>
+                    <h2 className="text-[18pt] font-bold">รายงานสถิติประจำวัน</h2>
+                    <p className="text-[16pt]">{displayDate}</p>
+                </div>
+
+                {/* 1. Summary */}
+                <div className="mb-6 border border-black p-4">
+                    <div className="grid grid-cols-4 gap-4 text-center text-[16pt]">
+                        <div>
+                            <div className="font-bold">นักเรียนทั้งหมด</div>
+                            <div>{students.length} คน</div>
+                        </div>
+                        <div>
+                            <div className="font-bold">มาเรียน</div>
+                            <div>{totalStudentsReport} คน</div>
+                        </div>
+                        <div>
+                            <div className="font-bold text-red-600">ป่วย</div>
+                            <div>{totalSick} คน</div>
+                        </div>
+                        <div>
+                            <div className="font-bold">อยู่บ้าน</div>
+                            <div>{totalHome} คน</div>
+                        </div>
                     </div>
                 </div>
-                 <p className="text-lg mt-4">{displayDate}</p>
+
+                {/* 2. Attendance Tables */}
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <h3 className="text-[18pt] font-bold border-b border-black mb-2">สถิตินักเรียน</h3>
+                        <table className="w-full text-[16pt] border-collapse border border-black">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border border-black p-1">เวลา</th>
+                                    <th className="border border-black p-1">มา</th>
+                                    <th className="border border-black p-1">ขาด</th>
+                                    <th className="border border-black p-1">ป่วย</th>
+                                    <th className="border border-black p-1">ลา</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {attendanceStatsData.studentStats.map(s => (
+                                    <tr key={s.period}>
+                                        <td className="border border-black p-1 text-center">{s.period}</td>
+                                        <td className="border border-black p-1 text-center">{s.present}</td>
+                                        <td className="border border-black p-1 text-center">{s.absent}</td>
+                                        <td className="border border-black p-1 text-center">{s.sick}</td>
+                                        <td className="border border-black p-1 text-center">{s.leave}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <h3 className="text-[18pt] font-bold border-b border-black mb-2">สถิติบุคลากร</h3>
+                         <table className="w-full text-[16pt] border-collapse border border-black">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border border-black p-1">เวลา</th>
+                                    <th className="border border-black p-1">มา</th>
+                                    <th className="border border-black p-1">ขาด</th>
+                                    <th className="border border-black p-1">ลา</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {attendanceStatsData.personnelStats.map(s => (
+                                    <tr key={s.period}>
+                                        <td className="border border-black p-1 text-center">{s.period}</td>
+                                        <td className="border border-black p-1 text-center">{s.present}</td>
+                                        <td className="border border-black p-1 text-center">{s.absent}</td>
+                                        <td className="border border-black p-1 text-center">{s.leave}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* 3. Dorm Stats (Table + Chart placeholder if needed, but table is better for report) */}
+                 <div className="mb-6">
+                    <h3 className="text-[18pt] font-bold border-b border-black mb-2">สถิติจำนวนนักเรียนรายเรือนนอน</h3>
+                    <table className="w-full border-collapse border border-black text-[16pt]">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="border border-black p-1">เรือนนอน</th>
+                                <th className="border border-black p-1">มาเรียน</th>
+                                <th className="border border-black p-1">ป่วย</th>
+                                <th className="border border-black p-1">อยู่บ้าน</th>
+                                <th className="border border-black p-1">รวม</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {dormitoryData.map(d => (
+                                <tr key={d.name}>
+                                    <td className="border border-black p-1 text-left pl-2">{d.name}</td>
+                                    <td className="border border-black p-1 text-center">{d.present}</td>
+                                    <td className="border border-black p-1 text-center">{d.sick}</td>
+                                    <td className="border border-black p-1 text-center">{d.home}</td>
+                                    <td className="border border-black p-1 text-center">{d.total}</td>
+                                </tr>
+                            ))}
+                            <tr className="font-bold bg-gray-50">
+                                <td className="border border-black p-1 text-right pr-2">รวม</td>
+                                <td className="border border-black p-1 text-center">{totalStudentsReport}</td>
+                                <td className="border border-black p-1 text-center">{totalSick}</td>
+                                <td className="border border-black p-1 text-center">{totalHome}</td>
+                                <td className="border border-black p-1 text-center">{totalStudentsReport + totalSick + totalHome}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    {/* Re-render chart for print if desired, but keep table as primary data source */}
+                    <div className="mt-4 h-[300px] border border-gray-200 p-2 page-break-inside-avoid">
+                         <ReportChart data={dormitoryData} />
+                    </div>
+                </div>
+                
+                {/* 4. Trends */}
+                <div className="mb-6 page-break-inside-avoid">
+                    <h3 className="text-[18pt] font-bold border-b border-black mb-2">แนวโน้มสถิติผู้ป่วย</h3>
+                    <div className="h-[300px] border border-gray-200 p-2">
+                        <InfirmaryChart data={historyData} />
+                    </div>
+                    <table className="w-full border-collapse border border-black text-[16pt] mt-4">
+                         <thead>
+                            <tr className="bg-gray-100">
+                                <th className="border border-black p-1">วันที่</th>
+                                <th className="border border-black p-1">ป่วย (ตามเรือนนอน)</th>
+                                <th className="border border-black p-1">ป่วย (เรือนพยาบาล)</th>
+                                <th className="border border-black p-1">รวม</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {historyData.map((h, i) => (
+                                <tr key={i}>
+                                    <td className="border border-black p-1 text-center">{h.date}</td>
+                                    <td className="border border-black p-1 text-center">{h.sickDorm}</td>
+                                    <td className="border border-black p-1 text-center">{h.sickInfirmary}</td>
+                                    <td className="border border-black p-1 text-center font-bold">{h.sickDorm + h.sickInfirmary}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                 <div className="mt-12 flex justify-end text-[16pt] page-break-inside-avoid">
+                    <div className="text-center w-64">
+                        <div className="border-b border-dotted border-black mb-2"></div>
+                        <p>ลงชื่อผู้รายงาน</p>
+                        <p className="mt-6">(...........................................................)</p>
+                        <p className="mt-1">วันที่ ........./........./.............</p>
+                    </div>
+                </div>
             </div>
-            
-            {/* Overview Statistics Section */}
-            <div className="no-print">
+
+            {/* ---------------- SCREEN LAYOUT ---------------- */}
+            <div className="print:hidden">
+                {/* Header Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
                     <div>
                          <h2 className="text-2xl font-bold text-navy">ภาพรวมสถิติ</h2>
@@ -257,8 +617,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </button>
                             {isExportMenuOpen && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 overflow-hidden">
-                                    <button onClick={() => { window.print(); setIsExportMenuOpen(false); }} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">พิมพ์ / PDF</button>
-                                    <button onClick={exportToCSV} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Excel (CSV)</button>
+                                    <button onClick={() => { window.print(); setIsExportMenuOpen(false); }} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">
+                                        พิมพ์ / PDF
+                                    </button>
+                                    <button onClick={handleExportWord} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">
+                                        Word (DOC)
+                                    </button>
+                                    <button onClick={exportToCSV} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">
+                                        Excel (CSV)
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -297,14 +664,11 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Content Section */}
-            <div className="space-y-6">
-                {/* Attendance Stats */}
-                <div className="no-print">
+            <div className="space-y-6 print:hidden">
+                {/* Attendance Stats (Screen View) */}
+                <div>
                     <AttendanceStats 
-                        studentAttendance={studentAttendance}
-                        personnelAttendance={personnelAttendance}
-                        students={students}
-                        personnel={personnel}
+                        stats={attendanceStatsData}
                         selectedDate={buddhistDate}
                     />
                 </div>
@@ -313,39 +677,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <ReportChart data={dormitoryData} />
                     <InfirmaryChart data={historyData} />
-                </div>
-
-                {/* Data Table for Print View (Hidden on Screen) */}
-                <div className="hidden print:block mt-8">
-                     <table className="w-full border-collapse border border-gray-300 text-sm">
-                        <thead>
-                            <tr className="bg-gray-100">
-                                <th className="border border-gray-300 p-2">เรือนนอน</th>
-                                <th className="border border-gray-300 p-2">มาเรียน</th>
-                                <th className="border border-gray-300 p-2">ป่วย</th>
-                                <th className="border border-gray-300 p-2">อยู่บ้าน</th>
-                                <th className="border border-gray-300 p-2">รวม</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {dormitoryData.map(d => (
-                                <tr key={d.name}>
-                                    <td className="border border-gray-300 p-2">{d.name}</td>
-                                    <td className="border border-gray-300 p-2 text-center text-green-700 font-bold">{d.present}</td>
-                                    <td className="border border-gray-300 p-2 text-center text-red-600 font-bold">{d.sick}</td>
-                                    <td className="border border-gray-300 p-2 text-center text-gray-600">{d.home}</td>
-                                    <td className="border border-gray-300 p-2 text-center font-semibold">{d.total}</td>
-                                </tr>
-                            ))}
-                            <tr className="font-bold bg-gray-50">
-                                <td className="border border-gray-300 p-2 text-right">รวม</td>
-                                <td className="border border-gray-300 p-2 text-center text-green-700">{totalStudentsReport}</td>
-                                <td className="border border-gray-300 p-2 text-center text-red-600">{totalSick}</td>
-                                <td className="border border-gray-300 p-2 text-center text-gray-600">{totalHome}</td>
-                                <td className="border border-gray-300 p-2 text-center">{totalStudentsReport + totalSick + totalHome}</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>
