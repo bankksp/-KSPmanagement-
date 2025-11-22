@@ -748,6 +748,7 @@ const App: React.FC = () => {
                     isSaving={isSaving}
                     personnel={personnel}
                     currentUser={currentUser}
+                    students={students}
                 />
             )}
             {viewingReport && (

@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Report, Personnel } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Report, Personnel, Student } from '../types';
 
 interface ReportModalProps {
     onClose: () => void;
@@ -12,6 +12,7 @@ interface ReportModalProps {
     isSaving: boolean;
     personnel: Personnel[];
     currentUser: Personnel | null;
+    students: Student[];
 }
 
 const getCurrentTime = () => {
@@ -20,6 +21,8 @@ const getCurrentTime = () => {
     const minutes = now.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
 };
+
+type StudentStatus = 'present' | 'sick' | 'home' | 'recovered';
 
 const ReportModal: React.FC<ReportModalProps> = ({ 
     onClose, 
@@ -30,7 +33,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
     positions,
     isSaving,
     personnel,
-    currentUser
+    currentUser,
+    students
  }) => {
     // Changed counts to string | number to allow empty state
     const [formData, setFormData] = useState<{
@@ -46,14 +50,19 @@ const ReportModal: React.FC<ReportModalProps> = ({
         position: '',
         academicYear: (new Date().getFullYear() + 543).toString(),
         dormitory: '',
-        presentCount: '', // Initialize as empty string instead of 0
-        sickCount: '',    // Initialize as empty string instead of 0
+        presentCount: '', // Initialize as empty string
+        sickCount: '',    // Initialize as empty string
         log: '',
     });
     const [images, setImages] = useState<File[]>([]);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+    
+    // New states for student selection
+    const [studentStatuses, setStudentStatuses] = useState<Record<number, StudentStatus>>({});
+    const [searchTerm, setSearchTerm] = useState('');
 
     const isEditing = !!reportToEdit;
+    const isInfirmary = formData.dormitory === "เรือนพยาบาล";
 
     useEffect(() => {
         if (reportToEdit) {
@@ -66,8 +75,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 sickCount: reportToEdit.sickCount,
                 log: reportToEdit.log,
             });
-            // Note: Editing existing images from Drive is complex and not handled here.
-            // This implementation assumes new images can be added, but doesn't show old ones.
             setImages([]);
         } else {
             // Default initialization for new report
@@ -79,7 +86,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 defaultReporterName = `${title} ${currentUser.personnelName}`.trim();
                 defaultPosition = currentUser.position;
             } else {
-                // Fallback if no current user (though header should prevent this access)
                 const firstPersonnel = personnel[0];
                  defaultReporterName = firstPersonnel 
                     ? `${firstPersonnel.personnelTitle === 'อื่นๆ' ? firstPersonnel.personnelTitleOther : firstPersonnel.personnelTitle} ${firstPersonnel.personnelName}` 
@@ -87,20 +93,88 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 defaultPosition = firstPersonnel ? firstPersonnel.position : '';
             }
 
+            const defaultDorm = dormitories.filter(d => d !== 'เรือนพยาบาล')[0] || '';
+
             setFormData({
                 reporterName: defaultReporterName,
                 position: defaultPosition,
                 academicYear: (new Date().getFullYear() + 543).toString(),
-                dormitory: dormitories.filter(d => d !== 'เรือนพยาบาล')[0] || '',
-                presentCount: '',
-                sickCount: '',
+                dormitory: defaultDorm,
+                presentCount: 0,
+                sickCount: 0,
                 log: '',
             });
              setImages([]);
         }
     }, [reportToEdit, personnel, dormitories, currentUser]);
+
+    // Filter students based on dormitory selection (or search for Infirmary)
+    const relevantStudents = useMemo(() => {
+        if (!formData.dormitory) return [];
+
+        if (isInfirmary) {
+            // For Infirmary, show ALL students, filtered by search term
+            if (!searchTerm) return students; // Or maybe return empty array if too many? Let's return all for now but rely on search
+            const lowerSearch = searchTerm.toLowerCase();
+            return students.filter(s => 
+                (s.studentName?.toLowerCase().includes(lowerSearch)) ||
+                (s.studentNickname?.toLowerCase().includes(lowerSearch)) ||
+                (s.studentClass?.toLowerCase().includes(lowerSearch))
+            );
+        } else {
+            // For General Dorms, filter by that dorm
+            return students.filter(s => s.dormitory === formData.dormitory);
+        }
+    }, [students, formData.dormitory, isInfirmary, searchTerm]);
     
-    const isInfirmary = formData.dormitory === "เรือนพยาบาล";
+    // Auto-calculate counts and update log based on statuses
+    useEffect(() => {
+        if (isEditing) return; // Don't auto-calc if editing existing report (prevents overwriting manual corrections)
+
+        let pCount = 0;
+        let sCount = 0;
+        const sickNames: string[] = [];
+        const recoveredNames: string[] = [];
+        const homeNames: string[] = [];
+
+        // Only iterate over relevant students to calculate counts for THIS dorm context
+        relevantStudents.forEach(student => {
+            const status = studentStatuses[student.id];
+            
+            if (status === 'present') pCount++;
+            if (status === 'sick') {
+                sCount++;
+                sickNames.push(`${student.studentTitle}${student.studentName}`);
+            }
+            if (status === 'recovered') recoveredNames.push(`${student.studentTitle}${student.studentName}`);
+            if (status === 'home') homeNames.push(`${student.studentTitle}${student.studentName}`);
+        });
+
+        setFormData(prev => ({
+            ...prev,
+            presentCount: pCount,
+            sickCount: sCount
+        }));
+
+        // Generate Log Text
+        let logText = '';
+        if (isInfirmary) {
+             if (sickNames.length > 0) logText += `ป่วย: ${sickNames.join(', ')}\n`;
+             if (recoveredNames.length > 0) logText += `หายป่วย: ${recoveredNames.join(', ')}`;
+        } else {
+            // General Dorm
+             if (sickNames.length > 0) logText += `ป่วย: ${sickNames.join(', ')}\n`;
+             if (homeNames.length > 0) logText += `อยู่บ้าน: ${homeNames.join(', ')}`;
+        }
+        
+        if (logText) {
+            setFormData(prev => ({ ...prev, log: logText.trim() }));
+        } else {
+            setFormData(prev => ({ ...prev, log: '' })); // Clear if nothing selected
+        }
+
+    }, [studentStatuses, relevantStudents, isInfirmary, isEditing]);
+
 
     const getBuddhistDate = () => {
         const date = new Date();
@@ -127,18 +201,31 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 position: selectedPerson ? selectedPerson.position : '' 
             }));
         } else if (name === 'dormitory') {
-            const isNowInfirmary = value === 'เรือนพยาบาล';
             setFormData(prev => ({
                 ...prev,
                 dormitory: value,
-                presentCount: isNowInfirmary ? 0 : prev.presentCount,
+                // Reset counts and statuses when dorm changes
+                presentCount: 0,
+                sickCount: 0,
+                log: ''
             }));
+            setStudentStatuses({}); // Clear selections
+            setSearchTerm('');
         } else if (name === 'presentCount' || name === 'sickCount') {
-            // Allow the value to be whatever the user types (string), don't force parsing yet
             setFormData(prev => ({ ...prev, [name]: value }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
+    };
+
+    const handleStatusChange = (studentId: number, status: StudentStatus) => {
+        setStudentStatuses(prev => {
+            // Toggle off if clicking same status (optional, but user asked for specific inputs)
+            // If standard radio behavior, checking one unchecks others.
+            // For "Home" (General), it's the default if nothing else selected.
+            // But let's make it explicit.
+            return { ...prev, [studentId]: status };
+        });
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,10 +248,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
         
         const savedReport: Report = {
            ...formData,
-           // Convert empty strings to 0 upon submission
-           presentCount: formData.presentCount === '' ? 0 : Number(formData.presentCount),
-           sickCount: formData.sickCount === '' ? 0 : Number(formData.sickCount),
-           id: isEditing ? reportToEdit.id : Date.now(), // ID is temporary for client, GSheets will assign its own
+           presentCount: Number(formData.presentCount),
+           sickCount: Number(formData.sickCount),
+           id: isEditing ? reportToEdit.id : Date.now(),
            reportDate: isEditing ? reportToEdit.reportDate : getBuddhistDate(),
            reportTime: isEditing ? reportToEdit.reportTime : getCurrentTime(),
            images,
@@ -174,8 +260,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className="p-6 border-b">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
+                <div className="p-6 border-b flex-shrink-0">
                     <h2 className="text-2xl font-bold text-navy">{isEditing ? 'แก้ไขข้อมูลรายงาน' : 'บันทึกข้อมูลรายงาน'}</h2>
                     <p className="text-secondary-gray">
                         วันที่รายงาน: {isEditing ? reportToEdit?.reportDate : getBuddhistDate()} 
@@ -185,10 +271,10 @@ const ReportModal: React.FC<ReportModalProps> = ({
                     </p>
                 </div>
                 <form id="report-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-6 space-y-4">
+                    {/* Header Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้รายงาน (ชื่อ-นามสกุล)</label>
-                            {/* If there is a current user, we can make this read-only or leave it selectable but default selected */}
                              <select 
                                 name="reporterName" 
                                 value={formData.reporterName} 
@@ -221,11 +307,91 @@ const ReportModal: React.FC<ReportModalProps> = ({
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">เรือนนอน</label>
-                            <select name="dormitory" value={formData.dormitory} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <select name="dormitory" value={formData.dormitory} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
+                                <option value="" disabled>-- เลือกเรือนนอน --</option>
                                 {dormitories.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                         </div>
                     </div>
+                    
+                    {/* Student Selection Section */}
+                    {formData.dormitory && (
+                        <div className="border rounded-lg p-4 bg-gray-50 mt-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="text-lg font-bold text-navy">
+                                    {isInfirmary ? 'รายชื่อนักเรียน (ค้นหา)' : `รายชื่อนักเรียนเรือน${formData.dormitory}`}
+                                </h3>
+                                {isInfirmary && (
+                                    <input 
+                                        type="text" 
+                                        placeholder="ค้นหาชื่อ..." 
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:outline-none"
+                                    />
+                                )}
+                            </div>
+                            
+                            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg bg-white">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-100 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="p-2 text-left text-navy font-semibold border-b">ชื่อ-สกุล</th>
+                                            <th className="p-2 text-left text-navy font-semibold border-b w-24">ชื่อเล่น</th>
+                                            <th className="p-2 text-center text-navy font-semibold border-b">สถานะ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {relevantStudents.length > 0 ? relevantStudents.map(student => {
+                                            const status = studentStatuses[student.id];
+                                            return (
+                                                <tr key={student.id} className="hover:bg-blue-50 transition-colors">
+                                                    <td className="p-2">{student.studentTitle}{student.studentName}</td>
+                                                    <td className="p-2 text-gray-500">{student.studentNickname}</td>
+                                                    <td className="p-2">
+                                                        <div className="flex justify-center gap-2">
+                                                            {isInfirmary ? (
+                                                                <>
+                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${status === 'sick' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-600 hover:bg-red-50'}`}>
+                                                                        <input type="radio" name={`status_${student.id}`} className="hidden" checked={status === 'sick'} onChange={() => handleStatusChange(student.id, 'sick')} />
+                                                                        ป่วย
+                                                                    </label>
+                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${status === 'recovered' ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-600 hover:bg-green-50'}`}>
+                                                                        <input type="radio" name={`status_${student.id}`} className="hidden" checked={status === 'recovered'} onChange={() => handleStatusChange(student.id, 'recovered')} />
+                                                                        หายป่วย
+                                                                    </label>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${status === 'present' ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-600 hover:bg-green-50'}`}>
+                                                                        <input type="radio" name={`status_${student.id}`} className="hidden" checked={status === 'present'} onChange={() => handleStatusChange(student.id, 'present')} />
+                                                                        มา
+                                                                    </label>
+                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${status === 'sick' ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-600 hover:bg-orange-50'}`}>
+                                                                        <input type="radio" name={`status_${student.id}`} className="hidden" checked={status === 'sick'} onChange={() => handleStatusChange(student.id, 'sick')} />
+                                                                        ป่วย
+                                                                    </label>
+                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${(!status || status === 'home') ? 'bg-gray-500 text-white border-gray-600' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>
+                                                                        <input type="radio" name={`status_${student.id}`} className="hidden" checked={!status || status === 'home'} onChange={() => handleStatusChange(student.id, 'home')} />
+                                                                        อยู่บ้าน
+                                                                    </label>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }) : (
+                                            <tr><td colSpan={3} className="p-4 text-center text-gray-400">ไม่พบข้อมูลนักเรียน</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2 text-right">* ระบบจะคำนวณยอดและบันทึกรายชื่อให้อัตโนมัติ</p>
+                        </div>
+                    )}
+
+                    {/* Counts Display (Read-Only auto-calc) */}
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {isInfirmary ? (
                             <div className="md:col-span-2">
@@ -235,8 +401,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                     name="sickCount" 
                                     value={formData.sickCount} 
                                     onChange={handleChange} 
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
                                     required 
+                                    readOnly={!isEditing} // Read-only if adding new, allow edit if fixing old report
                                 />
                             </div>
                         ) : (
@@ -248,8 +415,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                         name="presentCount" 
                                         value={formData.presentCount} 
                                         onChange={handleChange} 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
                                         required 
+                                        readOnly={!isEditing}
                                     />
                                 </div>
                                 <div>
@@ -259,15 +427,17 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                         name="sickCount" 
                                         value={formData.sickCount} 
                                         onChange={handleChange} 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
                                         required 
+                                        readOnly={!isEditing}
                                     />
                                 </div>
                             </>
                         )}
                     </div>
+                    
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">บันทึกเหตุการณ์ประจำวัน</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">บันทึกเหตุการณ์ประจำวัน (รายชื่อผู้ป่วย/ขาด)</label>
                         <textarea name="log" value={formData.log} onChange={handleChange} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
                     </div>
                     <div>
@@ -285,7 +455,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                         </div>
                     )}
                 </form>
-                <div className="p-6 border-t flex justify-end items-center space-x-3">
+                <div className="p-6 border-t flex justify-end items-center space-x-3 flex-shrink-0">
                     <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
                         ยกเลิก
                     </button>

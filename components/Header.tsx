@@ -29,10 +29,16 @@ const Header: React.FC<HeaderProps> = ({
     const attendanceDropdownRef = useRef<HTMLDivElement>(null);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
 
+    // Desktop Styles
     const navButtonStyle = "px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap";
     const activeNavButtonStyle = "bg-white/20";
     const inactiveNavButtonStyle = "hover:bg-white/10";
     
+    // Mobile Styles (Dark text on White BG)
+    const mobileNavButtonStyle = "px-4 py-3 rounded-lg text-base font-medium transition-colors block w-full text-left";
+    const activeMobileNavStyle = "bg-blue-50 text-primary-blue font-bold";
+    const inactiveMobileNavStyle = "text-gray-700 hover:bg-gray-50";
+
     // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -92,7 +98,7 @@ const Header: React.FC<HeaderProps> = ({
                             onClick={() => onNavigate('stats')}
                             className={`${navButtonStyle} ${currentPage === 'stats' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                          >
-                             สถิติ
+                             หน้าหลัก
                          </button>
                          
                          {currentUser && (
@@ -129,19 +135,19 @@ const Header: React.FC<HeaderProps> = ({
                                     onClick={() => onNavigate('reports')}
                                     className={`${navButtonStyle} ${currentPage === 'reports' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                                 >
-                                    รายงาน
+                                    รายงานเรือนนอน
                                 </button>
                                 <button 
                                     onClick={() => onNavigate('students')}
                                     className={`${navButtonStyle} ${currentPage === 'students' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                                 >
-                                    นักเรียน
+                                    ข้อมูลนักเรียน
                                 </button>
                                 <button 
                                     onClick={() => onNavigate('personnel')}
                                     className={`${navButtonStyle} ${currentPage === 'personnel' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
                                 >
-                                    บุคลากร
+                                    ข้อมูลบุคลากร
                                 </button>
                                 
                                 {currentUser?.role === 'admin' && (
@@ -206,64 +212,64 @@ const Header: React.FC<HeaderProps> = ({
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-                <div className="md:hidden bg-primary-blue/95 backdrop-blur-sm shadow-lg border-t border-white/10 absolute w-full left-0 z-30 max-h-[90vh] overflow-y-auto">
-                    <div className="container mx-auto px-2 pt-2 pb-3 space-y-1">
+                <div className="md:hidden bg-white shadow-xl border-t border-gray-100 absolute w-full left-0 z-30 max-h-[90vh] overflow-y-auto text-gray-800">
+                    <div className="container mx-auto px-4 pt-4 pb-6 space-y-2">
                         {currentUser && (
-                            <div className="flex items-center gap-3 p-3 border-b border-white/20 mb-2">
-                                 <div className="w-10 h-10 rounded-full bg-white/20 overflow-hidden border border-white/50">
+                            <div className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl bg-gray-50 mb-4 shadow-sm">
+                                 <div className="w-12 h-12 rounded-full bg-white overflow-hidden border border-gray-200 shadow-sm">
                                     {userProfileImg ? (
                                         <img src={userProfileImg} alt="User" className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="flex items-center justify-center h-full text-sm font-bold">{currentUser.personnelName.charAt(0)}</div>
+                                        <div className="flex items-center justify-center h-full text-lg font-bold text-gray-500">{currentUser.personnelName.charAt(0)}</div>
                                     )}
                                 </div>
                                 <div>
-                                    <div className="font-bold">{currentUser.personnelName}</div>
-                                    <div className="text-xs opacity-80 uppercase">Role: {currentUser.role || 'USER'}</div>
+                                    <div className="font-bold text-lg text-navy">{currentUser.personnelName}</div>
+                                    <div className="text-xs text-gray-500 uppercase bg-white px-2 py-0.5 rounded-full border border-gray-200 inline-block mt-1">Role: {currentUser.role || 'USER'}</div>
                                 </div>
                             </div>
                         )}
 
                          <button 
                             onClick={() => handleMobileNav('stats')}
-                            className={`${navButtonStyle} w-full text-left ${currentPage === 'stats' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                            className={`${mobileNavButtonStyle} ${currentPage === 'stats' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                          >
-                             สถิติทั้งหมด
+                             หน้าหลัก
                          </button>
                          
                          {currentUser && (
                             <>
-                                 <div className="pl-4 space-y-1 border-l-2 border-white/20 ml-2 my-1">
-                                    <p className="text-xs text-blue-200 px-3 py-1 font-semibold opacity-75">ระบบเช็คชื่อ</p>
+                                 <div className="pl-2 space-y-1 border-l-2 border-gray-100 ml-2 my-2">
+                                    <p className="text-xs text-gray-400 px-4 py-1 font-semibold uppercase tracking-wider">ระบบเช็คชื่อ</p>
                                     <button 
                                         onClick={() => handleMobileNav('attendance')}
-                                        className={`${navButtonStyle} w-full text-left ${currentPage === 'attendance' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                        className={`${mobileNavButtonStyle} ${currentPage === 'attendance' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                     >
-                                        - เช็คชื่อนักเรียน
+                                        เช็คชื่อนักเรียน
                                     </button>
                                     <button 
                                         onClick={() => handleMobileNav('attendance_personnel')}
-                                        className={`${navButtonStyle} w-full text-left ${currentPage === 'attendance_personnel' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                        className={`${mobileNavButtonStyle} ${currentPage === 'attendance_personnel' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                     >
-                                        - เช็คชื่อครู
+                                        เช็คชื่อครู
                                     </button>
                                  </div>
 
                                  <button 
                                     onClick={() => handleMobileNav('reports')}
-                                    className={`${navButtonStyle} w-full text-left ${currentPage === 'reports' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                    className={`${mobileNavButtonStyle} ${currentPage === 'reports' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                  >
                                      รายงานเรือนนอน
                                  </button>
                                  <button 
                                     onClick={() => handleMobileNav('students')}
-                                    className={`${navButtonStyle} w-full text-left ${currentPage === 'students' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                    className={`${mobileNavButtonStyle} ${currentPage === 'students' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                  >
                                      ข้อมูลนักเรียน
                                  </button>
                                  <button 
                                     onClick={() => handleMobileNav('personnel')}
-                                    className={`${navButtonStyle} w-full text-left ${currentPage === 'personnel' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                    className={`${mobileNavButtonStyle} ${currentPage === 'personnel' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                  >
                                      ข้อมูลบุคลากร
                                  </button>
@@ -271,7 +277,7 @@ const Header: React.FC<HeaderProps> = ({
                                  {currentUser?.role === 'admin' && (
                                       <button 
                                         onClick={() => handleMobileNav('admin')}
-                                        className={`${navButtonStyle} w-full text-left ${currentPage === 'admin' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                        className={`${mobileNavButtonStyle} ${currentPage === 'admin' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                      >
                                          ตั้งค่าระบบ
                                      </button>
@@ -279,18 +285,18 @@ const Header: React.FC<HeaderProps> = ({
                             </>
                          )}
 
-                         <div className="border-t border-white/20 pt-2 mt-2">
+                         <div className="border-t border-gray-100 pt-4 mt-4">
                             {currentUser ? (
                                 <>
                                     <button 
                                         onClick={() => handleMobileNav('profile')}
-                                        className={`${navButtonStyle} w-full text-left ${currentPage === 'profile' ? activeNavButtonStyle : inactiveNavButtonStyle}`}
+                                        className={`${mobileNavButtonStyle} ${currentPage === 'profile' ? activeMobileNavStyle : inactiveMobileNavStyle}`}
                                     >
                                         โปรไฟล์
                                     </button>
                                     <button 
                                         onClick={() => { onLogoutClick(); setIsMobileMenuOpen(false); }}
-                                        className={`${navButtonStyle} w-full text-left hover:bg-red-500/20 text-red-200`}
+                                        className={`${mobileNavButtonStyle} text-red-600 hover:bg-red-50`}
                                     >
                                         ออกจากระบบ
                                     </button>
@@ -298,7 +304,7 @@ const Header: React.FC<HeaderProps> = ({
                             ) : (
                                 <button 
                                     onClick={() => { onLoginClick(); setIsMobileMenuOpen(false); }}
-                                    className="w-full bg-white text-primary-blue font-bold py-2 rounded-md shadow-sm mt-2"
+                                    className="w-full bg-primary-blue text-white hover:bg-primary-hover font-bold py-3 rounded-xl shadow-md mt-2 text-center"
                                 >
                                     เข้าสู่ระบบ
                                 </button>

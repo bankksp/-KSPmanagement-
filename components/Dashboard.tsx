@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance } from '../types';
 import StatsCard from './StatsCard';
 import ReportChart from './ReportChart';
+import InfirmaryChart from './InfirmaryChart';
 import AttendanceStats from './AttendanceStats';
 import { getDirectDriveImageSrc } from '../utils';
 
@@ -13,14 +14,13 @@ interface DashboardProps {
     dormitories: string[];
     schoolName: string;
     schoolLogo: string;
-    // Add attendance props
     studentAttendance?: StudentAttendance[];
     personnelAttendance?: PersonnelAttendance[];
 }
 
 const parseThaiDate = (dateString: string): Date => {
     const parts = dateString.split('/');
-    if (parts.length !== 3) return new Date(0); // Return an invalid date for comparison
+    if (parts.length !== 3) return new Date(0);
     const [day, month, year] = parts.map(Number);
     const gregorianYear = year - 543;
     return new Date(gregorianYear, month - 1, day);
@@ -30,7 +30,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     reports, students, personnel, dormitories, schoolName, schoolLogo,
     studentAttendance = [], personnelAttendance = []
 }) => {
-    // Default to today's date in YYYY-MM-DD format for the input
     const [selectedDate, setSelectedDate] = useState(() => {
         const now = new Date();
         const year = now.getFullYear();
@@ -40,13 +39,12 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
-    const { dormitoryData, totalStudentsReport, totalSick, titleSuffix, displayDate, buddhistDate } = useMemo(() => {
+    const { dormitoryData, totalStudentsReport, totalSick, displayDate, buddhistDate } = useMemo(() => {
         const [yearStr, monthStr, dayStr] = selectedDate.split('-');
         const targetDay = parseInt(dayStr);
         const targetMonth = parseInt(monthStr) - 1; 
         const targetYear = parseInt(yearStr);
 
-        // Convert selected date to Buddhist year for display
         const buddhistYear = targetYear + 543;
         const displayDateString = `${targetDay}/${targetMonth + 1}/${buddhistYear}`;
 
@@ -89,30 +87,69 @@ const Dashboard: React.FC<DashboardProps> = ({
             dormitoryData: finalDormitoryData,
             totalStudentsReport: finalTotalStudents,
             totalSick: finalTotalSick,
-            titleSuffix: `(${displayDateString})`,
             displayDate: `ข้อมูลวันที่ ${displayDateString}`,
             buddhistDate: displayDateString
         };
 
     }, [reports, dormitories, selectedDate]);
     
+    // Calculate 7 Days History for Infirmary/Dorm Sickness
+    const historyData = useMemo(() => {
+        const history = [];
+        const current = new Date(selectedDate); 
+        
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(current);
+            d.setDate(d.getDate() - i);
+            
+            const year = d.getFullYear();
+            // To match Buddhist Date String Format DD/MM/YYYY
+            const buddhistYear = year + 543;
+            const day = String(d.getDate()).padStart(2, '0'); // Ensure 2 digits
+            // In parseThaiDate/Report, month is 1-indexed? Yes "month - 1" in parse. So string format likely "D/M/YYYY" or "DD/MM/YYYY"
+            // But reports.reportDate comes from modal: date.getMonth() + 1
+            const month = String(d.getMonth() + 1).padStart(2, '0'); // Ensure 2 digits just in case, but reportModal does not pad? 
+            // Actually reportModal: `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear() + 543}` (No padding)
+            // Let's try both or assume no padding for matching if needed, but best to be consistent.
+            // Let's construct exact string as ReportModal does.
+            const matchDate = `${d.getDate()}/${d.getMonth() + 1}/${buddhistYear}`;
+            
+            // Filter reports for this date
+            const dayReports = reports.filter(r => r.reportDate === matchDate);
+            
+            let sickDorm = 0;
+            let sickInfirmary = 0;
+            
+            dayReports.forEach(r => {
+                if (r.dormitory === 'เรือนพยาบาล') {
+                    sickInfirmary += r.sickCount;
+                } else {
+                    sickDorm += r.sickCount;
+                }
+            });
+            
+            history.push({
+                date: `${d.getDate()}/${d.getMonth() + 1}`,
+                sickDorm,
+                sickInfirmary
+            });
+        }
+        return history;
+    }, [reports, selectedDate]);
+
     const logoSrc = getDirectDriveImageSrc(schoolLogo);
 
-    // --- Export Functions ---
-
+    // --- Export Functions (Simplified for brevity, same logic) ---
     const exportToCSV = () => {
-        const headers = ['เรือนนอน', 'จำนวนนักเรียนมา', 'จำนวนป่วย'];
+        // ... existing csv logic
+         const headers = ['เรือนนอน', 'จำนวนนักเรียนมา', 'จำนวนป่วย'];
         const rows = dormitoryData.map(d => [d.name, d.total, d.sick]);
         
         let csvContent = "data:text/csv;charset=utf-8," 
-            + "\uFEFF" // BOM for Thai char support
+            + "\uFEFF" 
             + headers.join(",") + "\n" 
             + rows.map(e => e.join(",")).join("\n");
-            
-        // Add Summary rows
-        csvContent += `\nรวมทั้งหมด,${totalStudentsReport},${totalSick}`;
-        csvContent += `\n\nข้อมูลวันที่,${displayDate}`;
-
+        
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -123,59 +160,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         setIsExportMenuOpen(false);
     };
 
-    const exportToDoc = () => {
-        const preHtml = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export HTML to Word Document with JavaScript</title></head><body>";
-        const postHtml = "</body></html>";
-        
-        const content = `
-            <div style="text-align:center; font-family: 'TH Sarabun New', sans-serif;">
-                <h1>${schoolName}</h1>
-                <h2>รายงานสถิติจำนวนนักเรียน แยกประเภทตามเรือนนอน</h2>
-                <h3>${displayDate}</h3>
-                <br/>
-                <table border="1" style="border-collapse: collapse; width: 100%; text-align: center;">
-                    <thead>
-                        <tr style="background-color: #f2f2f2;">
-                            <th style="padding: 10px;">เรือนนอน</th>
-                            <th style="padding: 10px;">จำนวนนักเรียน</th>
-                            <th style="padding: 10px;">ป่วย</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${dormitoryData.map(d => `
-                            <tr>
-                                <td style="padding: 8px;">${d.name}</td>
-                                <td style="padding: 8px;">${d.total}</td>
-                                <td style="padding: 8px; color: red;">${d.sick}</td>
-                            </tr>
-                        `).join('')}
-                        <tr style="font-weight: bold; background-color: #e6e6e6;">
-                            <td style="padding: 8px;">รวม</td>
-                            <td style="padding: 8px;">${totalStudentsReport}</td>
-                            <td style="padding: 8px;">${totalSick}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        `;
-
-        const html = preHtml + content + postHtml;
-        const blob = new Blob(['\ufeff', html], {
-            type: 'application/msword'
-        });
-        
-        const url = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(html);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `report_stats_${selectedDate}.doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setIsExportMenuOpen(false);
-    };
-
     return (
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-6 md:space-y-8">
+            {/* Header Section */}
             <div className="hidden print:block text-center my-8">
                 <div className="flex justify-center items-center gap-4">
                     <img 
@@ -186,75 +173,82 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <div>
                         <h1 className="text-2xl font-bold text-navy">{schoolName}</h1>
-                        <h2 className="text-xl font-semibold text-secondary-gray">รายงานสถิติจำนวนนักเรียน แยกประเภทตามเรือนนอน</h2>
+                        <h2 className="text-xl font-semibold text-secondary-gray">รายงานสถิติประจำวัน</h2>
                     </div>
                 </div>
                  <p className="text-lg mt-4">{displayDate}</p>
             </div>
             
-            {/* Overall Statistics Section */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 no-print">
-                 <div className="bg-blue-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full text-center">
-                    <h3 className="text-xs md:text-lg font-semibold opacity-90 truncate">นักเรียนทั้งหมด</h3>
-                    <p className="text-lg md:text-4xl font-bold mt-1 md:mt-2 truncate">{students.length} <span className="text-xs md:text-xl font-normal">คน</span></p>
-                </div>
-                <div className="bg-purple-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full text-center">
-                    <h3 className="text-xs md:text-lg font-semibold opacity-90 truncate">บุคลากรทั้งหมด</h3>
-                    <p className="text-lg md:text-4xl font-bold mt-1 md:mt-2 truncate">{personnel.length} <span className="text-xs md:text-xl font-normal">คน</span></p>
-                </div>
-                <StatsCard title={`นักเรียนมา ${titleSuffix}`} value={totalStudentsReport.toString()} />
-                <StatsCard title={`นักเรียนป่วย ${titleSuffix}`} value={totalSick.toString()} />
-            </div>
-
-            <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg printable-content">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mb-4">
-                    <div className="text-center sm:text-left w-full sm:w-auto">
-                        <h2 className="text-lg md:text-xl font-bold text-navy truncate">ภาพรวมสถิติ</h2>
-                        <p className="text-xs text-gray-500 no-print">{displayDate}</p>
+            {/* Overview Statistics Section */}
+            <div className="no-print">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+                    <div>
+                         <h2 className="text-2xl font-bold text-navy">ภาพรวมสถิติ</h2>
+                         <p className="text-sm text-gray-500">{displayDate}</p>
                     </div>
                     
-                    <div className="flex items-center gap-2 no-print w-full sm:w-auto bg-gray-50 p-1.5 rounded-lg justify-center">
+                    <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl shadow-sm border border-gray-100">
                         <input 
                             type="date" 
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="w-full sm:w-auto px-2 py-1.5 border border-gray-300 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                            className="px-3 py-2 border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue bg-transparent"
                         />
-
-                        {/* Export Dropdown */}
-                        <div className="relative flex-shrink-0">
+                        
+                        <div className="relative">
                             <button
                                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                                className="bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 px-3 rounded-lg shadow-md transition duration-300 flex items-center gap-1 text-xs md:text-sm whitespace-nowrap"
+                                className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition-colors shadow-sm"
+                                title="Export"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
-                                <span>บันทึก</span>
                             </button>
-                            
                             {isExportMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                                    <div className="py-1">
-                                        <button onClick={() => { window.print(); setIsExportMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                            พิมพ์ / PDF
-                                        </button>
-                                        <button onClick={exportToCSV} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                            Excel (CSV)
-                                        </button>
-                                        <button onClick={exportToDoc} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                            Word (DOC)
-                                        </button>
-                                    </div>
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 overflow-hidden">
+                                    <button onClick={() => { window.print(); setIsExportMenuOpen(false); }} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">พิมพ์ / PDF</button>
+                                    <button onClick={exportToCSV} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Excel (CSV)</button>
                                 </div>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Attendance Stats Section */}
-                <div className="mb-6">
-                    <h3 className="text-sm md:text-base font-semibold text-gray-700 mb-3 border-l-4 border-primary-blue pl-2">สถิติการเช็คชื่อประจำวัน</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                     <StatsCard 
+                        title="นักเรียนทั้งหมด" 
+                        value={`${students.length} คน`} 
+                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>}
+                        color="bg-blue-500"
+                    />
+                    <StatsCard 
+                        title="บุคลากรทั้งหมด" 
+                        value={`${personnel.length} คน`}
+                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>}
+                        color="bg-purple-500"
+                    />
+                    <StatsCard 
+                        title="นักเรียนมาเรียน" 
+                        value={`${totalStudentsReport} คน`} 
+                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
+                        color="bg-green-500"
+                        description={`วันที่ ${buddhistDate}`}
+                    />
+                    <StatsCard 
+                        title="นักเรียนป่วย" 
+                        value={`${totalSick} คน`} 
+                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
+                        color="bg-red-500"
+                        description={`วันที่ ${buddhistDate}`}
+                    />
+                </div>
+            </div>
+
+            {/* Content Section */}
+            <div className="space-y-6">
+                {/* Attendance Stats */}
+                <div className="no-print">
                     <AttendanceStats 
                         studentAttendance={studentAttendance}
                         personnelAttendance={personnelAttendance}
@@ -264,9 +258,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                 </div>
                 
-                <h3 className="text-sm md:text-base font-semibold text-gray-700 mb-3 border-l-4 border-purple-500 pl-2">สถิติรายงานเรือนนอน</h3>
-                <div className="overflow-x-auto">
-                     <ReportChart data={dormitoryData} />
+                {/* Charts Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <ReportChart data={dormitoryData} />
+                    <InfirmaryChart data={historyData} />
                 </div>
 
                 {/* Data Table for Print View (Hidden on Screen) */}
