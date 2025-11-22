@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, Personnel } from '../types';
 import { STUDENT_CLASSES, STUDENT_CLASSROOMS } from '../constants';
@@ -141,6 +140,15 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
 
     const isEditing = !!studentToEdit;
     const studentTitles = ['เด็กชาย', 'เด็กหญิง', 'นาย', 'นางสาว'];
+    
+    // Ensure custom or existing titles are selectable
+    const displayTitles = useMemo(() => {
+        if (formData.studentTitle && !studentTitles.includes(formData.studentTitle)) {
+            return [...studentTitles, formData.studentTitle];
+        }
+        return studentTitles;
+    }, [formData.studentTitle]);
+
 
     useEffect(() => {
         if (studentToEdit) {
@@ -148,6 +156,7 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
             const [cls, room] = studentClass.split('/');
             setFormData({
                 ...rest,
+                studentTitle: studentToEdit.studentTitle || 'เด็กชาย',
                 studentProfileImage: studentToEdit.studentProfileImage || [],
                 studentIdCardImage: studentToEdit.studentIdCardImage || [],
                 studentDisabilityCardImage: studentToEdit.studentDisabilityCardImage || [],
@@ -250,7 +259,7 @@ const StudentModal: React.FC<StudentModalProps> = ({ onClose, onSave, studentToE
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า</label>
                                         <select name="studentTitle" value={formData.studentTitle} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
-                                            {studentTitles.map(title => <option key={title} value={title}>{title}</option>)}
+                                            {displayTitles.map(title => <option key={title} value={title}>{title}</option>)}
                                         </select>
                                     </div>
                                     <InputField 

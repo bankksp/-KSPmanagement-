@@ -10,6 +10,7 @@ interface PersonnelModalProps {
     positions: string[];
     students: Student[];
     isSaving: boolean;
+    currentUserRole?: string;
 }
 
 const initialFormData: Omit<Personnel, 'id'> = {
@@ -24,6 +25,7 @@ const initialFormData: Omit<Personnel, 'id'> = {
     phone: '',
     profileImage: [],
     advisoryClasses: [],
+    role: 'user'
 };
 
 // Helper function to convert Buddhist date string (DD/MM/BBBB) to ISO string (YYYY-MM-DD)
@@ -75,7 +77,7 @@ const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, r
 );
 
 
-const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving }) => {
+const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole }) => {
     const [formData, setFormData] = useState(initialFormData);
     const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
@@ -91,6 +93,9 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
             setFormData({
                 ...personnelToEdit,
                 profileImage: personnelToEdit.profileImage || [],
+                role: personnelToEdit.role || 'user',
+                // Ensure password is preserved even if not shown/edited directly here
+                password: personnelToEdit.password 
             });
         } else {
             setFormData({ ...initialFormData, position: positions[0] || '' });
@@ -136,6 +141,8 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
         const personnelData: Personnel = {
             ...formData,
             id: isEditing ? personnelToEdit.id : Date.now(),
+            // If new user, default password is ID Card
+            password: isEditing ? formData.password : formData.idCard,
         };
         onSave(personnelData);
     };
@@ -175,6 +182,21 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                     <input id="profileImage-upload" name="profileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
                                 </label>
                             </div>
+                            {currentUserRole === 'admin' && (
+                                <div className="mt-4 bg-blue-50 p-2 rounded border border-blue-200">
+                                    <label className="block text-sm font-bold text-blue-800 mb-1">สิทธิ์การใช้งาน (Role)</label>
+                                    <select 
+                                        name="role" 
+                                        value={formData.role} 
+                                        onChange={handleChange} 
+                                        className="w-full px-2 py-1 border border-blue-300 rounded text-sm text-navy bg-white"
+                                    >
+                                        <option value="user">User (ทั่วไป)</option>
+                                        <option value="pro">Pro (เจ้าหน้าที่)</option>
+                                        <option value="admin">Admin KSP (ผู้ดูแลระบบ)</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
                         <div className="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                              <div className="lg:col-span-3 grid grid-cols-3 gap-4">

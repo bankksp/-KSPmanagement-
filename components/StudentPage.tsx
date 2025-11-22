@@ -94,18 +94,21 @@ const StudentPage: React.FC<StudentPageProps> = ({ students, dormitories, onAddS
             <div className="bg-white p-6 rounded-xl shadow-lg">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <h2 className="text-xl font-bold text-navy">จัดการข้อมูลนักเรียน</h2>
-                    <button
-                        onClick={onAddStudent}
-                        className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <span>เพิ่มนักเรียน</span>
-                    </button>
+                    
+                    <div className="flex gap-2 no-print">
+                        <button
+                            onClick={onAddStudent}
+                            className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            <span>เพิ่มนักเรียน</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end">
+                <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end no-print">
                     <FilterSelect label="ชั้น" name="class" value={filters.class} onChange={handleFilterChange}>
                          <option value="">ทั้งหมด</option>
                          {STUDENT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -124,12 +127,19 @@ const StudentPage: React.FC<StudentPageProps> = ({ students, dormitories, onAddS
                     <button onClick={resetFilters} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg self-end">ล้างค่า</button>
                 </div>
 
-                <StudentTable 
-                    students={filteredStudents} 
-                    onViewStudent={onViewStudent}
-                    onEditStudent={onEditStudent}
-                    onDeleteStudents={onDeleteStudents}
-                />
+                <div className="printable-content">
+                     {/* Simple print header */}
+                    <div className="hidden print:block text-center mb-4">
+                        <h1 className="text-2xl font-bold">รายชื่อนักเรียน</h1>
+                    </div>
+
+                    <StudentTable 
+                        students={filteredStudents} 
+                        onViewStudent={onViewStudent}
+                        onEditStudent={onEditStudent}
+                        onDeleteStudents={onDeleteStudents}
+                    />
+                </div>
             </div>
         </div>
     );

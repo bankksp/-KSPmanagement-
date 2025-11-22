@@ -56,21 +56,21 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
 
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
             {/* Student Stats */}
-            <div className="bg-white p-4 rounded-xl shadow-lg border-l-4 border-blue-500">
-                <h3 className="text-sm md:text-lg font-bold text-navy mb-3 flex justify-between items-center">
-                    <span className="truncate">สถิตินักเรียน ({selectedDate})</span>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full whitespace-nowrap">{students.length} คน</span>
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 text-center">
+            <div className="bg-white p-3 rounded-xl shadow-sm border-l-4 border-blue-500">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-bold text-navy truncate">นร. ({selectedDate})</h3>
+                    <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">{students.length} คน</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-center">
                     {stats.studentStats.map(stat => (
-                        <div key={stat.period} className="bg-gray-50 p-2 md:p-3 rounded-lg">
-                            <p className="font-bold text-gray-700 mb-1 text-xs md:text-base">{stat.period}</p>
-                            <div className="text-xs md:text-sm space-y-0.5 md:space-y-1">
-                                <p className="text-green-600">มา: {stat.present}</p>
-                                <p className="text-red-500">ขาด: {stat.absent}</p>
-                                <p className="text-amber-500">ลา/ป่วย: {stat.sick + stat.leave}</p>
+                        <div key={stat.period} className="bg-gray-50 p-1.5 rounded-md">
+                            <p className="font-bold text-gray-700 mb-0.5 text-[10px]">{stat.period}</p>
+                            <div className="text-[10px] flex flex-wrap justify-center gap-x-2">
+                                <span className="text-green-600">มา {stat.present}</span>
+                                <span className="text-red-500">ขาด {stat.absent}</span>
+                                <span className="text-amber-500">ป่วย {stat.sick + stat.leave}</span>
                             </div>
                         </div>
                     ))}
@@ -78,23 +78,19 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
             </div>
 
             {/* Personnel Stats */}
-             <div className="bg-white p-4 rounded-xl shadow-lg border-l-4 border-purple-500">
-                <h3 className="text-sm md:text-lg font-bold text-navy mb-3 flex justify-between items-center">
-                    <span className="truncate">สถิติคณะครู ({selectedDate})</span>
-                     <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full whitespace-nowrap">{personnel.length} คน</span>
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 text-center">
+             <div className="bg-white p-3 rounded-xl shadow-sm border-l-4 border-purple-500">
+                 <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-bold text-navy truncate">ครู ({selectedDate})</h3>
+                    <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full whitespace-nowrap">{personnel.length} คน</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-center">
                     {stats.personnelStats.map(stat => (
-                        <div key={stat.period} className="bg-gray-50 p-2 md:p-3 rounded-lg">
-                            <p className="font-bold text-gray-700 mb-1 text-xs md:text-base">{stat.period}</p>
-                            <div className="text-xs md:text-sm space-y-0.5 md:space-y-1">
-                                <p className="text-green-600">ร่วม: {stat.present}</p>
-                                <p className="text-red-500">ขาด: {stat.absent}</p>
-                                <p className="text-amber-500">ลา/ป่วย: {stat.sick + stat.leave}</p>
-                                <div className="flex justify-center gap-2 text-[10px] md:text-xs mt-1 pt-1 border-t border-gray-200">
-                                    <span className="text-blue-600" title="แต่งกายเรียบร้อย">✓ {stat.tidy}</span>
-                                    <span className="text-gray-500" title="แต่งกายไม่เรียบร้อย">✕ {stat.untidy}</span>
-                                </div>
+                        <div key={stat.period} className="bg-gray-50 p-1.5 rounded-md">
+                            <p className="font-bold text-gray-700 mb-0.5 text-[10px]">{stat.period}</p>
+                            <div className="text-[10px] flex flex-wrap justify-center gap-x-2">
+                                <span className="text-green-600">มา {stat.present}</span>
+                                <span className="text-red-500">ขาด {stat.absent}</span>
+                                <span className="text-blue-600" title="เรียบร้อย">✓{stat.tidy}</span>
                             </div>
                         </div>
                     ))}

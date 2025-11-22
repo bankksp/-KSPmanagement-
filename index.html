@@ -7,7 +7,7 @@
     <title>KSP Student Reporting System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -15,6 +15,7 @@
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
+              sarabun: ['"TH SarabunPSK"', '"TH Sarabun New"', 'Sarabun', 'sans-serif'],
             },
             colors: {
               'navy': '#1E3A8A',
@@ -39,40 +40,50 @@
     body {
       font-family: 'Inter', sans-serif;
     }
+    
+    /* Official Government Font Class */
+    .font-sarabun {
+        font-family: "TH SarabunPSK", "TH Sarabun New", "Sarabun", sans-serif;
+    }
+
     @media print {
-      .no-print {
-        display: none !important;
+      @page {
+        size: A4;
+        margin: 10mm;
       }
+      
+      body * {
+        visibility: hidden;
+      }
+
+      /* Reset body to white and allow printing */
       body {
-        background-color: #fff !important;
-        -webkit-print-color-adjust: exact;
-        color-adjust: exact;
-      }
-      main.container {
+        background-color: white !important;
+        margin: 0 !important;
         padding: 0 !important;
-        margin: 1rem !important;
-        max-width: 100% !important;
+        overflow: visible !important;
       }
-      .printable-content {
-        box-shadow: none !important;
-        border: 1px solid #ddd !important;
-        border-radius: 0 !important;
-        padding: 1rem !important;
-        margin-bottom: 1rem;
-        page-break-inside: avoid;
+
+      /* Specifically target the print section */
+      #print-section, #print-section * {
+        visibility: visible;
       }
-      .recharts-wrapper {
-        page-break-inside: avoid;
+
+      #print-section {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: auto;
+        margin: 0;
+        padding: 0;
+        z-index: 9999;
+        background: white;
       }
-      table {
-        page-break-inside: auto;
-      }
-      tr {
-        page-break-inside: avoid;
-        page-break-after: auto;
-      }
-      thead {
-        display: table-header-group;
+
+      /* Hide everything else */
+      .no-print, header, footer, nav, .modal-overlay {
+        display: none !important;
       }
     }
   </style>

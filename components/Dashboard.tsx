@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
-import { Report, Student, Personnel } from '../types';
+import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance } from '../types';
 import StatsCard from './StatsCard';
 import ReportChart from './ReportChart';
+import AttendanceStats from './AttendanceStats';
 import { getDirectDriveImageSrc } from '../utils';
 
 interface DashboardProps {
@@ -12,6 +13,9 @@ interface DashboardProps {
     dormitories: string[];
     schoolName: string;
     schoolLogo: string;
+    // Add attendance props
+    studentAttendance?: StudentAttendance[];
+    personnelAttendance?: PersonnelAttendance[];
 }
 
 const parseThaiDate = (dateString: string): Date => {
@@ -23,7 +27,8 @@ const parseThaiDate = (dateString: string): Date => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-    reports, students, personnel, dormitories, schoolName, schoolLogo
+    reports, students, personnel, dormitories, schoolName, schoolLogo,
+    studentAttendance = [], personnelAttendance = []
 }) => {
     // Default to today's date in YYYY-MM-DD format for the input
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -35,7 +40,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
-    const { dormitoryData, totalStudentsReport, totalSick, titleSuffix, displayDate } = useMemo(() => {
+    const { dormitoryData, totalStudentsReport, totalSick, titleSuffix, displayDate, buddhistDate } = useMemo(() => {
         const [yearStr, monthStr, dayStr] = selectedDate.split('-');
         const targetDay = parseInt(dayStr);
         const targetMonth = parseInt(monthStr) - 1; 
@@ -85,7 +90,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             totalStudentsReport: finalTotalStudents,
             totalSick: finalTotalSick,
             titleSuffix: `(${displayDateString})`,
-            displayDate: `ข้อมูลวันที่ ${displayDateString}`
+            displayDate: `ข้อมูลวันที่ ${displayDateString}`,
+            buddhistDate: displayDateString
         };
 
     }, [reports, dormitories, selectedDate]);
@@ -187,36 +193,36 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
             
             {/* Overall Statistics Section */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 no-print">
-                 <div className="bg-blue-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 no-print">
+                 <div className="bg-blue-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full text-center">
                     <h3 className="text-xs md:text-lg font-semibold opacity-90 truncate">นักเรียนทั้งหมด</h3>
-                    <p className="text-2xl md:text-4xl font-bold mt-1 md:mt-2">{students.length} <span className="text-sm md:text-xl font-normal">คน</span></p>
+                    <p className="text-lg md:text-4xl font-bold mt-1 md:mt-2 truncate">{students.length} <span className="text-xs md:text-xl font-normal">คน</span></p>
                 </div>
-                <div className="bg-purple-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full">
+                <div className="bg-purple-600 p-3 md:p-6 rounded-xl shadow-lg text-white transform hover:scale-105 transition-transform flex flex-col justify-center h-full text-center">
                     <h3 className="text-xs md:text-lg font-semibold opacity-90 truncate">บุคลากรทั้งหมด</h3>
-                    <p className="text-2xl md:text-4xl font-bold mt-1 md:mt-2">{personnel.length} <span className="text-sm md:text-xl font-normal">คน</span></p>
+                    <p className="text-lg md:text-4xl font-bold mt-1 md:mt-2 truncate">{personnel.length} <span className="text-xs md:text-xl font-normal">คน</span></p>
                 </div>
                 <StatsCard title={`นักเรียนมา ${titleSuffix}`} value={totalStudentsReport.toString()} />
                 <StatsCard title={`นักเรียนป่วย ${titleSuffix}`} value={totalSick.toString()} />
             </div>
 
             <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg printable-content">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
-                    <div className="flex flex-col">
-                        <h2 className="text-lg md:text-xl font-bold text-navy shrink-0">ภาพรวม {titleSuffix}</h2>
-                        <p className="text-xs md:text-sm text-gray-500 no-print">{displayDate}</p>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mb-4">
+                    <div className="text-center sm:text-left w-full sm:w-auto">
+                        <h2 className="text-lg md:text-xl font-bold text-navy truncate">ภาพรวมสถิติ</h2>
+                        <p className="text-xs text-gray-500 no-print">{displayDate}</p>
                     </div>
                     
-                    <div className="flex flex-row items-center gap-2 no-print w-full md:w-auto bg-gray-50 p-2 rounded-lg">
+                    <div className="flex items-center gap-2 no-print w-full sm:w-auto bg-gray-50 p-1.5 rounded-lg justify-center">
                         <input 
                             type="date" 
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue flex-grow md:flex-grow-0"
+                            className="w-full sm:w-auto px-2 py-1.5 border border-gray-300 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue"
                         />
 
                         {/* Export Dropdown */}
-                        <div className="relative">
+                        <div className="relative flex-shrink-0">
                             <button
                                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
                                 className="bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 px-3 rounded-lg shadow-md transition duration-300 flex items-center gap-1 text-xs md:text-sm whitespace-nowrap"
@@ -245,7 +251,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                     </div>
                 </div>
+
+                {/* Attendance Stats Section */}
+                <div className="mb-6">
+                    <h3 className="text-sm md:text-base font-semibold text-gray-700 mb-3 border-l-4 border-primary-blue pl-2">สถิติการเช็คชื่อประจำวัน</h3>
+                    <AttendanceStats 
+                        studentAttendance={studentAttendance}
+                        personnelAttendance={personnelAttendance}
+                        students={students}
+                        personnel={personnel}
+                        selectedDate={buddhistDate}
+                    />
+                </div>
                 
+                <h3 className="text-sm md:text-base font-semibold text-gray-700 mb-3 border-l-4 border-purple-500 pl-2">สถิติรายงานเรือนนอน</h3>
                 <div className="overflow-x-auto">
                      <ReportChart data={dormitoryData} />
                 </div>

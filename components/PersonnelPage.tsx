@@ -37,18 +37,21 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
             <div className="bg-white p-6 rounded-xl shadow-lg">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <h2 className="text-xl font-bold text-navy">จัดการข้อมูลบุคลากร</h2>
-                    <button
-                        onClick={onAddPersonnel}
-                        className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <span>เพิ่มบุคลากร</span>
-                    </button>
+                    
+                    <div className="flex gap-2 no-print">
+                        <button
+                            onClick={onAddPersonnel}
+                            className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            <span>เพิ่มบุคลากร</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end">
+                <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end no-print">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">ค้นหา</label>
                         <input
@@ -73,13 +76,17 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                     <button onClick={() => { setSearchTerm(''); setPositionFilter(''); }} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg self-end">ล้างค่า</button>
                 </div>
 
-
-                <PersonnelTable 
-                    personnel={filteredPersonnel} 
-                    onViewPersonnel={onViewPersonnel}
-                    onEditPersonnel={onEditPersonnel}
-                    onDeletePersonnel={onDeletePersonnel}
-                />
+                <div className="printable-content">
+                    <div className="hidden print:block text-center mb-4">
+                        <h1 className="text-2xl font-bold">ทะเบียนบุคลากร</h1>
+                    </div>
+                    <PersonnelTable 
+                        personnel={filteredPersonnel} 
+                        onViewPersonnel={onViewPersonnel}
+                        onEditPersonnel={onEditPersonnel}
+                        onDeletePersonnel={onDeletePersonnel}
+                    />
+                </div>
             </div>
         </div>
     );

@@ -62,6 +62,8 @@ export interface Personnel {
   phone: string;
   profileImage?: (File | string)[];
   advisoryClasses?: string[];
+  password?: string;
+  role?: 'user' | 'pro' | 'admin';
 }
 
 

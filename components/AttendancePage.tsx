@@ -2,10 +2,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, Personnel, StudentAttendance, PersonnelAttendance, TimePeriod, AttendanceStatus } from '../types';
 import { STUDENT_CLASSES, STUDENT_CLASSROOMS } from '../constants';
-import AttendanceStats from './AttendanceStats';
 import { getFirstImageSource } from '../utils';
 
 interface AttendancePageProps {
+    mode: 'student' | 'personnel';
     students: Student[];
     personnel: Personnel[];
     dormitories: string[];
@@ -43,14 +43,14 @@ const isoToBuddhist = (isoDate: string) => {
 };
 
 const AttendancePage: React.FC<AttendancePageProps> = ({
+    mode,
     students, personnel, dormitories, 
     studentAttendance, personnelAttendance,
     onSaveStudentAttendance, onSavePersonnelAttendance, isSaving
 }) => {
-    const [activeTab, setActiveTab] = useState<'student' | 'personnel'>('student');
     const [selectedDate, setSelectedDate] = useState(getTodayBuddhist());
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('morning');
-    
+
     // Filters for Students
     const [filterClass, setFilterClass] = useState('');
     const [filterRoom, setFilterRoom] = useState('');
@@ -93,30 +93,29 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
 
     // --- EFFECT: Load/Reset Local State on Context Change ---
     useEffect(() => {
-        // 1. Prepare Student State
-        const stMap: Record<number, AttendanceStatus> = {};
-        students.forEach(s => {
-            const id = generateId(selectedDate, selectedPeriod, s.id);
-            const record = studentAttendance.find(r => r.id === id);
-            stMap[s.id] = record ? record.status : 'absent'; 
-        });
-        
-        // 2. Prepare Personnel State
-        const psMap: Record<number, AttendanceStatus> = {};
-        const psDressMap: Record<number, 'tidy' | 'untidy'> = {};
-        personnel.forEach(p => {
-            const id = generateId(selectedDate, selectedPeriod, p.id);
-            const record = personnelAttendance.find(r => r.id === id);
-            // Default to 'absent' (ไม่เข้าร่วม)
-            psMap[p.id] = record ? record.status : 'absent';
-            psDressMap[p.id] = record?.dressCode || 'tidy';
-        });
+        if (mode === 'student') {
+            const stMap: Record<number, AttendanceStatus> = {};
+            students.forEach(s => {
+                const id = generateId(selectedDate, selectedPeriod, s.id);
+                const record = studentAttendance.find(r => r.id === id);
+                stMap[s.id] = record ? record.status : 'absent'; 
+            });
+            setLocalStudentAttendance(stMap);
+        } else {
+            const psMap: Record<number, AttendanceStatus> = {};
+            const psDressMap: Record<number, 'tidy' | 'untidy'> = {};
+            personnel.forEach(p => {
+                const id = generateId(selectedDate, selectedPeriod, p.id);
+                const record = personnelAttendance.find(r => r.id === id);
+                // Default to 'absent' (ไม่เข้าร่วม)
+                psMap[p.id] = record ? record.status : 'absent';
+                psDressMap[p.id] = record?.dressCode || 'tidy';
+            });
+            setLocalPersonnelAttendance(psMap);
+            setLocalPersonnelDressCode(psDressMap);
+        }
 
-        setLocalStudentAttendance(stMap);
-        setLocalPersonnelAttendance(psMap);
-        setLocalPersonnelDressCode(psDressMap);
-
-    }, [selectedDate, selectedPeriod, activeTab, studentAttendance, personnelAttendance, students, personnel]);
+    }, [selectedDate, selectedPeriod, mode, studentAttendance, personnelAttendance, students, personnel]);
 
 
     // --- Handlers ---
@@ -151,7 +150,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     };
     
     const handleSave = () => {
-        if (activeTab === 'student') {
+        if (mode === 'student') {
             const recordsToSave: StudentAttendance[] = students.map(s => ({
                 id: generateId(selectedDate, selectedPeriod, s.id),
                 date: selectedDate,
@@ -174,9 +173,9 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     };
 
     const periodOptions: { value: TimePeriod, label: string }[] = [
-        { value: 'morning', label: 'เช้า (เข้าแถว)' },
+        { value: 'morning', label: 'เช้า' },
         { value: 'lunch', label: 'กลางวัน' },
-        { value: 'evening', label: 'เย็น (กลับหอ)' },
+        { value: 'evening', label: 'เย็น' },
     ];
 
     // Inline render function for status buttons to ensure reliable event handling
@@ -186,19 +185,19 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
         type: 'student' | 'personnel'
     ) => {
         const options = type === 'student' ? [
-            { val: 'present', label: 'มา', colorClass: 'bg-green-500 border-green-600 ring-green-200', activeClass: 'bg-green-500 text-white ring-1 ring-green-600', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
-            { val: 'leave', label: 'ลา', colorClass: 'bg-yellow-400 border-yellow-500 ring-yellow-200', activeClass: 'bg-yellow-400 text-white ring-1 ring-yellow-500', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
-            { val: 'sick', label: 'ป่วย', colorClass: 'bg-orange-400 border-orange-500 ring-orange-200', activeClass: 'bg-orange-400 text-white ring-1 ring-orange-500', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
-            { val: 'absent', label: 'ขาด', colorClass: 'bg-red-500 border-red-600 ring-red-200', activeClass: 'bg-red-500 text-white ring-1 ring-red-600', inactiveClass: 'bg-white text-gray-500 border-gray-200' }
+            { val: 'present', label: 'มา', colorClass: 'bg-green-500', activeClass: 'bg-green-500 text-white ring-1 ring-green-600 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
+            { val: 'leave', label: 'ลา', colorClass: 'bg-yellow-400', activeClass: 'bg-yellow-400 text-white ring-1 ring-yellow-500 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
+            { val: 'sick', label: 'ป่วย', colorClass: 'bg-orange-400', activeClass: 'bg-orange-400 text-white ring-1 ring-orange-500 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
+            { val: 'absent', label: 'ขาด', colorClass: 'bg-red-500', activeClass: 'bg-red-500 text-white ring-1 ring-red-600 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' }
         ] : [
-            { val: 'present', label: 'มา', colorClass: 'bg-green-500 border-green-600 ring-green-200', activeClass: 'bg-green-500 text-white ring-1 ring-green-600', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
-            { val: 'leave', label: 'ลา', colorClass: 'bg-yellow-400 border-yellow-500 ring-yellow-200', activeClass: 'bg-yellow-400 text-white ring-1 ring-yellow-500', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
-            { val: 'sick', label: 'ป่วย', colorClass: 'bg-orange-400 border-orange-500 ring-orange-200', activeClass: 'bg-orange-400 text-white ring-1 ring-orange-500', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
-            { val: 'absent', label: 'ขาด', colorClass: 'bg-red-500 border-red-600 ring-red-200', activeClass: 'bg-red-500 text-white ring-1 ring-red-600', inactiveClass: 'bg-white text-gray-500 border-gray-200' }
+            { val: 'present', label: 'มา', colorClass: 'bg-green-500', activeClass: 'bg-green-500 text-white ring-1 ring-green-600 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
+            { val: 'leave', label: 'ลา', colorClass: 'bg-yellow-400', activeClass: 'bg-yellow-400 text-white ring-1 ring-yellow-500 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
+            { val: 'sick', label: 'ป่วย', colorClass: 'bg-orange-400', activeClass: 'bg-orange-400 text-white ring-1 ring-orange-500 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' },
+            { val: 'absent', label: 'ขาด', colorClass: 'bg-red-500', activeClass: 'bg-red-500 text-white ring-1 ring-red-600 shadow-inner', inactiveClass: 'bg-white text-gray-500 border-gray-200' }
         ];
 
         return (
-            <div className="flex gap-1 flex-nowrap overflow-x-auto no-scrollbar">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 snap-x">
                 {options.map((opt) => {
                     const isSelected = currentStatus === opt.val || (opt.val === 'present' && currentStatus === 'activity');
                     return (
@@ -209,7 +208,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                 ? handleStudentStatusChange(id, opt.val as AttendanceStatus) 
                                 : handlePersonnelStatusChange(id, opt.val as AttendanceStatus)
                             }
-                            className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-bold transition-all duration-150 border shadow-sm whitespace-nowrap cursor-pointer flex-shrink-0 ${isSelected ? opt.activeClass : opt.inactiveClass}`}
+                            className={`snap-start px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-sm font-bold transition-all duration-150 border whitespace-nowrap flex-shrink-0 ${isSelected ? opt.activeClass : opt.inactiveClass}`}
                         >
                             {opt.label}
                         </button>
@@ -220,28 +219,19 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     };
 
     return (
-        <div className="space-y-4 md:space-y-6">
-            
-             {/* Top Navigation Tabs & Controls */}
-             <div className="flex flex-col md:flex-row gap-3 md:gap-4 justify-between items-end bg-white p-3 md:p-4 rounded-xl shadow-sm">
-                <div className="flex bg-gray-100 rounded-lg p-1 w-full md:w-auto">
-                    <button 
-                        onClick={() => setActiveTab('student')}
-                        className={`flex-1 md:flex-none px-3 py-2 md:px-6 md:py-3 rounded-md text-sm md:text-lg font-bold transition-all duration-200 whitespace-nowrap ${activeTab === 'student' ? 'bg-white shadow-md text-primary-blue ring-1 ring-black/5' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        นักเรียน
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('personnel')}
-                        className={`flex-1 md:flex-none px-3 py-2 md:px-6 md:py-3 rounded-md text-sm md:text-lg font-bold transition-all duration-200 whitespace-nowrap ${activeTab === 'personnel' ? 'bg-white shadow-md text-purple-600 ring-1 ring-black/5' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        บุคลากร
-                    </button>
+        <div className="space-y-3 md:space-y-6">
+             {/* Page Header & Controls */}
+             <div className="bg-white p-3 md:p-4 rounded-xl shadow-sm space-y-3">
+                <div className="flex justify-between items-center border-b pb-2">
+                     <h2 className={`text-lg md:text-xl font-bold ${mode === 'student' ? 'text-primary-blue' : 'text-purple-600'}`}>
+                        {mode === 'student' ? 'เช็คชื่อนักเรียน' : 'เช็คชื่อครู'}
+                    </h2>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{selectedDate}</span>
                 </div>
 
-                 <div className="flex flex-row gap-2 items-end w-full md:w-auto justify-between md:justify-end">
-                    <div className="flex flex-col flex-1 md:flex-initial">
-                        <label className="text-[10px] md:text-xs font-medium text-gray-500 mb-1">วันที่</label>
+                 <div className="flex gap-2 items-center">
+                    <div className="flex-grow">
+                        <label className="block text-[10px] text-gray-400 mb-0.5">วันที่</label>
                         <input 
                             type="date" 
                             value={buddhistToISO(selectedDate)} 
@@ -249,15 +239,15 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                 const newDate = isoToBuddhist(e.target.value);
                                 if (newDate) setSelectedDate(newDate);
                             }}
-                            className="px-2 py-1.5 md:px-3 md:py-2 border border-gray-300 rounded-lg text-center bg-white focus:ring-2 focus:ring-primary-blue focus:outline-none text-sm"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-center bg-white focus:ring-1 focus:ring-primary-blue focus:outline-none text-xs md:text-sm"
                         />
                     </div>
-                    <div className="flex flex-col flex-1 md:flex-initial">
-                        <label className="text-[10px] md:text-xs font-medium text-gray-500 mb-1">ช่วงเวลา</label>
+                    <div className="flex-grow">
+                        <label className="block text-[10px] text-gray-400 mb-0.5">ช่วงเวลา</label>
                         <select 
                             value={selectedPeriod} 
                             onChange={(e) => setSelectedPeriod(e.target.value as TimePeriod)}
-                            className="px-2 py-1.5 md:px-3 md:py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-blue focus:outline-none text-sm"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white focus:ring-1 focus:ring-primary-blue focus:outline-none text-xs md:text-sm"
                         >
                             {periodOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
@@ -265,68 +255,46 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                 </div>
             </div>
 
-            {/* Statistics Section */}
-            <AttendanceStats 
-                studentAttendance={studentAttendance}
-                personnelAttendance={personnelAttendance}
-                students={students}
-                personnel={personnel}
-                selectedDate={selectedDate}
-            />
-
-            <div className={`bg-white p-4 md:p-6 rounded-xl shadow-lg border-t-4 ${activeTab === 'student' ? 'border-primary-blue' : 'border-purple-600'}`}>
-                <div className="flex justify-between items-center mb-4 md:mb-6">
-                    <h2 className={`text-lg md:text-2xl font-bold ${activeTab === 'student' ? 'text-navy' : 'text-purple-800'}`}>
-                        {activeTab === 'student' ? 'เช็คชื่อนักเรียน' : 'เช็คชื่อบุคลากร'}
-                    </h2>
-                    <div className="text-xs md:text-sm text-gray-500 whitespace-nowrap bg-gray-100 px-2 py-1 rounded-md">
-                        {activeTab === 'student' ? `${filteredStudents.length} คน` : `${filteredPersonnel.length} คน`}
-                    </div>
-                </div>
-
+            <div className={`bg-white p-2 md:p-6 rounded-xl shadow-lg border-t-4 ${mode === 'student' ? 'border-primary-blue' : 'border-purple-600'}`}>
                 {/* --- STUDENT VIEW --- */}
-                {activeTab === 'student' && (
+                {mode === 'student' && (
                     <div className="">
-                        <div className="space-y-3 md:space-y-4">
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 bg-gray-50 p-2 md:p-4 rounded-lg">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">ระดับชั้น</label>
-                                    <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:outline-none text-sm">
-                                        <option value="">ทั้งหมด</option>
-                                        {STUDENT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">ห้อง</label>
-                                    <select value={filterRoom} onChange={(e) => setFilterRoom(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:outline-none text-sm">
-                                        <option value="">ทั้งหมด</option>
-                                        {STUDENT_CLASSROOMS.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div className="col-span-2 md:col-span-1">
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">เรือนนอน</label>
-                                    <select value={filterDorm} onChange={(e) => setFilterDorm(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:outline-none text-sm">
-                                        <option value="">ทั้งหมด</option>
-                                        {dormitories.filter(d => d !== 'เรือนพยาบาล').map(d => <option key={d} value={d}>{d}</option>)}
-                                    </select>
-                                </div>
+                        <div className="space-y-2">
+                            {/* Compact Filter Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50 p-2 rounded-lg">
+                                <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded-lg text-[10px] md:text-sm">
+                                    <option value="">ทุกชั้น</option>
+                                    {STUDENT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <select value={filterRoom} onChange={(e) => setFilterRoom(e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded-lg text-[10px] md:text-sm">
+                                    <option value="">ทุกห้อง</option>
+                                    {STUDENT_CLASSROOMS.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <select value={filterDorm} onChange={(e) => setFilterDorm(e.target.value)} className="col-span-2 md:col-span-1 w-full px-2 py-1 border border-gray-300 rounded-lg text-[10px] md:text-sm">
+                                    <option value="">ทุกเรือน</option>
+                                    {dormitories.filter(d => d !== 'เรือนพยาบาล').map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
                             </div>
                             
-                            {/* Bulk Actions for Students */}
-                            <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar">
-                                <span className="text-xs md:text-sm font-bold text-gray-700 mr-1 whitespace-nowrap">เลือกด่วน:</span>
-                                <button onClick={() => setAllStudentStatus('present')} className="bg-green-100 hover:bg-green-200 text-green-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    มาทั้งหมด
-                                </button>
-                                <button onClick={() => setAllStudentStatus('leave')} className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    ลาทั้งหมด
-                                </button>
-                                <button onClick={() => setAllStudentStatus('sick')} className="bg-orange-100 hover:bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    ป่วยทั้งหมด
-                                </button>
-                                <button onClick={() => setAllStudentStatus('absent')} className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    ขาดทั้งหมด
-                                </button>
+                            {/* Scrollable Bulk Actions */}
+                            <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar bg-white border-b md:border-0">
+                                <span className="text-[10px] font-bold text-gray-500 mr-1 whitespace-nowrap">เลือกด่วน:</span>
+                                <div className="flex gap-2">
+                                    {[
+                                        { label: 'มาครบ', action: () => setAllStudentStatus('present'), color: 'green' },
+                                        { label: 'ลาครบ', action: () => setAllStudentStatus('leave'), color: 'yellow' },
+                                        { label: 'ป่วยครบ', action: () => setAllStudentStatus('sick'), color: 'orange' },
+                                        { label: 'ขาดครบ', action: () => setAllStudentStatus('absent'), color: 'red' }
+                                    ].map(btn => (
+                                        <button 
+                                            key={btn.label}
+                                            onClick={btn.action} 
+                                            className={`bg-${btn.color}-100 text-${btn.color}-800 text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap border border-${btn.color}-200`}
+                                        >
+                                            {btn.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
@@ -335,15 +303,14 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                             <table className="min-w-full bg-white">
                                 <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th className="p-2 md:p-4 text-left text-xs md:text-sm font-bold text-navy w-12 md:w-20 whitespace-nowrap">รูป</th>
-                                        <th className="p-2 md:p-4 text-left text-xs md:text-sm font-bold text-navy whitespace-nowrap">ชื่อ-สกุล</th>
-                                        <th className="p-2 md:p-4 text-left text-xs md:text-sm font-bold text-navy whitespace-nowrap">ห้อง</th>
-                                        <th className="p-2 md:p-4 text-center text-xs md:text-sm font-bold text-navy whitespace-nowrap">สถานะ</th>
+                                        <th className="p-2 text-left text-xs font-bold text-navy w-8 whitespace-nowrap">รูป</th>
+                                        <th className="p-2 text-left text-xs font-bold text-navy whitespace-nowrap">ชื่อ-สกุล</th>
+                                        <th className="p-2 text-center text-xs font-bold text-navy whitespace-nowrap">สถานะ</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredStudents.length === 0 ? (
-                                        <tr><td colSpan={4} className="p-8 text-center text-gray-500 text-sm">ไม่พบข้อมูล</td></tr>
+                                        <tr><td colSpan={3} className="p-4 text-center text-gray-500 text-xs">ไม่พบข้อมูล</td></tr>
                                     ) : (
                                         filteredStudents.map(s => {
                                             const profileImg = getFirstImageSource(s.studentProfileImage);
@@ -351,21 +318,16 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                             
                                             return (
                                                 <tr key={`st_${s.id}`} className={`hover:bg-gray-50 transition-colors ${status === 'absent' ? 'bg-red-50/30' : ''}`}>
-                                                    <td className="p-2 md:p-3 whitespace-nowrap">
-                                                        <div className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-gray-200 overflow-hidden border border-gray-200 shadow-sm">
-                                                            {profileImg ? (
-                                                                <img 
-                                                                    src={profileImg} 
-                                                                    className="w-full h-full object-cover"
-                                                                    referrerPolicy="no-referrer"
-                                                                    onError={(e) => e.currentTarget.style.display = 'none'}
-                                                                />
-                                                            ) : null}
+                                                    <td className="p-2 whitespace-nowrap w-8">
+                                                        <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-200">
+                                                            {profileImg && <img src={profileImg} className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />}
                                                         </div>
                                                     </td>
-                                                    <td className="p-2 md:p-3 text-xs md:text-sm font-medium text-gray-800 whitespace-nowrap max-w-[120px] md:max-w-none truncate">{s.studentTitle}{s.studentName}</td>
-                                                    <td className="p-2 md:p-3 text-xs md:text-sm text-gray-500 whitespace-nowrap">{s.studentClass}</td>
-                                                    <td className="p-2 md:p-3 whitespace-nowrap">
+                                                    <td className="p-2 text-xs font-medium text-gray-800 whitespace-nowrap max-w-[120px] truncate">
+                                                        <div>{s.studentTitle}{s.studentName}</div>
+                                                        <div className="text-[10px] text-gray-400">{s.studentClass}</div>
+                                                    </td>
+                                                    <td className="p-2 whitespace-nowrap">
                                                         {renderStatusButtons(s.id, status, 'student')}
                                                     </td>
                                                 </tr>
@@ -379,42 +341,41 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                 )}
 
                 {/* --- PERSONNEL VIEW --- */}
-                {activeTab === 'personnel' && (
+                {mode === 'personnel' && (
                      <div className="">
-                         <div className="space-y-3 md:space-y-4">
-                            <div className="bg-gray-50 p-2 md:p-4 rounded-lg">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">ค้นหา</label>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        placeholder="ชื่อ/ตำแหน่ง..." 
-                                        value={personnelSearch}
-                                        onChange={(e) => setPersonnelSearch(e.target.value)}
-                                        className="flex-grow px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:outline-none text-sm"
-                                    />
-                                    {personnelSearch && (
-                                        <button onClick={() => setPersonnelSearch('')} className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 whitespace-nowrap text-xs font-bold">
-                                            ล้าง
-                                        </button>
-                                    )}
-                                </div>
+                         <div className="space-y-2">
+                            <div className="bg-gray-50 p-2 rounded-lg flex gap-2 items-center">
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาชื่อ..." 
+                                    value={personnelSearch}
+                                    onChange={(e) => setPersonnelSearch(e.target.value)}
+                                    className="flex-grow px-2 py-1 border border-gray-300 rounded-lg text-[10px] md:text-sm"
+                                />
+                                {personnelSearch && (
+                                    <button onClick={() => setPersonnelSearch('')} className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-[10px] font-bold">ล้าง</button>
+                                )}
                             </div>
                             
                              {/* Bulk Actions for Personnel */}
-                             <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar">
-                                <span className="text-xs md:text-sm font-bold text-gray-700 mr-1 whitespace-nowrap">เลือกด่วน:</span>
-                                <button onClick={() => setAllPersonnelStatus('present')} className="bg-green-100 hover:bg-green-200 text-green-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    มาทั้งหมด
-                                </button>
-                                <button onClick={() => setAllPersonnelStatus('leave')} className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    ลาทั้งหมด
-                                </button>
-                                <button onClick={() => setAllPersonnelStatus('sick')} className="bg-orange-100 hover:bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    ป่วยทั้งหมด
-                                </button>
-                                <button onClick={() => setAllPersonnelStatus('absent')} className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full transition whitespace-nowrap">
-                                    ขาดทั้งหมด
-                                </button>
+                             <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar bg-white border-b md:border-0">
+                                <span className="text-[10px] font-bold text-gray-500 mr-1 whitespace-nowrap">เลือกด่วน:</span>
+                                <div className="flex gap-2">
+                                     {[
+                                        { label: 'มาครบ', action: () => setAllPersonnelStatus('present'), color: 'green' },
+                                        { label: 'ลาครบ', action: () => setAllPersonnelStatus('leave'), color: 'yellow' },
+                                        { label: 'ป่วยครบ', action: () => setAllPersonnelStatus('sick'), color: 'orange' },
+                                        { label: 'ขาดครบ', action: () => setAllPersonnelStatus('absent'), color: 'red' }
+                                    ].map(btn => (
+                                        <button 
+                                            key={btn.label}
+                                            onClick={btn.action} 
+                                            className={`bg-${btn.color}-100 text-${btn.color}-800 text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap border border-${btn.color}-200`}
+                                        >
+                                            {btn.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
@@ -423,21 +384,15 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                             <table className="min-w-full bg-white">
                                 <thead className="bg-purple-50 border-b border-purple-200">
                                     <tr>
-                                        <th className="p-2 md:p-4 text-left text-xs md:text-sm font-bold text-purple-800 w-12 md:w-20 whitespace-nowrap">รูป</th>
-                                        <th className="p-2 md:p-4 text-left text-xs md:text-sm font-bold text-purple-800 whitespace-nowrap">ชื่อ-สกุล</th>
-                                        <th className="p-2 md:p-4 text-center text-xs md:text-sm font-bold text-purple-800 whitespace-nowrap">สถานะ</th>
-                                        <th className="p-2 md:p-4 text-center text-xs md:text-sm font-bold text-purple-800 whitespace-nowrap">การแต่งกาย</th>
+                                        <th className="p-2 text-left text-xs font-bold text-purple-800 w-8 whitespace-nowrap">รูป</th>
+                                        <th className="p-2 text-left text-xs font-bold text-purple-800 whitespace-nowrap">ชื่อ-สกุล</th>
+                                        <th className="p-2 text-center text-xs font-bold text-purple-800 whitespace-nowrap">สถานะ</th>
+                                        <th className="p-2 text-center text-xs font-bold text-purple-800 whitespace-nowrap">แต่งกาย</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredPersonnel.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={4} className="p-8 text-center">
-                                                <div className="flex flex-col items-center justify-center text-gray-500">
-                                                    <p className="text-sm font-medium">ไม่พบข้อมูล</p>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                        <tr><td colSpan={4} className="p-4 text-center text-xs text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
                                         filteredPersonnel.map(p => {
                                             const profileImg = getFirstImageSource(p.profileImage);
@@ -448,40 +403,22 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                             
                                             return (
                                                 <tr key={`ps_${p.id}`} className={`hover:bg-gray-50 transition-colors ${status === 'absent' ? 'bg-red-50/30' : ''}`}>
-                                                    <td className="p-2 md:p-3 whitespace-nowrap">
-                                                        <div className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-gray-200 overflow-hidden border border-gray-200 shadow-sm">
-                                                            {profileImg ? (
-                                                                <img 
-                                                                    src={profileImg} 
-                                                                    className="w-full h-full object-cover"
-                                                                    referrerPolicy="no-referrer"
-                                                                    onError={(e) => e.currentTarget.style.display = 'none'}
-                                                                />
-                                                            ) : null}
+                                                    <td className="p-2 whitespace-nowrap w-8">
+                                                        <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-200">
+                                                            {profileImg && <img src={profileImg} className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />}
                                                         </div>
                                                     </td>
-                                                    <td className="p-2 md:p-3 text-xs md:text-sm font-medium text-gray-800 whitespace-nowrap max-w-[120px] md:max-w-none truncate">
+                                                    <td className="p-2 text-xs font-medium text-gray-800 whitespace-nowrap max-w-[120px] truncate">
                                                         <div>{title} {p.personnelName}</div>
-                                                        <div className="text-[10px] text-gray-500 md:hidden">{p.position}</div>
                                                     </td>
-                                                    <td className="p-2 md:p-3 whitespace-nowrap">
+                                                    <td className="p-2 whitespace-nowrap">
                                                         {renderStatusButtons(p.id, status, 'personnel')}
                                                     </td>
-                                                    <td className="p-2 md:p-3 whitespace-nowrap text-center">
+                                                    <td className="p-2 whitespace-nowrap text-center">
                                                         {isPresent && (
-                                                            <div className="flex justify-center gap-1 md:gap-2 flex-nowrap">
-                                                                <button 
-                                                                    onClick={() => handlePersonnelDressCodeChange(p.id, 'tidy')}
-                                                                    className={`px-2 py-1 rounded md:rounded-lg border text-[10px] md:text-xs transition whitespace-nowrap ${dressCode === 'tidy' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                                                                >
-                                                                    เรียบร้อย
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handlePersonnelDressCodeChange(p.id, 'untidy')}
-                                                                    className={`px-2 py-1 rounded md:rounded-lg border text-[10px] md:text-xs transition whitespace-nowrap ${dressCode === 'untidy' ? 'bg-gray-500 text-white border-gray-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                                                                >
-                                                                    ไม่เรียบร้อย
-                                                                </button>
+                                                            <div className="flex justify-center gap-1 flex-nowrap">
+                                                                <button onClick={() => handlePersonnelDressCodeChange(p.id, 'tidy')} className={`px-1.5 py-0.5 rounded text-[10px] border ${dressCode === 'tidy' ? 'bg-blue-500 text-white' : 'bg-white'}`}>เรียบร้อย</button>
+                                                                <button onClick={() => handlePersonnelDressCodeChange(p.id, 'untidy')} className={`px-1.5 py-0.5 rounded text-[10px] border ${dressCode === 'untidy' ? 'bg-gray-500 text-white' : 'bg-white'}`}>ไม่</button>
                                                             </div>
                                                         )}
                                                     </td>
@@ -496,26 +433,13 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                 )}
 
                 {/* Footer Actions */}
-                <div className="mt-4 md:mt-8 flex justify-end border-t pt-4 md:pt-6">
+                <div className="mt-4 flex justify-end border-t pt-3">
                      <button 
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="w-full md:w-auto bg-primary-blue hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-3 transform transition hover:-translate-y-1"
+                        className={`w-full text-white font-bold py-2.5 px-6 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 text-sm ${mode === 'student' ? 'bg-primary-blue hover:bg-primary-hover' : 'bg-purple-600 hover:bg-purple-700'}`}
                     >
-                        {isSaving ? (
-                            <>
-                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                กำลังบันทึก...
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                                <span className="text-lg">บันทึก</span>
-                            </>
-                        )}
+                        {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
                     </button>
                 </div>
             </div>

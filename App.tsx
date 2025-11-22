@@ -14,6 +14,10 @@ import PersonnelModal from './components/PersonnelModal';
 import ViewPersonnelModal from './components/ViewPersonnelModal';
 import AttendancePage from './components/AttendancePage';
 import ReportPage from './components/ReportPage'; // New component
+import LoginModal from './components/LoginModal';
+import RegisterModal from './components/RegisterModal';
+import ProfilePage from './components/ProfilePage';
+
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
 
@@ -63,8 +67,8 @@ const prepareDataForApi = async (data: any) => {
 
 
 const App: React.FC = () => {
-    // Updated page types
-    const [currentPage, setCurrentPage] = useState<'stats' | 'attendance' | 'reports' | 'students' | 'personnel' | 'admin'>('stats');
+    // Updated page types to include attendance_personnel
+    const [currentPage, setCurrentPage] = useState<'stats' | 'attendance' | 'attendance_personnel' | 'reports' | 'students' | 'personnel' | 'admin' | 'profile'>('stats');
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
@@ -93,6 +97,11 @@ const App: React.FC = () => {
 
     // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+    // Auth State
+    const [currentUser, setCurrentUser] = useState<Personnel | null>(null);
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+    const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     
     useEffect(() => {
         const root = document.documentElement;
@@ -100,6 +109,38 @@ const App: React.FC = () => {
         root.style.setProperty('--color-primary-hover', settings.themeColors.primaryHover);
     }, [settings.themeColors]);
     
+    // Restore login session
+    useEffect(() => {
+        const storedUser = localStorage.getItem('ksp_user');
+        if (storedUser) {
+            try {
+                const user = JSON.parse(storedUser);
+                // Apply admin override if ID matches hardcoded admin
+                if (user.idCard && String(user.idCard).replace(/[^0-9]/g, '') === '1469900181659') {
+                    user.role = 'admin';
+                }
+                setCurrentUser(user);
+            } catch (e) {
+                localStorage.removeItem('ksp_user');
+            }
+        }
+    }, []);
+
+    // Sync Current User with fetched data
+    useEffect(() => {
+        if (currentUser && personnel.length > 0) {
+            const found = personnel.find(p => p.id === currentUser.id);
+            if (found && JSON.stringify(found) !== JSON.stringify(currentUser)) {
+                setCurrentUser(found);
+                // Only update localStorage if it exists (meaning user checked 'Remember me')
+                if (localStorage.getItem('ksp_user')) {
+                    localStorage.setItem('ksp_user', JSON.stringify(found));
+                }
+            }
+        }
+    }, [personnel, currentUser]);
+
+
      // Generic function to post data to Google Script
     const postToGoogleScript = async (payload: object) => {
         // Force use CONSTANT URL to avoid stale settings issues
@@ -142,7 +183,20 @@ const App: React.FC = () => {
             
             setReports(data.reports || []);
             setStudents(data.students || []);
-            setPersonnel(data.personnel || []);
+            
+            // Process personnel to enforce Super Admin
+            let fetchedPersonnel: Personnel[] = data.personnel || [];
+            fetchedPersonnel = fetchedPersonnel.map(p => {
+                // Enforce Admin Role for specific ID: 1469900181659 (Nuntapat Saengsudta)
+                // Safely handle id type (string or number)
+                const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
+                if (normalizeId(p.idCard) === '1469900181659') {
+                    return { ...p, role: 'admin' as const };
+                }
+                return p;
+            });
+
+            setPersonnel(fetchedPersonnel);
             setStudentAttendance(data.studentAttendance || []);
             setPersonnelAttendance(data.personnelAttendance || []);
 
@@ -181,6 +235,39 @@ const App: React.FC = () => {
         }
     };
 
+    // Auth Handlers
+    const handleLogin = (user: Personnel, rememberMe: boolean) => {
+        // Enforce admin role on login if it matches the hardcoded ID
+        const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
+        if (normalizeId(user.idCard) === '1469900181659') {
+            user.role = 'admin';
+        }
+
+        setCurrentUser(user);
+        if (rememberMe) {
+            localStorage.setItem('ksp_user', JSON.stringify(user));
+        } else {
+            localStorage.removeItem('ksp_user');
+        }
+    };
+
+    const handleLogout = () => {
+        setCurrentUser(null);
+        localStorage.removeItem('ksp_user');
+        setCurrentPage('stats');
+    };
+
+    const handleRegister = async (newPersonnel: Personnel) => {
+        // Reuse the save personnel logic
+        await handleSavePersonnel(newPersonnel);
+        // After register, maybe login automatically? 
+        // For now, just close modal and alert
+        setIsRegisterModalOpen(false);
+        alert('ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ');
+        setIsLoginModalOpen(true);
+    };
+
+
     // Report handlers
     const handleOpenReportModal = () => {
       setEditingReport(null);
@@ -204,12 +291,21 @@ const App: React.FC = () => {
             const apiPayload = await prepareDataForApi(report);
             
             const response = await postToGoogleScript({ action, data: apiPayload });
-            const savedReport = response.data;
+            const savedData = response.data;
 
-            if (isEditing) {
-                setReports(prev => prev.map(r => r.id === savedReport.id ? savedReport : r));
+            let processedData = savedData;
+            if (Array.isArray(savedData) && savedData.length === 1 && reports.length > 1) {
+                 processedData = savedData[0];
+            }
+
+            if (Array.isArray(processedData)) {
+                setReports(processedData);
             } else {
-                setReports(prev => [...prev, savedReport]);
+                 if (isEditing) {
+                    setReports(prev => prev.map(r => String(r.id) === String(processedData.id) ? processedData : r));
+                } else {
+                    setReports(prev => [...prev, processedData]);
+                }
             }
             handleCloseReportModal();
         } catch (error) {
@@ -252,12 +348,21 @@ const App: React.FC = () => {
             const apiPayload = await prepareDataForApi(student);
             
             const response = await postToGoogleScript({ action, data: apiPayload });
-            const savedStudent = response.data;
+            const savedData = response.data;
 
-             if (isEditing) {
-                setStudents(prev => prev.map(s => s.id === savedStudent.id ? savedStudent : s));
-            } else {
-                setStudents(prev => [...prev, savedStudent]);
+             let processedData = savedData;
+             if (Array.isArray(savedData) && savedData.length === 1 && students.length > 1) {
+                  processedData = savedData[0];
+             }
+
+             if (Array.isArray(processedData)) {
+                 setStudents(processedData);
+             } else {
+                if (isEditing) {
+                    setStudents(prev => prev.map(s => String(s.id) === String(processedData.id) ? processedData : s));
+                } else {
+                    setStudents(prev => [...prev, processedData]);
+                }
             }
             handleCloseStudentModal();
         } catch (error) {
@@ -295,17 +400,47 @@ const App: React.FC = () => {
     const handleSavePersonnel = async (person: Personnel) => {
         setIsSaving(true);
         try {
-            const isEditing = !!editingPersonnel;
+            // Logic to check if it's a registration or update
+            const isEditing = personnel.some(p => p.id === person.id);
             const action = isEditing ? 'updatePersonnel' : 'addPersonnel';
             const apiPayload = await prepareDataForApi(person);
             
             const response = await postToGoogleScript({ action, data: apiPayload });
-            const savedPersonnel = response.data;
+            const savedData = response.data;
 
-            if (isEditing) {
-                setPersonnel(prev => prev.map(p => p.id === savedPersonnel.id ? savedPersonnel : p));
+            let processedData = savedData;
+            if (Array.isArray(savedData) && savedData.length === 1 && personnel.length > 1) {
+                 processedData = savedData[0];
+            }
+
+            if (Array.isArray(processedData)) {
+                // Re-apply admin override on save results
+                const processedWithAdmin = processedData.map((p: Personnel) => {
+                     const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
+                     if (normalizeId(p.idCard) === '1469900181659') return { ...p, role: 'admin' as const };
+                     return p;
+                });
+                setPersonnel(processedWithAdmin);
             } else {
-                setPersonnel(prev => [...prev, savedPersonnel]);
+                 // Re-apply admin override on single object
+                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
+                 if (normalizeId(processedData.idCard) === '1469900181659') processedData.role = 'admin';
+
+                if (isEditing) {
+                    setPersonnel(prev => prev.map(p => String(p.id) === String(processedData.id) ? processedData : p));
+                    
+                    // Update current user if self-editing
+                    if (currentUser && String(currentUser.id) === String(processedData.id)) {
+                         setCurrentUser(processedData);
+                         // Also update local storage if present
+                         if (localStorage.getItem('ksp_user')) {
+                             localStorage.setItem('ksp_user', JSON.stringify(processedData));
+                         }
+                    }
+
+                } else {
+                    setPersonnel(prev => [...prev, processedData]);
+                }
             }
             handleClosePersonnelModal();
         } catch (error) {
@@ -337,7 +472,6 @@ const App: React.FC = () => {
             const savedData = response.data;
 
             if (type === 'student') {
-                // Update local state: remove old entries for the same IDs and add new ones
                 const newAttendance = studentAttendance.filter(sa => !savedData.find((sd: StudentAttendance) => sd.id === sa.id));
                 setStudentAttendance([...newAttendance, ...savedData]);
             } else {
@@ -352,6 +486,29 @@ const App: React.FC = () => {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // Routing Guard
+    const navigateTo = (page: typeof currentPage) => {
+        if (page === 'stats') {
+            setCurrentPage('stats');
+            return;
+        }
+
+        if (!currentUser) {
+            alert('กรุณาเข้าสู่ระบบเพื่อใช้งานเมนูนี้');
+            setIsLoginModalOpen(true);
+            return;
+        }
+
+        if (page === 'admin') {
+            if (currentUser.role !== 'admin') {
+                alert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น');
+                return;
+            }
+        }
+        
+        setCurrentPage(page);
     };
 
 
@@ -389,7 +546,6 @@ const App: React.FC = () => {
                         </button>
                          <button 
                             onClick={() => {
-                                // Reset to default settings to allow recovery if the URL was bad
                                 setSettings(DEFAULT_SETTINGS);
                                 setCurrentPage('admin');
                             }}
@@ -411,9 +567,24 @@ const App: React.FC = () => {
                             dormitories={settings.dormitories}
                             schoolName={settings.schoolName}
                             schoolLogo={settings.schoolLogo}
+                            studentAttendance={studentAttendance}
+                            personnelAttendance={personnelAttendance}
                         />;
             case 'attendance':
                 return <AttendancePage
+                            mode="student"
+                            students={students}
+                            personnel={personnel}
+                            dormitories={settings.dormitories}
+                            studentAttendance={studentAttendance}
+                            personnelAttendance={personnelAttendance}
+                            onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
+                            onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
+                            isSaving={isSaving}
+                        />;
+            case 'attendance_personnel':
+                return <AttendancePage
+                            mode="personnel"
                             students={students}
                             personnel={personnel}
                             dormitories={settings.dormitories}
@@ -456,6 +627,14 @@ const App: React.FC = () => {
                             onExit={() => setCurrentPage('stats')}
                             isSaving={isSaving}
                         />
+            case 'profile':
+                return currentUser ? (
+                    <ProfilePage 
+                        user={currentUser}
+                        onSave={handleSavePersonnel}
+                        isSaving={isSaving}
+                    />
+                ) : null;
             default:
                 return null;
         }
@@ -466,15 +645,38 @@ const App: React.FC = () => {
         <div className="min-h-screen flex flex-col">
             <Header 
                 onReportClick={handleOpenReportModal} 
-                onNavigate={setCurrentPage}
+                onNavigate={navigateTo}
                 currentPage={currentPage}
                 schoolName={settings.schoolName}
                 schoolLogo={settings.schoolLogo}
+                currentUser={currentUser}
+                onLoginClick={() => setIsLoginModalOpen(true)}
+                onLogoutClick={handleLogout}
             />
             <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
                 {renderPage()}
             </main>
             <Footer />
+
+            <LoginModal 
+                isOpen={isLoginModalOpen}
+                onClose={() => setIsLoginModalOpen(false)}
+                onLogin={handleLogin}
+                personnelList={personnel}
+                onRegisterClick={() => {
+                    setIsLoginModalOpen(false);
+                    setIsRegisterModalOpen(true);
+                }}
+            />
+
+            <RegisterModal 
+                isOpen={isRegisterModalOpen}
+                onClose={() => setIsRegisterModalOpen(false)}
+                onRegister={handleRegister}
+                positions={settings.positions}
+                isSaving={isSaving}
+            />
+
             {isReportModalOpen && (
                 <ReportModal 
                     onClose={handleCloseReportModal} 
@@ -485,6 +687,7 @@ const App: React.FC = () => {
                     positions={settings.positions}
                     isSaving={isSaving}
                     personnel={personnel}
+                    currentUser={currentUser}
                 />
             )}
             {viewingReport && (
@@ -518,6 +721,7 @@ const App: React.FC = () => {
                     positions={settings.positions}
                     students={students}
                     isSaving={isSaving}
+                    currentUserRole={currentUser?.role}
                 />
             )}
             {viewingPersonnel && (

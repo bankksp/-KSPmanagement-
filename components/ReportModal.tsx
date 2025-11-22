@@ -11,6 +11,7 @@ interface ReportModalProps {
     positions: string[];
     isSaving: boolean;
     personnel: Personnel[];
+    currentUser: Personnel | null;
 }
 
 const getCurrentTime = () => {
@@ -29,6 +30,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
     positions,
     isSaving,
     personnel,
+    currentUser
  }) => {
     // Changed counts to string | number to allow empty state
     const [formData, setFormData] = useState<{
@@ -68,11 +70,22 @@ const ReportModal: React.FC<ReportModalProps> = ({
             // This implementation assumes new images can be added, but doesn't show old ones.
             setImages([]);
         } else {
-            const firstPersonnel = personnel[0];
-            const defaultReporterName = firstPersonnel 
-                ? `${firstPersonnel.personnelTitle === 'อื่นๆ' ? firstPersonnel.personnelTitleOther : firstPersonnel.personnelTitle} ${firstPersonnel.personnelName}` 
-                : '';
-            const defaultPosition = firstPersonnel ? firstPersonnel.position : '';
+            // Default initialization for new report
+            let defaultReporterName = '';
+            let defaultPosition = '';
+
+            if (currentUser) {
+                const title = currentUser.personnelTitle === 'อื่นๆ' ? currentUser.personnelTitleOther : currentUser.personnelTitle;
+                defaultReporterName = `${title} ${currentUser.personnelName}`.trim();
+                defaultPosition = currentUser.position;
+            } else {
+                // Fallback if no current user (though header should prevent this access)
+                const firstPersonnel = personnel[0];
+                 defaultReporterName = firstPersonnel 
+                    ? `${firstPersonnel.personnelTitle === 'อื่นๆ' ? firstPersonnel.personnelTitleOther : firstPersonnel.personnelTitle} ${firstPersonnel.personnelName}` 
+                    : '';
+                defaultPosition = firstPersonnel ? firstPersonnel.position : '';
+            }
 
             setFormData({
                 reporterName: defaultReporterName,
@@ -85,7 +98,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
             });
              setImages([]);
         }
-    }, [reportToEdit, personnel, dormitories]);
+    }, [reportToEdit, personnel, dormitories, currentUser]);
     
     const isInfirmary = formData.dormitory === "เรือนพยาบาล";
 
@@ -175,7 +188,14 @@ const ReportModal: React.FC<ReportModalProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้รายงาน (ชื่อ-นามสกุล)</label>
-                             <select name="reporterName" value={formData.reporterName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
+                            {/* If there is a current user, we can make this read-only or leave it selectable but default selected */}
+                             <select 
+                                name="reporterName" 
+                                value={formData.reporterName} 
+                                onChange={handleChange} 
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                                required
+                            >
                                 <option value="" disabled>-- เลือกผู้รายงาน --</option>
                                 {personnel.map(p => {
                                     const fullName = `${p.personnelTitle === 'อื่นๆ' ? p.personnelTitleOther : p.personnelTitle} ${p.personnelName}`;

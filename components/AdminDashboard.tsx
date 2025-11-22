@@ -13,22 +13,10 @@ interface AdminDashboardProps {
 type AdminTab = 'general' | 'appearance' | 'lists' | 'system';
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExit, isSaving }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [password, setPassword] = useState('');
-    const [authError, setAuthError] = useState('');
+    // Authentication state removed as per user request; access is guarded by Role in App.tsx
     const [activeTab, setActiveTab] = useState<AdminTab>('general');
     const [localSettings, setLocalSettings] = useState<Settings>(settings);
     const [newItem, setNewItem] = useState({ dormitory: '', position: '', academicYear: '' });
-
-    const handlePasswordCheck = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (password === (settings.adminPassword || 'ksp')) {
-            setIsAuthenticated(true);
-            setAuthError('');
-        } else {
-            setAuthError('รหัสผ่านไม่ถูกต้อง');
-        }
-    };
 
     const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -162,9 +150,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                             <label className="block text-sm font-medium text-gray-700 mb-1">Google Script URL</label>
                             <input type="text" name="googleScriptUrl" value={localSettings.googleScriptUrl} onChange={handleSettingsChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
                         </div>
+                        {/* Retaining the admin password field here as a general system setting, though not used for dashboard access anymore */}
                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">เปลี่ยนรหัสผ่านผู้ดูแลระบบ</label>
-                            <input type="password" name="adminPassword" value={localSettings.adminPassword || ''} onChange={handleSettingsChange} placeholder="กรอกรหัสผ่านใหม่" className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านระบบ (System Password)</label>
+                            <input type="password" name="adminPassword" value={localSettings.adminPassword || ''} onChange={handleSettingsChange} placeholder="กำหนดรหัสผ่านสำหรับยืนยันการลบ" className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
+                            <p className="text-xs text-gray-500 mt-1">ใช้สำหรับการยืนยันการลบข้อมูลสำคัญ</p>
                         </div>
                     </div>
                 );
@@ -172,26 +162,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
     
-    if (!isAuthenticated) {
-        return (
-            <div className="fixed inset-0 bg-light-gray flex justify-center items-center z-50">
-                <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
-                     <h2 className="text-2xl font-bold text-navy text-center mb-6">เข้าสู่ระบบผู้ดูแล</h2>
-                     <form onSubmit={handlePasswordCheck} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน</label>
-                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"/>
-                        </div>
-                        {authError && <p className="text-red-500 text-sm">{authError}</p>}
-                         <button type="submit" className="w-full bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md">
-                            เข้าสู่ระบบ
-                        </button>
-                     </form>
-                </div>
-            </div>
-        )
-    }
-
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg">
             <div className="flex flex-col md:flex-row gap-8">

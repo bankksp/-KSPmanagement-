@@ -113,7 +113,7 @@ const ReportTable: React.FC<ReportTableProps> = ({ reports, deleteReports, onVie
                                     <div className="text-gray-400 text-[10px]">{report.reportTime}</div>
                                 </td>
                                 <td className="p-2 md:p-3 text-xs md:text-sm whitespace-nowrap">{report.dormitory}</td>
-                                <td className="p-2 md:p-3 text-xs md:text-sm whitespace-nowrap max-w-[100px] md:max-w-none truncate">{report.reporterName}</td>
+                                <td className="p-2 md:p-3 text-xs md:text-sm whitespace-nowrap max-w-[100px] md:max-w-[200px] truncate">{report.reporterName}</td>
                                 <td className="p-2 md:p-3 text-center text-xs md:text-sm whitespace-nowrap">
                                     {report.dormitory !== 'เรือนพยาบาล' ? (
                                         <span>
