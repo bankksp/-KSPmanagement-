@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DormitoryStat } from '../types';
 
 interface ReportChartProps {
@@ -8,12 +8,6 @@ interface ReportChartProps {
 }
 
 const ReportChart: React.FC<ReportChartProps> = ({ data }) => {
-  // Vibrant color palette for dormitories
-  const COLORS = [
-    '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', 
-    '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#06B6D4'
-  ];
-
   return (
     <div className="w-full h-[350px] bg-white p-4 rounded-xl shadow-lg">
         <h3 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
@@ -29,7 +23,7 @@ const ReportChart: React.FC<ReportChartProps> = ({ data }) => {
                     left: -20,
                     bottom: 20,
                 }}
-                barSize={40}
+                barGap={2}
             >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                 <XAxis 
@@ -47,12 +41,9 @@ const ReportChart: React.FC<ReportChartProps> = ({ data }) => {
                     cursor={{ fill: '#F3F4F6' }}
                 />
                 <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                <Bar dataKey="total" name="จำนวนนักเรียน" radius={[4, 4, 0, 0]}>
-                    {data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                </Bar>
+                <Bar dataKey="present" name="มา" fill="#10B981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="sick" name="ป่วย" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="home" name="อยู่บ้าน" fill="#9CA3AF" radius={[4, 4, 0, 0]} />
             </BarChart>
         </ResponsiveContainer>
     </div>

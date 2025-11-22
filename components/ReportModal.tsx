@@ -36,7 +36,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
     currentUser,
     students
  }) => {
-    // Changed counts to string | number to allow empty state
     const [formData, setFormData] = useState<{
         reporterName: string;
         position: string;
@@ -44,14 +43,16 @@ const ReportModal: React.FC<ReportModalProps> = ({
         dormitory: string;
         presentCount: number | string; 
         sickCount: number | string;
+        homeCount: number | string;
         log: string;
     }>({
         reporterName: '',
         position: '',
         academicYear: (new Date().getFullYear() + 543).toString(),
         dormitory: '',
-        presentCount: '', // Initialize as empty string
-        sickCount: '',    // Initialize as empty string
+        presentCount: '', 
+        sickCount: '',  
+        homeCount: '',
         log: '',
     });
     const [images, setImages] = useState<File[]>([]);
@@ -73,9 +74,24 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 dormitory: reportToEdit.dormitory,
                 presentCount: reportToEdit.presentCount,
                 sickCount: reportToEdit.sickCount,
+                homeCount: reportToEdit.homeCount || 0,
                 log: reportToEdit.log,
             });
             setImages([]);
+            
+            // Try to restore student selections if available in studentDetails
+            if (reportToEdit.studentDetails) {
+                try {
+                    const details = JSON.parse(reportToEdit.studentDetails);
+                    const statusMap: Record<number, StudentStatus> = {};
+                    details.forEach((d: any) => {
+                        if (d.id && d.status) statusMap[d.id] = d.status;
+                    });
+                    setStudentStatuses(statusMap);
+                } catch (e) {
+                    console.error("Failed to parse student details", e);
+                }
+            }
         } else {
             // Default initialization for new report
             let defaultReporterName = '';
@@ -102,6 +118,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 dormitory: defaultDorm,
                 presentCount: 0,
                 sickCount: 0,
+                homeCount: 0,
                 log: '',
             });
              setImages([]);
@@ -114,7 +131,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
         if (isInfirmary) {
             // For Infirmary, show ALL students, filtered by search term
-            if (!searchTerm) return students; // Or maybe return empty array if too many? Let's return all for now but rely on search
+            if (!searchTerm) return students;
             const lowerSearch = searchTerm.toLowerCase();
             return students.filter(s => 
                 (s.studentName?.toLowerCase().includes(lowerSearch)) ||
@@ -129,17 +146,20 @@ const ReportModal: React.FC<ReportModalProps> = ({
     
     // Auto-calculate counts and update log based on statuses
     useEffect(() => {
-        if (isEditing) return; // Don't auto-calc if editing existing report (prevents overwriting manual corrections)
-
+        // For new records, always calculate. For edits, only calculate if studentStatuses changed (handled by React re-render)
+        
         let pCount = 0;
         let sCount = 0;
+        let hCount = 0;
         const sickNames: string[] = [];
         const recoveredNames: string[] = [];
         const homeNames: string[] = [];
 
         // Only iterate over relevant students to calculate counts for THIS dorm context
         relevantStudents.forEach(student => {
-            const status = studentStatuses[student.id];
+            // Default to 'home' for general dorms if undefined, unless user explicitly picks others
+            // Actually for better UX, default is 'home' (not checked in)
+            const status = studentStatuses[student.id] || (isInfirmary ? undefined : 'home');
             
             if (status === 'present') pCount++;
             if (status === 'sick') {
@@ -147,13 +167,17 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 sickNames.push(`${student.studentTitle}${student.studentName}`);
             }
             if (status === 'recovered') recoveredNames.push(`${student.studentTitle}${student.studentName}`);
-            if (status === 'home') homeNames.push(`${student.studentTitle}${student.studentName}`);
+            if (status === 'home') {
+                hCount++;
+                homeNames.push(`${student.studentTitle}${student.studentName}`);
+            }
         });
 
         setFormData(prev => ({
             ...prev,
             presentCount: pCount,
-            sickCount: sCount
+            sickCount: sCount,
+            homeCount: hCount
         }));
 
         // Generate Log Text
@@ -167,13 +191,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
              if (homeNames.length > 0) logText += `อยู่บ้าน: ${homeNames.join(', ')}`;
         }
         
-        if (logText) {
-            setFormData(prev => ({ ...prev, log: logText.trim() }));
-        } else {
-            setFormData(prev => ({ ...prev, log: '' })); // Clear if nothing selected
-        }
+        setFormData(prev => ({ ...prev, log: logText.trim() }));
 
-    }, [studentStatuses, relevantStudents, isInfirmary, isEditing]);
+    }, [studentStatuses, relevantStudents, isInfirmary]);
 
 
     const getBuddhistDate = () => {
@@ -207,11 +227,12 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 // Reset counts and statuses when dorm changes
                 presentCount: 0,
                 sickCount: 0,
+                homeCount: 0,
                 log: ''
             }));
             setStudentStatuses({}); // Clear selections
             setSearchTerm('');
-        } else if (name === 'presentCount' || name === 'sickCount') {
+        } else if (name === 'presentCount' || name === 'sickCount' || name === 'homeCount') {
             setFormData(prev => ({ ...prev, [name]: value }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
@@ -220,10 +241,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
     const handleStatusChange = (studentId: number, status: StudentStatus) => {
         setStudentStatuses(prev => {
-            // Toggle off if clicking same status (optional, but user asked for specific inputs)
-            // If standard radio behavior, checking one unchecks others.
-            // For "Home" (General), it's the default if nothing else selected.
-            // But let's make it explicit.
             return { ...prev, [studentId]: status };
         });
     };
@@ -245,14 +262,24 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Construct detailed student data for JSON storage
+        const studentDetailsArray = relevantStudents.map(student => ({
+            id: student.id,
+            name: `${student.studentTitle}${student.studentName}`,
+            nickname: student.studentNickname || '',
+            status: studentStatuses[student.id] || (isInfirmary ? 'unknown' : 'home')
+        })).filter(item => item.status !== 'unknown');
         
         const savedReport: Report = {
            ...formData,
            presentCount: Number(formData.presentCount),
            sickCount: Number(formData.sickCount),
+           homeCount: Number(formData.homeCount),
            id: isEditing ? reportToEdit.id : Date.now(),
            reportDate: isEditing ? reportToEdit.reportDate : getBuddhistDate(),
            reportTime: isEditing ? reportToEdit.reportTime : getCurrentTime(),
+           studentDetails: JSON.stringify(studentDetailsArray), // Save details!
            images,
         };
         onSave(savedReport);
@@ -367,7 +394,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                                                         <input type="radio" name={`status_${student.id}`} className="hidden" checked={status === 'present'} onChange={() => handleStatusChange(student.id, 'present')} />
                                                                         มา
                                                                     </label>
-                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${status === 'sick' ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-600 hover:bg-orange-50'}`}>
+                                                                    <label className={`cursor-pointer px-3 py-1 rounded border text-xs font-bold transition-all ${status === 'sick' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-600 hover:bg-red-50'}`}>
                                                                         <input type="radio" name={`status_${student.id}`} className="hidden" checked={status === 'sick'} onChange={() => handleStatusChange(student.id, 'sick')} />
                                                                         ป่วย
                                                                     </label>
@@ -392,9 +419,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
                     )}
 
                     {/* Counts Display (Read-Only auto-calc) */}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {isInfirmary ? (
-                            <div className="md:col-span-2">
+                            <div className="md:col-span-3">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนนักเรียนป่วย (ในเรือนพยาบาล)</label>
                                 <input 
                                     type="number" 
@@ -403,7 +430,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                     onChange={handleChange} 
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
                                     required 
-                                    readOnly={!isEditing} // Read-only if adding new, allow edit if fixing old report
+                                    readOnly
                                 />
                             </div>
                         ) : (
@@ -417,7 +444,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                         onChange={handleChange} 
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
                                         required 
-                                        readOnly={!isEditing}
+                                        readOnly
                                     />
                                 </div>
                                 <div>
@@ -429,7 +456,19 @@ const ReportModal: React.FC<ReportModalProps> = ({
                                         onChange={handleChange} 
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
                                         required 
-                                        readOnly={!isEditing}
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">อยู่บ้าน</label>
+                                    <input 
+                                        type="number" 
+                                        name="homeCount" 
+                                        value={formData.homeCount} 
+                                        onChange={handleChange} 
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" 
+                                        required 
+                                        readOnly
                                     />
                                 </div>
                             </>

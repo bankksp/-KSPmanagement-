@@ -16,8 +16,22 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
         return images.map(img => getDirectDriveImageSrc(img));
     }, [report.images]);
 
+    const studentData = useMemo(() => {
+        if (!report.studentDetails) return null;
+        try {
+            const parsed = JSON.parse(report.studentDetails) as { name: string, nickname: string, status: string }[];
+            return {
+                present: parsed.filter(s => s.status === 'present'),
+                sick: parsed.filter(s => s.status === 'sick'),
+                home: parsed.filter(s => s.status === 'home'),
+                recovered: parsed.filter(s => s.status === 'recovered'),
+            };
+        } catch (e) {
+            return null;
+        }
+    }, [report.studentDetails]);
+
     useEffect(() => {
-        // Cleanup object URLs on unmount to prevent memory leaks
         return () => {
             imagePreviews.forEach(url => {
                 if (url.startsWith('blob:')) {
@@ -42,9 +56,25 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
         </div>
     );
 
+    const StudentList: React.FC<{ title: string, students: { name: string, nickname: string }[], colorClass: string }> = ({ title, students, colorClass }) => (
+        students.length > 0 ? (
+            <div className="mb-4">
+                <h4 className={`font-bold text-sm mb-2 ${colorClass}`}>{title} ({students.length})</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {students.map((s, i) => (
+                        <div key={i} className="text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                            <span className="font-medium text-gray-800">{s.name}</span>
+                            {s.nickname && <span className="text-gray-500 ml-2">({s.nickname})</span>}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        ) : null
+    );
+
     const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
         const target = e.currentTarget;
-        target.onerror = null; // prevent looping
+        target.onerror = null; 
         target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
         target.outerHTML = `
             <div class="flex flex-col items-center justify-center text-gray-500">
@@ -63,50 +93,99 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
                     </button>
                 </div>
 
-                <div className="flex-grow overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Details Section */}
-                    <div className="space-y-4">
-                        <DetailItem label="วันที่/เวลา รายงาน" value={`${report.reportDate}${report.reportTime ? ` ${report.reportTime} น.` : ''}`} />
-                        <DetailItem label="ชื่อผู้รายงาน" value={report.reporterName} />
-                        <DetailItem label="ตำแหน่ง" value={report.position} />
-                        <DetailItem label="ปีการศึกษา" value={report.academicYear} />
-                        <DetailItem label="เรือนนอน" value={report.dormitory} />
-                         {report.dormitory !== 'เรือนพยาบาล' && <DetailItem label="จำนวนมาเรียน" value={report.presentCount} />}
-                        <DetailItem label="จำนวนป่วย" value={report.sickCount} />
+                <div className="flex-grow overflow-y-auto p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                         {/* Basic Info */}
+                        <div className="space-y-4">
+                            <DetailItem label="วันที่/เวลา รายงาน" value={`${report.reportDate}${report.reportTime ? ` ${report.reportTime} น.` : ''}`} />
+                            <DetailItem label="ชื่อผู้รายงาน" value={report.reporterName} />
+                            <DetailItem label="ตำแหน่ง" value={report.position} />
+                            <DetailItem label="ปีการศึกษา" value={report.academicYear} />
+                            <DetailItem label="เรือนนอน" value={report.dormitory} />
+                            
+                            <div className="flex gap-4 mt-2">
+                                {report.dormitory !== 'เรือนพยาบาล' && (
+                                    <>
+                                        <div className="text-center bg-green-50 p-2 rounded-lg min-w-[80px]">
+                                            <span className="block text-xs text-green-600 font-bold">มาเรียน</span>
+                                            <span className="block text-xl font-bold text-green-700">{report.presentCount}</span>
+                                        </div>
+                                        <div className="text-center bg-red-50 p-2 rounded-lg min-w-[80px]">
+                                            <span className="block text-xs text-red-600 font-bold">ป่วย</span>
+                                            <span className="block text-xl font-bold text-red-700">{report.sickCount}</span>
+                                        </div>
+                                        <div className="text-center bg-gray-100 p-2 rounded-lg min-w-[80px]">
+                                            <span className="block text-xs text-gray-600 font-bold">อยู่บ้าน</span>
+                                            <span className="block text-xl font-bold text-gray-700">{report.homeCount ?? '-'}</span>
+                                        </div>
+                                    </>
+                                )}
+                                {report.dormitory === 'เรือนพยาบาล' && (
+                                     <div className="text-center bg-red-50 p-2 rounded-lg min-w-[80px]">
+                                        <span className="block text-xs text-red-600 font-bold">ป่วย</span>
+                                        <span className="block text-xl font-bold text-red-700">{report.sickCount}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Image Slideshow */}
                         <div>
-                           <p className="text-sm font-medium text-secondary-gray">บันทึกเหตุการณ์</p>
-                           <p className="text-md font-semibold text-navy bg-light-gray p-3 rounded-lg mt-1 break-words">{report.log || 'ไม่มี'}</p>
+                            <h3 className="text-lg font-bold text-navy mb-2">รูปภาพประกอบ</h3>
+                            {imagePreviews.length > 0 ? (
+                                <div className="relative">
+                                    <img 
+                                        src={imagePreviews[currentImageIndex]} 
+                                        alt={`report image ${currentImageIndex + 1}`}
+                                        className="w-full h-64 object-cover rounded-lg shadow-md bg-gray-200"
+                                        onError={handleImageError}
+                                    />
+                                    {imagePreviews.length > 1 && (
+                                        <>
+                                            <button onClick={goToPreviousImage} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-opacity">
+                                                &#10094;
+                                            </button>
+                                            <button onClick={goToNextImage} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-opacity">
+                                                &#10095;
+                                            </button>
+                                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white text-sm px-3 py-1 rounded-full">
+                                                {currentImageIndex + 1} / {imagePreviews.length}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center h-64 bg-light-gray rounded-lg border border-dashed border-gray-300">
+                                    <p className="text-secondary-gray">ไม่มีรูปภาพประกอบ</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Image Slideshow Section */}
-                    <div>
-                        <h3 className="text-lg font-bold text-navy mb-2">รูปภาพประกอบ</h3>
-                        {imagePreviews.length > 0 ? (
-                            <div className="relative">
-                                <img 
-                                    src={imagePreviews[currentImageIndex]} 
-                                    alt={`report image ${currentImageIndex + 1}`}
-                                    className="w-full h-80 object-cover rounded-lg shadow-md bg-gray-200"
-                                    onError={handleImageError}
-                                />
-                                {imagePreviews.length > 1 && (
+                    {/* Student List Section */}
+                    <div className="border-t pt-6">
+                        <h3 className="text-lg font-bold text-navy mb-4">รายชื่อนักเรียน</h3>
+                        
+                        {studentData ? (
+                            <div className="space-y-4">
+                                {report.dormitory === 'เรือนพยาบาล' ? (
                                     <>
-                                        <button onClick={goToPreviousImage} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-opacity">
-                                            &#10094;
-                                        </button>
-                                        <button onClick={goToNextImage} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-opacity">
-                                            &#10095;
-                                        </button>
-                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white text-sm px-3 py-1 rounded-full">
-                                            {currentImageIndex + 1} / {imagePreviews.length}
-                                        </div>
+                                        <StudentList title="นักเรียนป่วย" students={studentData.sick} colorClass="text-red-600" />
+                                        <StudentList title="หายป่วยแล้ว" students={studentData.recovered} colorClass="text-green-600" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <StudentList title="มาเรียน" students={studentData.present} colorClass="text-green-600" />
+                                        <StudentList title="ป่วย" students={studentData.sick} colorClass="text-red-600" />
+                                        <StudentList title="อยู่บ้าน/ลา" students={studentData.home} colorClass="text-gray-600" />
                                     </>
                                 )}
                             </div>
                         ) : (
-                            <div className="flex items-center justify-center h-80 bg-light-gray rounded-lg">
-                                <p className="text-secondary-gray">ไม่มีรูปภาพประกอบ</p>
+                            <div className="bg-gray-50 p-4 rounded-lg border">
+                                <p className="text-gray-600 mb-2 font-medium">ไม่มีข้อมูลรายชื่อละเอียดในรายงานนี้ (บันทึกด้วยระบบเก่า)</p>
+                                <p className="text-sm font-bold text-navy">บันทึกเหตุการณ์เดิม:</p>
+                                <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans mt-1">{report.log || '-'}</pre>
                             </div>
                         )}
                     </div>

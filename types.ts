@@ -9,14 +9,18 @@ export interface Report {
   dormitory: string;
   presentCount: number;
   sickCount: number;
+  homeCount?: number; // New field
   log: string;
+  studentDetails?: string; // JSON string storing detailed status [{name, nickname, status}]
   images?: (File | string)[];
 }
 
 export interface DormitoryStat {
   name: string;
-  total: number;
+  present: number;
   sick: number;
+  home: number;
+  total: number;
 }
 
 export interface Student {
