@@ -660,6 +660,7 @@ const App: React.FC = () => {
                             onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
                             onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
                             isSaving={isSaving}
+                            currentUser={currentUser}
                         />;
             case 'attendance_personnel':
                 return <AttendancePage
@@ -672,6 +673,7 @@ const App: React.FC = () => {
                             onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
                             onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
                             isSaving={isSaving}
+                            currentUser={currentUser}
                         />;
             case 'reports':
                 return <ReportPage

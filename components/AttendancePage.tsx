@@ -14,6 +14,7 @@ interface AttendancePageProps {
     onSaveStudentAttendance: (data: StudentAttendance[]) => void;
     onSavePersonnelAttendance: (data: PersonnelAttendance[]) => void;
     isSaving: boolean;
+    currentUser: Personnel | null;
 }
 
 // Helper for current Buddhist date
@@ -46,7 +47,8 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     mode,
     students, personnel, dormitories, 
     studentAttendance, personnelAttendance,
-    onSaveStudentAttendance, onSavePersonnelAttendance, isSaving
+    onSaveStudentAttendance, onSavePersonnelAttendance, isSaving,
+    currentUser
 }) => {
     const [selectedDate, setSelectedDate] = useState(getTodayBuddhist());
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('morning');
@@ -64,6 +66,16 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     const [localPersonnelAttendance, setLocalPersonnelAttendance] = useState<Record<number, AttendanceStatus>>({});
     // Local state for Personnel Dress Code
     const [localPersonnelDressCode, setLocalPersonnelDressCode] = useState<Record<number, 'tidy' | 'untidy'>>({});
+
+    // Determine permission
+    const canEdit = useMemo(() => {
+        if (mode === 'student') {
+            // Teachers (users) typically can check students
+            return true; 
+        }
+        // For personnel check, only admin and pro can edit
+        return currentUser?.role === 'admin' || currentUser?.role === 'pro';
+    }, [mode, currentUser]);
 
     // Helper to generate composite ID
     const generateId = (date: string, period: string, id: number) => `${date}_${period}_${id}`;
@@ -121,19 +133,23 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     // --- Handlers ---
 
     const handleStudentStatusChange = (studentId: number, status: AttendanceStatus) => {
+        if (!canEdit) return;
         setLocalStudentAttendance(prev => ({ ...prev, [studentId]: status }));
     };
 
     const handlePersonnelStatusChange = (personnelId: number, status: AttendanceStatus) => {
+        if (!canEdit) return;
         setLocalPersonnelAttendance(prev => ({ ...prev, [personnelId]: status }));
     };
 
     const handlePersonnelDressCodeChange = (personnelId: number, code: 'tidy' | 'untidy') => {
+        if (!canEdit) return;
         setLocalPersonnelDressCode(prev => ({ ...prev, [personnelId]: code }));
     };
 
     // --- Bulk Actions ---
     const setAllStudentStatus = (status: AttendanceStatus) => {
+        if (!canEdit) return;
         const newStatusMap = { ...localStudentAttendance };
         filteredStudents.forEach(s => {
             newStatusMap[s.id] = status;
@@ -142,6 +158,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     };
 
     const setAllPersonnelStatus = (status: AttendanceStatus) => {
+        if (!canEdit) return;
         const newStatusMap = { ...localPersonnelAttendance };
         filteredPersonnel.forEach(p => {
             newStatusMap[p.id] = status;
@@ -150,6 +167,8 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     };
     
     const handleSave = () => {
+        if (!canEdit) return;
+
         if (mode === 'student') {
             const recordsToSave: StudentAttendance[] = students.map(s => ({
                 id: generateId(selectedDate, selectedPeriod, s.id),
@@ -200,6 +219,9 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
             <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 snap-x">
                 {options.map((opt) => {
                     const isSelected = currentStatus === opt.val || (opt.val === 'present' && currentStatus === 'activity');
+                    const buttonClass = isSelected ? opt.activeClass : opt.inactiveClass;
+                    const disabledClass = !canEdit ? 'opacity-60 cursor-not-allowed' : 'hover:bg-opacity-90';
+
                     return (
                         <button
                             key={opt.val}
@@ -208,7 +230,8 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                 ? handleStudentStatusChange(id, opt.val as AttendanceStatus) 
                                 : handlePersonnelStatusChange(id, opt.val as AttendanceStatus)
                             }
-                            className={`snap-start px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-sm font-bold transition-all duration-150 border whitespace-nowrap flex-shrink-0 ${isSelected ? opt.activeClass : opt.inactiveClass}`}
+                            disabled={!canEdit}
+                            className={`snap-start px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-sm font-bold transition-all duration-150 border whitespace-nowrap flex-shrink-0 ${buttonClass} ${disabledClass}`}
                         >
                             {opt.label}
                         </button>
@@ -228,6 +251,13 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                     </h2>
                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{selectedDate}</span>
                 </div>
+                 
+                 {!canEdit && (
+                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 flex items-center gap-2 text-yellow-700 text-xs md:text-sm">
+                         <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         <span>ท่านไม่มีสิทธิ์บันทึกข้อมูลในส่วนนี้ (ดูได้อย่างเดียว)</span>
+                     </div>
+                 )}
 
                  <div className="flex gap-2 items-center">
                     <div className="flex-grow">
@@ -277,25 +307,27 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                             </div>
                             
                             {/* Scrollable Bulk Actions */}
-                            <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar bg-white border-b md:border-0">
-                                <span className="text-[10px] font-bold text-gray-500 mr-1 whitespace-nowrap">เลือกด่วน:</span>
-                                <div className="flex gap-2">
-                                    {[
-                                        { label: 'มาครบ', action: () => setAllStudentStatus('present'), color: 'green' },
-                                        { label: 'ลาครบ', action: () => setAllStudentStatus('leave'), color: 'yellow' },
-                                        { label: 'ป่วยครบ', action: () => setAllStudentStatus('sick'), color: 'orange' },
-                                        { label: 'ขาดครบ', action: () => setAllStudentStatus('absent'), color: 'red' }
-                                    ].map(btn => (
-                                        <button 
-                                            key={btn.label}
-                                            onClick={btn.action} 
-                                            className={`bg-${btn.color}-100 text-${btn.color}-800 text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap border border-${btn.color}-200`}
-                                        >
-                                            {btn.label}
-                                        </button>
-                                    ))}
+                            {canEdit && (
+                                <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar bg-white border-b md:border-0">
+                                    <span className="text-[10px] font-bold text-gray-500 mr-1 whitespace-nowrap">เลือกด่วน:</span>
+                                    <div className="flex gap-2">
+                                        {[
+                                            { label: 'มาครบ', action: () => setAllStudentStatus('present'), color: 'green' },
+                                            { label: 'ลาครบ', action: () => setAllStudentStatus('leave'), color: 'yellow' },
+                                            { label: 'ป่วยครบ', action: () => setAllStudentStatus('sick'), color: 'orange' },
+                                            { label: 'ขาดครบ', action: () => setAllStudentStatus('absent'), color: 'red' }
+                                        ].map(btn => (
+                                            <button 
+                                                key={btn.label}
+                                                onClick={btn.action} 
+                                                className={`bg-${btn.color}-100 text-${btn.color}-800 text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap border border-${btn.color}-200`}
+                                            >
+                                                {btn.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Student Table */}
@@ -358,25 +390,27 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                             </div>
                             
                              {/* Bulk Actions for Personnel */}
-                             <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar bg-white border-b md:border-0">
-                                <span className="text-[10px] font-bold text-gray-500 mr-1 whitespace-nowrap">เลือกด่วน:</span>
-                                <div className="flex gap-2">
-                                     {[
-                                        { label: 'มาครบ', action: () => setAllPersonnelStatus('present'), color: 'green' },
-                                        { label: 'ลาครบ', action: () => setAllPersonnelStatus('leave'), color: 'yellow' },
-                                        { label: 'ป่วยครบ', action: () => setAllPersonnelStatus('sick'), color: 'orange' },
-                                        { label: 'ขาดครบ', action: () => setAllPersonnelStatus('absent'), color: 'red' }
-                                    ].map(btn => (
-                                        <button 
-                                            key={btn.label}
-                                            onClick={btn.action} 
-                                            className={`bg-${btn.color}-100 text-${btn.color}-800 text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap border border-${btn.color}-200`}
-                                        >
-                                            {btn.label}
-                                        </button>
-                                    ))}
+                             {canEdit && (
+                                 <div className="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar bg-white border-b md:border-0">
+                                    <span className="text-[10px] font-bold text-gray-500 mr-1 whitespace-nowrap">เลือกด่วน:</span>
+                                    <div className="flex gap-2">
+                                         {[
+                                            { label: 'มาครบ', action: () => setAllPersonnelStatus('present'), color: 'green' },
+                                            { label: 'ลาครบ', action: () => setAllPersonnelStatus('leave'), color: 'yellow' },
+                                            { label: 'ป่วยครบ', action: () => setAllPersonnelStatus('sick'), color: 'orange' },
+                                            { label: 'ขาดครบ', action: () => setAllPersonnelStatus('absent'), color: 'red' }
+                                        ].map(btn => (
+                                            <button 
+                                                key={btn.label}
+                                                onClick={btn.action} 
+                                                className={`bg-${btn.color}-100 text-${btn.color}-800 text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap border border-${btn.color}-200`}
+                                            >
+                                                {btn.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                             )}
                         </div>
 
                         {/* Personnel Table */}
@@ -417,8 +451,20 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                                     <td className="p-2 whitespace-nowrap text-center">
                                                         {isPresent && (
                                                             <div className="flex justify-center gap-1 flex-nowrap">
-                                                                <button onClick={() => handlePersonnelDressCodeChange(p.id, 'tidy')} className={`px-1.5 py-0.5 rounded text-[10px] border ${dressCode === 'tidy' ? 'bg-blue-500 text-white' : 'bg-white'}`}>เรียบร้อย</button>
-                                                                <button onClick={() => handlePersonnelDressCodeChange(p.id, 'untidy')} className={`px-1.5 py-0.5 rounded text-[10px] border ${dressCode === 'untidy' ? 'bg-gray-500 text-white' : 'bg-white'}`}>ไม่</button>
+                                                                <button 
+                                                                    onClick={() => handlePersonnelDressCodeChange(p.id, 'tidy')} 
+                                                                    disabled={!canEdit}
+                                                                    className={`px-1.5 py-0.5 rounded text-[10px] border ${dressCode === 'tidy' ? 'bg-blue-500 text-white' : 'bg-white'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                                >
+                                                                    เรียบร้อย
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handlePersonnelDressCodeChange(p.id, 'untidy')} 
+                                                                    disabled={!canEdit}
+                                                                    className={`px-1.5 py-0.5 rounded text-[10px] border ${dressCode === 'untidy' ? 'bg-gray-500 text-white' : 'bg-white'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                                >
+                                                                    ไม่
+                                                                </button>
                                                             </div>
                                                         )}
                                                     </td>
@@ -433,15 +479,17 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                 )}
 
                 {/* Footer Actions */}
-                <div className="mt-4 flex justify-end border-t pt-3">
-                     <button 
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className={`w-full text-white font-bold py-2.5 px-6 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 text-sm ${mode === 'student' ? 'bg-primary-blue hover:bg-primary-hover' : 'bg-purple-600 hover:bg-purple-700'}`}
-                    >
-                        {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
-                    </button>
-                </div>
+                {canEdit && (
+                    <div className="mt-4 flex justify-end border-t pt-3">
+                         <button 
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className={`w-full text-white font-bold py-2.5 px-6 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 text-sm ${mode === 'student' ? 'bg-primary-blue hover:bg-primary-hover' : 'bg-purple-600 hover:bg-purple-700'}`}
+                        >
+                            {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
