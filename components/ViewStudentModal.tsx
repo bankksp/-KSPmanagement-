@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, getDirectDriveImageSrc, safeParseArray } from '../utils';
@@ -140,100 +141,123 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
     };
 
     const handleExportWord = () => {
-         const preHtml = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export HTML to Word</title></head><body>";
+         const preHtml = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Export HTML to Word</title>
+                <style>
+                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; }
+                    .header { text-align: center; margin-bottom: 20px; }
+                    .title { font-size: 24pt; font-weight: bold; }
+                    .subtitle { font-size: 22pt; font-weight: bold; }
+                    .section-title { font-size: 20pt; font-weight: bold; border-bottom: 1px solid #000; margin-top: 20px; margin-bottom: 10px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+                    td { padding: 4px; vertical-align: bottom; }
+                    .label { font-size: 18pt; font-weight: bold; white-space: nowrap; }
+                    .value { font-size: 16pt; border-bottom: 1px dotted #000; padding-left: 5px; width: 100%; }
+                    .value-static { font-size: 16pt; border-bottom: 1px dotted #000; padding-left: 5px; }
+                    .photo-box { border: 1px solid #000; width: 120px; height: 150px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+                </style>
+            </head>
+            <body>
+        `;
         const postHtml = "</body></html>";
         
         // Using Table layout for Word to enforce the "Image Right" design
         const content = `
-            <div style="font-family: 'TH SarabunPSK', 'TH Sarabun New', 'Sarabun', sans-serif; padding: 20px; line-height: 1.2;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <h1 style="margin: 0; font-size: 24pt; font-weight: bold;">โรงเรียนกาฬสินธุ์ปัญญานุกูล</h1>
-                    <h2 style="margin: 0; font-size: 20pt; font-weight: bold;">ระเบียนประวัตินักเรียน</h2>
+            <div style="padding: 20px;">
+                <div class="header">
+                    <div class="title">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
+                    <div class="subtitle">ระเบียนประวัตินักเรียน</div>
                 </div>
                 
-                <table style="width: 100%; border-collapse: collapse; border: none;">
-                    <tr style="vertical-align: top;">
-                        <td>
-                            <table style="width: 100%; font-size: 16pt;">
+                <table>
+                    <tr>
+                        <td style="vertical-align: top;">
+                            <table>
                                 <tr>
-                                    <td style="font-weight: bold; width: 120px;">ชื่อ-นามสกุล:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${student.studentTitle} ${student.studentName}</td>
+                                    <td class="label" style="width: 100px;">ชื่อ-นามสกุล:</td>
+                                    <td class="value">${student.studentTitle} ${student.studentName}</td>
                                 </tr>
                                 <tr>
-                                    <td style="font-weight: bold;">ชื่อเล่น:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${student.studentNickname || '-'}</td>
+                                    <td class="label">ชื่อเล่น:</td>
+                                    <td class="value">${student.studentNickname || '-'}</td>
                                 </tr>
                                  <tr>
-                                    <td style="font-weight: bold;">ชั้นเรียน:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${student.studentClass}</td>
+                                    <td class="label">ชั้นเรียน:</td>
+                                    <td class="value">${student.studentClass}</td>
                                 </tr>
                                  <tr>
-                                    <td style="font-weight: bold;">เรือนนอน:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${student.dormitory}</td>
+                                    <td class="label">เรือนนอน:</td>
+                                    <td class="value">${student.dormitory}</td>
                                 </tr>
                                 <tr>
-                                    <td style="font-weight: bold;">รหัสประจำตัว:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${student.studentIdCard}</td>
+                                    <td class="label">รหัสประจำตัว:</td>
+                                    <td class="value">${student.studentIdCard}</td>
                                 </tr>
                             </table>
                         </td>
-                        <td style="width: 160px; text-align: right; vertical-align: top; padding-left: 20px;">
-                             <!-- Image Placeholder for Word -->
-                             <div style="width: 1.5in; height: 2in; border: 1px solid #000; display: flex; align-items: center; justify-content: center; text-align: center;">
-                                ${profileImageUrl ? `<img src="${profileImageUrl}" width="144" height="192" style="object-fit: cover;" />` : 'รูปถ่าย'}
+                        <td style="width: 150px; text-align: right; vertical-align: top; padding-left: 20px;">
+                             <div class="photo-box">
+                                ${profileImageUrl ? `<img src="${profileImageUrl}" width="120" height="150" style="object-fit: cover;" />` : '<span style="font-size: 14pt;">รูปถ่าย</span>'}
                              </div>
                         </td>
                     </tr>
                 </table>
 
-                <br/>
-
-                <table style="width: 100%; font-size: 16pt; border-collapse: collapse;">
+                <table>
                     <tr>
-                         <td style="font-weight: bold; width: 120px;">วันเกิด:</td>
-                         <td style="border-bottom: 1px dotted #000;">${student.studentDob}</td>
-                         <td style="font-weight: bold; width: 100px; padding-left: 20px;">เบอร์โทร:</td>
-                         <td style="border-bottom: 1px dotted #000;">${student.studentPhone || '-'}</td>
+                         <td class="label" style="width: 70px;">วันเกิด:</td>
+                         <td class="value">${student.studentDob}</td>
+                         <td class="label" style="width: 70px; padding-left: 15px;">เบอร์โทร:</td>
+                         <td class="value">${student.studentPhone || '-'}</td>
                     </tr>
                 </table>
                 
-                <div style="margin-top: 10px; font-size: 16pt;">
-                    <span style="font-weight: bold;">ที่อยู่: </span>
-                    <span style="border-bottom: 1px dotted #000; display: inline-block; width: 85%;">${student.studentAddress || '-'}</span>
-                </div>
-
-                <div style="margin-top: 10px; font-size: 16pt;">
-                    <span style="font-weight: bold;">ครูประจำชั้น: </span>
-                    <span style="border-bottom: 1px dotted #000; display: inline-block; width: 80%;">${homeroomTeacherNames || '-'}</span>
-                </div>
-
-                <h3 style="border-bottom: 1px solid #000; padding-bottom: 5px; margin-top: 30px; font-size: 18pt; font-weight: bold;">ข้อมูลครอบครัว</h3>
-                
-                <table style="width: 100%; font-size: 16pt; border-collapse: collapse;">
+                <table>
                     <tr>
-                        <td style="font-weight: bold; width: 150px; padding-top: 10px;">บิดา:</td>
-                        <td style="border-bottom: 1px dotted #000; padding-top: 10px;">${student.fatherName || '-'}</td>
-                         <td style="font-weight: bold; width: 80px; padding-top: 10px; padding-left: 10px;">โทร:</td>
-                        <td style="border-bottom: 1px dotted #000; padding-top: 10px;">${student.fatherPhone || '-'}</td>
-                    </tr>
-                     <tr>
-                        <td style="font-weight: bold; padding-top: 10px;">มารดา:</td>
-                        <td style="border-bottom: 1px dotted #000; padding-top: 10px;">${student.motherName || '-'}</td>
-                        <td style="font-weight: bold; padding-top: 10px; padding-left: 10px;">โทร:</td>
-                        <td style="border-bottom: 1px dotted #000; padding-top: 10px;">${student.motherPhone || '-'}</td>
-                    </tr>
-                     <tr>
-                        <td style="font-weight: bold; padding-top: 10px;">ผู้ปกครอง:</td>
-                        <td style="border-bottom: 1px dotted #000; padding-top: 10px;">${student.guardianName || '-'}</td>
-                        <td style="font-weight: bold; padding-top: 10px; padding-left: 10px;">โทร:</td>
-                        <td style="border-bottom: 1px dotted #000; padding-top: 10px;">${student.guardianPhone || '-'}</td>
+                        <td class="label" style="width: 60px;">ที่อยู่:</td>
+                        <td class="value">${student.studentAddress || '-'}</td>
                     </tr>
                 </table>
-                <br/>
-                <div style="text-align: right; margin-top: 50px; font-size: 16pt;">
-                     <p>ลงชื่อ ........................................................... ผู้บันทึก</p>
-                     <p>(...........................................................)</p>
-                     <p>วันที่ ........./........./.............</p>
+
+                <table>
+                    <tr>
+                        <td class="label" style="width: 100px;">ครูประจำชั้น:</td>
+                        <td class="value">${homeroomTeacherNames || '-'}</td>
+                    </tr>
+                </table>
+
+                <div class="section-title">ข้อมูลครอบครัว</div>
+                
+                <table>
+                    <tr>
+                        <td class="label" style="width: 60px;">บิดา:</td>
+                        <td class="value">${student.fatherName || '-'}</td>
+                        <td class="label" style="width: 50px; padding-left: 10px;">โทร:</td>
+                        <td class="value" style="width: 150px;">${student.fatherPhone || '-'}</td>
+                    </tr>
+                     <tr>
+                        <td class="label">มารดา:</td>
+                        <td class="value">${student.motherName || '-'}</td>
+                        <td class="label" style="padding-left: 10px;">โทร:</td>
+                        <td class="value">${student.motherPhone || '-'}</td>
+                    </tr>
+                     <tr>
+                        <td class="label">ผู้ปกครอง:</td>
+                        <td class="value">${student.guardianName || '-'}</td>
+                        <td class="label" style="padding-left: 10px;">โทร:</td>
+                        <td class="value">${student.guardianPhone || '-'}</td>
+                    </tr>
+                </table>
+                
+                <br/><br/>
+                
+                <div style="text-align: right; margin-top: 30px;">
+                     <p style="font-size: 16pt;">ลงชื่อ ........................................................... ผู้บันทึก</p>
+                     <p style="font-size: 16pt;">(...........................................................)</p>
+                     <p style="font-size: 16pt;">วันที่ ........./........./.............</p>
                 </div>
             </div>
         `;

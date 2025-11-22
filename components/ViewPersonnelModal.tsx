@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect } from 'react';
 import { Personnel } from '../types';
 import { getFirstImageSource, getDirectDriveImageSrc } from '../utils';
@@ -102,72 +103,89 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
     };
 
     const handleExportWord = () => {
-         const preHtml = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export HTML to Word</title></head><body>";
+         const preHtml = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Export HTML to Word</title>
+                <style>
+                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; }
+                    .header { text-align: center; margin-bottom: 20px; }
+                    .title { font-size: 24pt; font-weight: bold; }
+                    .subtitle { font-size: 22pt; font-weight: bold; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+                    td { padding: 4px; vertical-align: bottom; }
+                    .label { font-size: 18pt; font-weight: bold; white-space: nowrap; }
+                    .value { font-size: 16pt; border-bottom: 1px dotted #000; padding-left: 5px; width: 100%; }
+                    .photo-box { border: 1px solid #000; width: 120px; height: 150px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+                </style>
+            </head>
+            <body>
+        `;
         const postHtml = "</body></html>";
         
         const content = `
-            <div style="font-family: 'TH SarabunPSK', 'TH Sarabun New', 'Sarabun', sans-serif; padding: 20px; line-height: 1.2;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <h1 style="margin: 0; font-size: 24pt; font-weight: bold;">โรงเรียนกาฬสินธุ์ปัญญานุกูล</h1>
-                    <h2 style="margin: 0; font-size: 20pt; font-weight: bold;">ประวัติบุคลากร</h2>
+            <div style="padding: 20px;">
+                <div class="header">
+                    <div class="title">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
+                    <div class="subtitle">ประวัติบุคลากร</div>
                 </div>
 
-                <table style="width: 100%; border-collapse: collapse; border: none;">
-                    <tr style="vertical-align: top;">
-                        <td>
-                            <table style="width: 100%; font-size: 16pt;">
+                <table>
+                    <tr>
+                        <td style="vertical-align: top;">
+                            <table>
                                 <tr>
-                                    <td style="font-weight: bold; width: 120px;">ชื่อ-นามสกุล:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${fullName}</td>
+                                    <td class="label" style="width: 100px;">ชื่อ-นามสกุล:</td>
+                                    <td class="value">${fullName}</td>
                                 </tr>
                                 <tr>
-                                    <td style="font-weight: bold;">ตำแหน่ง:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${personnel.position}</td>
+                                    <td class="label">ตำแหน่ง:</td>
+                                    <td class="value">${personnel.position}</td>
                                 </tr>
                                  <tr>
-                                    <td style="font-weight: bold;">เลขตำแหน่ง:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${personnel.positionNumber || '-'}</td>
+                                    <td class="label">เลขตำแหน่ง:</td>
+                                    <td class="value">${personnel.positionNumber || '-'}</td>
                                 </tr>
                                  <tr>
-                                    <td style="font-weight: bold;">วันเกิด:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${personnel.dob}</td>
+                                    <td class="label">วันเกิด:</td>
+                                    <td class="value">${personnel.dob}</td>
                                 </tr>
                                 <tr>
-                                    <td style="font-weight: bold;">เลขบัตรประชาชน:</td>
-                                    <td style="border-bottom: 1px dotted #000;">${personnel.idCard}</td>
+                                    <td class="label">เลขบัตรฯ:</td>
+                                    <td class="value">${personnel.idCard}</td>
                                 </tr>
                             </table>
                         </td>
-                        <td style="width: 160px; text-align: right; vertical-align: top; padding-left: 20px;">
-                             <!-- Image Placeholder for Word -->
-                             <div style="width: 1.5in; height: 2in; border: 1px solid #000; display: flex; align-items: center; justify-content: center; text-align: center;">
-                                ${profileImageUrl ? `<img src="${profileImageUrl}" width="144" height="192" style="object-fit: cover;" />` : 'รูปถ่าย'}
+                        <td style="width: 150px; text-align: right; vertical-align: top; padding-left: 20px;">
+                             <div class="photo-box">
+                                ${profileImageUrl ? `<img src="${profileImageUrl}" width="120" height="150" style="object-fit: cover;" />` : '<span style="font-size: 14pt;">รูปถ่าย</span>'}
                              </div>
                         </td>
                     </tr>
                 </table>
                 
-                <br/>
-
-                <table style="width: 100%; font-size: 16pt; border-collapse: collapse;">
+                <table>
                     <tr>
-                         <td style="font-weight: bold; width: 120px;">วันที่บรรจุ:</td>
-                         <td style="border-bottom: 1px dotted #000;">${personnel.appointmentDate}</td>
-                         <td style="font-weight: bold; width: 100px; padding-left: 20px;">เบอร์โทร:</td>
-                         <td style="border-bottom: 1px dotted #000;">${personnel.phone || '-'}</td>
+                         <td class="label" style="width: 100px;">วันที่บรรจุ:</td>
+                         <td class="value">${personnel.appointmentDate}</td>
+                         <td class="label" style="width: 70px; padding-left: 15px;">เบอร์โทร:</td>
+                         <td class="value">${personnel.phone || '-'}</td>
                     </tr>
                 </table>
 
-                <div style="margin-top: 10px; font-size: 16pt;">
-                    <span style="font-weight: bold;">ครูที่ปรึกษา: </span>
-                    <span style="border-bottom: 1px dotted #000; display: inline-block; width: 80%;">${advisoryClassesText}</span>
-                </div>
+                <table>
+                    <tr>
+                        <td class="label" style="width: 100px;">ครูที่ปรึกษา:</td>
+                        <td class="value">${advisoryClassesText}</td>
+                    </tr>
+                </table>
 
                 <br/><br/>
-                <div style="text-align: right; margin-top: 50px; font-size: 16pt;">
-                     <p>ลงชื่อ ........................................................... เจ้าของประวัติ</p>
-                     <p>(${fullName})</p>
-                     <p>วันที่ ........./........./.............</p>
+                <div style="text-align: right; margin-top: 30px;">
+                     <p style="font-size: 16pt;">ลงชื่อ ........................................................... เจ้าของประวัติ</p>
+                     <p style="font-size: 16pt;">(${fullName})</p>
+                     <p style="font-size: 16pt;">วันที่ ........./........./.............</p>
                 </div>
             </div>
         `;
