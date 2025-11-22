@@ -21,8 +21,68 @@ import ProfilePage from './components/ProfilePage';
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
 
+// Helper: Resize and Compress Image
+const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: number, quality: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // Calculate new dimensions while maintaining aspect ratio
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    // Compress to JPEG
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(dataUrl);
+                } else {
+                    reject(new Error("Canvas context is null"));
+                }
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
 // Helper to convert a File to a Base64 string object for Google Script
-const fileToObject = (file: File): Promise<{ filename: string, mimeType: string, data: string }> => {
+const fileToObject = async (file: File): Promise<{ filename: string, mimeType: string, data: string }> => {
+    // If it's an image, try to compress it
+    if (file.type.startsWith('image/')) {
+        try {
+            // Resize to max 1024px, 0.7 quality (High compression, decent quality)
+            const compressedDataUrl = await resizeAndCompressImage(file, 1024, 1024, 0.7);
+            return {
+                filename: file.name.replace(/\.[^/.]+$/, "") + ".jpg", // Force extension to jpg
+                mimeType: 'image/jpeg',
+                data: compressedDataUrl.split(',')[1] // Remove "data:image/jpeg;base64," header
+            };
+        } catch (error) {
+            console.warn("Image compression failed, falling back to original file", error);
+        }
+    }
+
+    // Fallback for non-images or failed compression
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
