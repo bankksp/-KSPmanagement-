@@ -143,6 +143,7 @@ const StudentModal: React.FC<StudentModalProps> = ({
     const [currentClass, setCurrentClass] = useState(studentClasses[0] || '');
     const [currentRoom, setCurrentRoom] = useState(studentClassrooms[0] || '');
     const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false);
+    const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
 
     const isEditing = !!studentToEdit;
     const studentTitles = ['เด็กชาย', 'เด็กหญิง', 'นาย', 'นางสาว'];
@@ -177,6 +178,13 @@ const StudentModal: React.FC<StudentModalProps> = ({
             setCurrentRoom(studentClassrooms[0] || '');
         }
     }, [studentToEdit, dormitories, studentClasses, studentClassrooms]);
+
+    // Clear search term when dropdown closes
+    useEffect(() => {
+        if (!isTeacherDropdownOpen) {
+            setTeacherSearchTerm('');
+        }
+    }, [isTeacherDropdownOpen]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -224,6 +232,16 @@ const StudentModal: React.FC<StudentModalProps> = ({
             .map(id => personnel.find(p => p.id === id))
             .filter((p): p is Personnel => !!p);
     }, [formData.homeroomTeachers, personnel]);
+
+    const filteredPersonnel = useMemo(() => {
+        if (!teacherSearchTerm) return personnel;
+        const term = teacherSearchTerm.toLowerCase();
+        return personnel.filter(p => {
+            const title = p.personnelTitle === 'อื่นๆ' ? p.personnelTitleOther : p.personnelTitle;
+            const fullName = `${title} ${p.personnelName}`;
+            return fullName.toLowerCase().includes(term);
+        });
+    }, [personnel, teacherSearchTerm]);
 
 
     useEffect(() => {
@@ -326,23 +344,49 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                 />
                                 <div className="relative lg:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ครูประจำชั้น</label>
-                                    <button type="button" onClick={() => setIsTeacherDropdownOpen(!isTeacherDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left">
-                                        เลือกครู...
+                                    <button type="button" onClick={() => setIsTeacherDropdownOpen(!isTeacherDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex justify-between items-center">
+                                        <span className="truncate text-gray-700">
+                                            {selectedTeachers.length > 0 
+                                                ? `เลือกแล้ว ${selectedTeachers.length} ท่าน` 
+                                                : 'เลือกครู...'}
+                                        </span>
+                                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                     </button>
                                     {isTeacherDropdownOpen && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                            {personnel.map(p => (
-                                                <div key={p.id} className="flex items-center p-2 hover:bg-gray-100">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={`teacher-${p.id}`}
-                                                        checked={(formData.homeroomTeachers || []).includes(p.id)}
-                                                        onChange={() => handleHomeroomTeacherChange(p.id)}
-                                                        className="h-4 w-4 rounded border-gray-300 text-primary-blue focus:ring-primary-blue"
-                                                    />
-                                                    <label htmlFor={`teacher-${p.id}`} className="ml-2 text-sm text-gray-700">{`${p.personnelTitle} ${p.personnelName}`}</label>
-                                                </div>
-                                            ))}
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                                            <div className="p-2 bg-gray-50 border-b">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="ค้นหาชื่อครู..." 
+                                                    value={teacherSearchTerm}
+                                                    onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                            </div>
+                                            <div className="overflow-y-auto flex-grow">
+                                                {filteredPersonnel.length > 0 ? filteredPersonnel.map(p => (
+                                                    <div 
+                                                        key={p.id} 
+                                                        className="flex items-center p-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 border-gray-100"
+                                                        onClick={() => handleHomeroomTeacherChange(p.id)}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            id={`teacher-${p.id}`}
+                                                            checked={(formData.homeroomTeachers || []).includes(p.id)}
+                                                            onChange={() => {}} 
+                                                            className="h-4 w-4 rounded border-gray-300 text-primary-blue focus:ring-primary-blue pointer-events-none"
+                                                        />
+                                                        <label htmlFor={`teacher-${p.id}`} className="ml-2 text-sm text-gray-700 pointer-events-none select-none">
+                                                            {`${p.personnelTitle === 'อื่นๆ' ? p.personnelTitleOther : p.personnelTitle} ${p.personnelName}`}
+                                                        </label>
+                                                    </div>
+                                                )) : (
+                                                    <div className="p-4 text-center text-gray-500 text-sm">ไม่พบรายชื่อ</div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                     <div className="mt-2 flex flex-wrap gap-2">

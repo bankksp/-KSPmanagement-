@@ -241,7 +241,17 @@ const App: React.FC = () => {
             // FIX: Access .data property from the response wrapper
             const data = response.data || {};
             
-            setReports(data.reports || []);
+            // NORMALIZE: Ensure studentDetails is always a string in the state
+            // The backend (Apps Script) might auto-parse JSON strings into Objects/Arrays.
+            // We convert it back to string here to satisfy the Report interface and prevent double-parsing errors.
+            const normalizedReports = (data.reports || []).map((r: any) => {
+                if (r.studentDetails && typeof r.studentDetails !== 'string') {
+                    return { ...r, studentDetails: JSON.stringify(r.studentDetails) };
+                }
+                return r;
+            });
+            
+            setReports(normalizedReports);
             setStudents(data.students || []);
             
             // Process personnel to enforce Super Admin
@@ -353,18 +363,27 @@ const App: React.FC = () => {
             const response = await postToGoogleScript({ action, data: apiPayload });
             const savedData = response.data;
 
+            // Normalize saved data as well
+            const normalizeReport = (r: any) => {
+                 if (r.studentDetails && typeof r.studentDetails !== 'string') {
+                    return { ...r, studentDetails: JSON.stringify(r.studentDetails) };
+                 }
+                 return r;
+            };
+
             let processedData = savedData;
             if (Array.isArray(savedData) && savedData.length === 1 && reports.length > 1) {
                  processedData = savedData[0];
             }
-
+            
             if (Array.isArray(processedData)) {
-                setReports(processedData);
+                setReports(processedData.map(normalizeReport));
             } else {
+                 const normalizedSingle = normalizeReport(processedData);
                  if (isEditing) {
-                    setReports(prev => prev.map(r => String(r.id) === String(processedData.id) ? processedData : r));
+                    setReports(prev => prev.map(r => String(r.id) === String(normalizedSingle.id) ? normalizedSingle : r));
                 } else {
-                    setReports(prev => [...prev, processedData]);
+                    setReports(prev => [...prev, normalizedSingle]);
                 }
             }
             handleCloseReportModal();
@@ -757,6 +776,7 @@ const App: React.FC = () => {
                 <ViewReportModal 
                     report={viewingReport}
                     onClose={handleCloseViewReportModal}
+                    students={students}
                 />
             )}
             {isStudentModalOpen && (

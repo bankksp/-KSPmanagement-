@@ -1,14 +1,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Report } from '../types';
+import { Report, Student } from '../types';
 import { getDirectDriveImageSrc, safeParseArray } from '../utils';
 
 interface ViewReportModalProps {
     report: Report;
     onClose: () => void;
+    students?: Student[];
 }
 
-const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) => {
+const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose, students = [] }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     const imagePreviews = useMemo(() => {
@@ -16,20 +17,88 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
         return images.map(img => getDirectDriveImageSrc(img));
     }, [report.images]);
 
+    // Logic to parse student data: Try JSON first, fall back to parsing Log text
     const studentData = useMemo(() => {
-        if (!report.studentDetails) return null;
-        try {
-            const parsed = JSON.parse(report.studentDetails) as { name: string, nickname: string, status: string }[];
-            return {
-                present: parsed.filter(s => s.status === 'present'),
-                sick: parsed.filter(s => s.status === 'sick'),
-                home: parsed.filter(s => s.status === 'home'),
-                recovered: parsed.filter(s => s.status === 'recovered'),
-            };
-        } catch (e) {
-            return null;
+        // Priority 1: JSON Data (New System)
+        if (report.studentDetails) {
+            try {
+                let parsed: any = report.studentDetails;
+                
+                // Handle case where it is a JSON string
+                if (typeof parsed === 'string') {
+                    parsed = JSON.parse(parsed);
+                }
+
+                // Handle case where it is already an object/array
+                if (Array.isArray(parsed)) {
+                    const list = parsed as { name: string, nickname: string, status: string }[];
+                    return {
+                        present: list.filter(s => s.status === 'present'),
+                        sick: list.filter(s => s.status === 'sick'),
+                        home: list.filter(s => s.status === 'home'),
+                        recovered: list.filter(s => s.status === 'recovered'),
+                        isFallback: false
+                    };
+                }
+            } catch (e) {
+                console.error("Failed to parse studentDetails JSON", e);
+            }
         }
-    }, [report.studentDetails]);
+
+        // Priority 2: Parse from Log Text (Old System / Fallback)
+        if (report.log) {
+            const lines = report.log.split('\n');
+            const fallbackData = {
+                present: [] as { name: string, nickname: string }[],
+                sick: [] as { name: string, nickname: string }[],
+                home: [] as { name: string, nickname: string }[],
+                recovered: [] as { name: string, nickname: string }[],
+                isFallback: true
+            };
+            
+            let hasData = false;
+
+            lines.forEach(line => {
+                const cleanLine = line.trim();
+                if (cleanLine.startsWith('ป่วย:')) {
+                    const names = cleanLine.replace('ป่วย:', '').split(',').map(s => s.trim()).filter(Boolean);
+                    fallbackData.sick = names.map(name => ({ name, nickname: '' }));
+                    hasData = true;
+                } else if (cleanLine.startsWith('อยู่บ้าน:')) {
+                    const names = cleanLine.replace('อยู่บ้าน:', '').split(',').map(s => s.trim()).filter(Boolean);
+                    fallbackData.home = names.map(name => ({ name, nickname: '' }));
+                    hasData = true;
+                } else if (cleanLine.startsWith('หายป่วย:')) {
+                    const names = cleanLine.replace('หายป่วย:', '').split(',').map(s => s.trim()).filter(Boolean);
+                    fallbackData.recovered = names.map(name => ({ name, nickname: '' }));
+                    hasData = true;
+                }
+            });
+
+            if (hasData) return fallbackData;
+        }
+
+        return null;
+    }, [report.studentDetails, report.log]);
+    
+    const { homeVal, isCalculated } = useMemo(() => {
+        // Case 1: Has saved data
+        if (report.homeCount !== undefined && report.homeCount !== null && !isNaN(Number(report.homeCount))) {
+             // Check for the case where homeCount might be empty string coming from API for some reason
+            if (String(report.homeCount) !== "") return { homeVal: report.homeCount, isCalculated: false };
+        }
+        // Case 2: Fallback calculation
+        if (report.dormitory !== 'เรือนพยาบาล' && students.length > 0) {
+             const dormStudents = students.filter(s => s.dormitory === report.dormitory).length;
+             // If we have students but calc results in <= 0 (maybe data error), show 0. 
+             // If dormStudents is 0 (maybe wrong dorm name match), we might return '-' to indicate error
+             if (dormStudents > 0) {
+                const calculated = dormStudents - (report.presentCount || 0) - (report.sickCount || 0);
+                return { homeVal: Math.max(0, calculated), isCalculated: true };
+             }
+        }
+        return { homeVal: '-', isCalculated: false };
+    }, [report, students]);
 
     useEffect(() => {
         return () => {
@@ -116,7 +185,8 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
                                         </div>
                                         <div className="text-center bg-gray-100 p-2 rounded-lg min-w-[80px]">
                                             <span className="block text-xs text-gray-600 font-bold">อยู่บ้าน</span>
-                                            <span className="block text-xl font-bold text-gray-700">{report.homeCount ?? '-'}</span>
+                                            <span className="block text-xl font-bold text-gray-700">{homeVal}</span>
+                                            {isCalculated && <span className="block text-[10px] text-gray-400">*คำนวณ</span>}
                                         </div>
                                     </>
                                 )}
@@ -164,7 +234,10 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
 
                     {/* Student List Section */}
                     <div className="border-t pt-6">
-                        <h3 className="text-lg font-bold text-navy mb-4">รายชื่อนักเรียน</h3>
+                        <h3 className="text-lg font-bold text-navy mb-4">
+                            รายชื่อนักเรียน 
+                            {studentData?.isFallback && <span className="text-xs font-normal text-orange-600 ml-2">(ดึงจากบันทึกข้อความ)</span>}
+                        </h3>
                         
                         {studentData ? (
                             <div className="space-y-4">
@@ -182,10 +255,17 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose }) =>
                                 )}
                             </div>
                         ) : (
-                            <div className="bg-gray-50 p-4 rounded-lg border">
-                                <p className="text-gray-600 mb-2 font-medium">ไม่มีข้อมูลรายชื่อละเอียดในรายงานนี้ (บันทึกด้วยระบบเก่า)</p>
-                                <p className="text-sm font-bold text-navy">บันทึกเหตุการณ์เดิม:</p>
-                                <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans mt-1">{report.log || '-'}</pre>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <div className="flex items-start gap-3">
+                                    <svg className="w-6 h-6 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    <div>
+                                        <p className="text-gray-800 font-bold mb-1">ไม่พบข้อมูลรายชื่อ</p>
+                                        <div className="bg-white p-3 rounded border border-gray-200 mt-2">
+                                            <p className="text-xs font-bold text-navy mb-1">บันทึกเหตุการณ์:</p>
+                                            <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">{report.log || '-'}</pre>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

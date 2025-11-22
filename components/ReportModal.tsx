@@ -82,12 +82,20 @@ const ReportModal: React.FC<ReportModalProps> = ({
             // Try to restore student selections if available in studentDetails
             if (reportToEdit.studentDetails) {
                 try {
-                    const details = JSON.parse(reportToEdit.studentDetails);
-                    const statusMap: Record<number, StudentStatus> = {};
-                    details.forEach((d: any) => {
-                        if (d.id && d.status) statusMap[d.id] = d.status;
-                    });
-                    setStudentStatuses(statusMap);
+                    let details: any = reportToEdit.studentDetails;
+                    
+                    // Handle string or object input safely
+                    if (typeof details === 'string') {
+                        details = JSON.parse(details);
+                    }
+                    
+                    if (Array.isArray(details)) {
+                         const statusMap: Record<number, StudentStatus> = {};
+                         details.forEach((d: any) => {
+                            if (d.id && d.status) statusMap[d.id] = d.status;
+                        });
+                        setStudentStatuses(statusMap);
+                    }
                 } catch (e) {
                     console.error("Failed to parse student details", e);
                 }
