@@ -1,11 +1,13 @@
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Personnel } from '../types';
 import { getFirstImageSource, getDirectDriveImageSrc } from '../utils';
 
 interface ViewPersonnelModalProps {
     personnel: Personnel;
     onClose: () => void;
+    schoolName: string;
+    schoolLogo: string;
 }
 
 const calculateAge = (dobString: string): string => {
@@ -30,7 +32,8 @@ const calculateAge = (dobString: string): string => {
     return age > 0 ? age.toString() : '-';
 };
 
-const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onClose }) => {
+const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onClose, schoolName, schoolLogo }) => {
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
     const profileImageUrl = useMemo(() => {
         return getFirstImageSource(personnel.profileImage);
@@ -71,10 +74,257 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
     // --- Export Functions ---
 
     const handlePrint = () => {
+        setIsExportMenuOpen(false);
         window.print();
     };
 
+    const handleExportIDCard = () => {
+        setIsExportMenuOpen(false);
+        const logoSrc = getDirectDriveImageSrc(schoolLogo);
+        const photoSrc = profileImageUrl || '';
+        
+        const today = new Date();
+        const expiry = new Date();
+        expiry.setFullYear(expiry.getFullYear() + 1);
+        
+        const formatDate = (date: Date) => {
+            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${(date.getFullYear() + 543).toString().slice(-2)}`;
+        };
+
+        const issueDate = formatDate(today);
+        const expiryDate = formatDate(expiry);
+        const fullSchoolName = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
+        const provinceName = "จังหวัดกาฬสินธุ์";
+        
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>บัตรประจำตัวบุคลากร - ${personnel.personnelName}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+                <style>
+                    @page {
+                        size: 8.6cm 5.4cm;
+                        margin: 0;
+                    }
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        font-family: 'Sarabun', sans-serif;
+                        background-color: white;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    .card-container {
+                        width: 8.56cm;
+                        height: 5.398cm;
+                        position: relative;
+                        overflow: hidden;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                        /* Gray-Green School Theme Gradient */
+                        background: linear-gradient(135deg, #E8E8E8 0%, #A8CABA 60%, #84A98C 100%);
+                    }
+                    
+                    /* Subtle decorative curve */
+                    .card-container::before {
+                        content: '';
+                        position: absolute;
+                        top: -50%;
+                        right: -20%;
+                        width: 80%;
+                        height: 200%;
+                        background: rgba(255, 255, 255, 0.15);
+                        transform: rotate(-15deg);
+                        pointer-events: none;
+                        z-index: 0;
+                    }
+
+                    .card-header {
+                        padding: 8px 10px 5px 10px;
+                        display: flex;
+                        align-items: center;
+                        position: relative;
+                        z-index: 1;
+                    }
+                    .logo {
+                        width: 42px;
+                        height: 42px;
+                        object-fit: contain;
+                        margin-right: 8px;
+                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
+                    }
+                    .school-name-container {
+                        flex-grow: 1;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                    }
+                    .school-name {
+                        font-weight: 700;
+                        font-size: 13pt;
+                        color: #2F4F4F; /* Dark Slate Gray */
+                        line-height: 1.1;
+                        white-space: nowrap;
+                    }
+                    .school-province {
+                         font-weight: 600;
+                         font-size: 10pt;
+                         color: #2F4F4F;
+                    }
+                    
+                    .card-body {
+                        padding: 2px 12px;
+                        display: flex;
+                        position: relative;
+                        z-index: 1;
+                        align-items: flex-start;
+                    }
+                    .photo-container {
+                        width: 85px;
+                        height: 105px;
+                        border: 3px solid white;
+                        border-radius: 8px;
+                        overflow: hidden;
+                        background: #f5f5f5;
+                        margin-right: 10px;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                        flex-shrink: 0;
+                    }
+                    .photo {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover;
+                    }
+                    
+                    .info-container {
+                        flex-grow: 1;
+                        min-width: 0;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                    }
+                    
+                    .info-row {
+                        margin-bottom: 2px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        line-height: 1.3;
+                    }
+                    
+                    .info-label {
+                        font-size: 9pt;
+                        font-weight: 600;
+                        color: #555;
+                        margin-right: 4px;
+                    }
+                    
+                    .info-value {
+                        font-size: 11pt;
+                        font-weight: 700;
+                        color: #222;
+                    }
+                    
+                    .name {
+                        font-size: 13pt;
+                        font-weight: 800;
+                        color: #1b4332; /* Dark Green */
+                        margin-bottom: 2px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+
+                    .card-footer {
+                        position: absolute;
+                        bottom: 0;
+                        left: 0;
+                        right: 0;
+                        background: #52796F; /* Solid Gray-Green */
+                        padding: 4px 12px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        height: 26px;
+                        color: white;
+                        z-index: 2;
+                    }
+                    
+                    .dates {
+                        font-size: 7pt;
+                        font-weight: 400;
+                        opacity: 0.95;
+                        line-height: 1.1;
+                    }
+                    
+                    .contact {
+                        font-size: 10pt;
+                        font-weight: 600;
+                    }
+                </style>
+            </head>
+            <body onload="window.print()">
+                <div class="card-container">
+                    <div class="card-header">
+                        <img src="${logoSrc}" class="logo" alt="logo" onerror="this.style.display='none'">
+                        <div class="school-name-container">
+                            <div class="school-name">${fullSchoolName}</div>
+                            <div class="school-province">${provinceName}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="photo-container">
+                            ${photoSrc 
+                                ? `<img src="${photoSrc}" class="photo" alt="personnel">`
+                                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:8pt;">No Photo</div>'
+                            }
+                        </div>
+                        <div class="info-container">
+                            <div class="name">${fullName}</div>
+                            
+                            <div class="info-row">
+                                <span class="info-label">ตำแหน่ง:</span>
+                                <span class="info-value">${personnel.position}</span>
+                            </div>
+                            
+                             <div class="info-row">
+                                <span class="info-label">เลขบัตรฯ:</span>
+                                <span class="info-value">${personnel.idCard}</span>
+                            </div>
+
+                            <div class="info-row">
+                                <span class="info-label">เบอร์โทร:</span>
+                                <span class="info-value">${personnel.phone}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <div class="dates">
+                             <div>ออกบัตร: ${issueDate}</div>
+                             <div>หมดอายุ: ${expiryDate}</div>
+                        </div>
+                        <div class="contact">
+                            โทร. 043840842
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const win = window.open('', '_blank', 'width=400,height=300');
+        if (win) {
+            win.document.write(html);
+            win.document.close();
+        }
+    };
+
     const handleExportCSV = () => {
+        setIsExportMenuOpen(false);
         const headers = ['คำนำหน้า', 'ชื่อ-นามสกุล', 'ตำแหน่ง', 'เลขตำแหน่ง', 'วันเกิด', 'เลขบัตรประชาชน', 'เบอร์โทร', 'วันที่บรรจุ'];
         const title = personnel.personnelTitle === 'อื่นๆ' ? personnel.personnelTitleOther : personnel.personnelTitle;
         const row = [
@@ -103,6 +353,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
     };
 
     const handleExportWord = () => {
+        setIsExportMenuOpen(false);
          const preHtml = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head>
@@ -358,20 +609,36 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                     </div>
                 </div>
 
-                 <div className="p-4 border-t bg-light-gray rounded-b-xl flex flex-col sm:flex-row justify-between gap-2 print:hidden">
-                    <div className="flex gap-2">
-                        <button onClick={handlePrint} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-1">
-                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                             พิมพ์ / PDF
+                 <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3 print:hidden">
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow-md transition-all"
+                        >
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                             ดาวน์โหลด / ส่งออก
                         </button>
-                        <button onClick={handleExportCSV} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                             Excel (CSV)
-                        </button>
-                        <button onClick={handleExportWord} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                             Word (DOC)
-                        </button>
+                        
+                        {isExportMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+                                <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    พิมพ์ / PDF
+                                </button>
+                                <button onClick={handleExportIDCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                                    บัตรประจำตัวบุคลากร
+                                </button>
+                                <button onClick={handleExportCSV} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Excel (CSV)
+                                </button>
+                                <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors">
+                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Word (DOC)
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <button type="button" onClick={onClose} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg">
                         ปิด

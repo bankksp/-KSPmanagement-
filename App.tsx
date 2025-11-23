@@ -798,6 +798,8 @@ const App: React.FC = () => {
                     student={viewingStudent}
                     onClose={handleCloseViewStudentModal}
                     personnel={personnel}
+                    schoolName={settings.schoolName}
+                    schoolLogo={settings.schoolLogo}
                 />
             )}
             {isPersonnelModalOpen && (
@@ -815,6 +817,8 @@ const App: React.FC = () => {
                 <ViewPersonnelModal
                     personnel={viewingPersonnel}
                     onClose={handleCloseViewPersonnelModal}
+                    schoolName={settings.schoolName}
+                    schoolLogo={settings.schoolLogo}
                 />
             )}
         </div>
