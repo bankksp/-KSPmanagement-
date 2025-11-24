@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance, DormitoryStat } from '../types';
 import StatsCard from './StatsCard';
@@ -114,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             totalStudentsReport: aggregatedStats.present,
             totalSick: aggregatedStats.sick,
             totalHome: aggregatedStats.home,
-            displayDate: `ข้อมูลวันที่ ${displayDateString}`,
+            displayDate: `ประจำวันที่ ${displayDateString}`,
             buddhistDate: displayDateString
         };
 
@@ -200,19 +199,32 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     // --- Export Functions ---
 
-    const exportToCSV = () => {
-        const headers = ['เรือนนอน', 'มาเรียน', 'ป่วย', 'อยู่บ้าน'];
-        const rows = dormitoryData.map(d => [d.name, d.present, d.sick, d.home]);
+    const exportToExcel = () => {
+        const printContent = document.getElementById('print-dashboard');
+        if (!printContent) return;
         
-        const csvContent = "\uFEFF" 
-            + headers.join(",") + "\n" 
-            + rows.map(e => e.join(",")).join("\n");
-        
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Extract tables from print view for better formatting
+        const htmlString = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+            <style>
+                body { font-family: 'TH Sarabun PSK', sans-serif; font-size: 16pt; }
+                table { border-collapse: collapse; width: 100%; }
+                td, th { border: 1px solid black; padding: 5px; text-align: center; }
+                .header { text-align: center; font-weight: bold; font-size: 20pt; }
+            </style>
+        </head>
+        <body>
+            ${printContent.innerHTML}
+        </body>
+        </html>`;
+
+        const blob = new Blob([htmlString], { type: 'application/vnd.ms-excel' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `report_stats_${selectedDate}.csv`);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `report_stats_${selectedDate}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -220,279 +232,173 @@ const Dashboard: React.FC<DashboardProps> = ({
         setIsExportMenuOpen(false);
     };
 
-    const handleExportWord = () => {
-        const preHtml = `
+    const exportToWord = () => {
+        const printContent = document.getElementById('print-dashboard');
+        if (!printContent) return;
+
+        const htmlString = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head>
                 <meta charset='utf-8'>
-                <title>Export Stats to Word</title>
+                <title>Report</title>
                 <style>
-                    @page Section1 {
-                        size: 21.0cm 29.7cm;
-                        margin: 1.5cm 1.5cm 1.5cm 1.5cm;
-                        mso-header-margin: 35.4pt;
-                        mso-footer-margin: 35.4pt;
-                        mso-paper-source: 0;
+                    @page {
+                        size: A4;
+                        margin: 2cm;
+                        mso-page-orientation: portrait;
                     }
-                    div.Section1 { page:Section1; }
-                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; }
-                    
-                    .header { text-align: center; margin-bottom: 20px; }
-                    .title { font-size: 18pt; font-weight: bold; margin: 0; }
-                    .subtitle { font-size: 16pt; font-weight: bold; margin: 0; }
-                    .date { font-size: 16pt; margin: 5px 0; }
-                    
-                    h3 { font-size: 18pt; font-weight: bold; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; }
-                    
-                    table { width: 100%; border-collapse: collapse; font-size: 16pt; margin-bottom: 10px; }
-                    th, td { border: 1px solid black; padding: 4px; text-align: center; }
-                    th { background-color: #f0f0f0; font-weight: bold; }
-                    .text-left { text-align: left; padding-left: 8px; }
-                    .text-right { text-align: right; padding-right: 8px; }
-                    
-                    .signature-section { margin-top: 50px; text-align: right; font-size: 16pt; }
-                    .signature-box { display: inline-block; text-align: center; width: 250px; }
-                    
-                    .summary-box { border: 1px solid #000; padding: 10px; text-align: center; width: 23%; display: inline-block; margin-right: 1%; vertical-align: top; }
+                    body { 
+                        font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; 
+                        font-size: 16pt; 
+                        line-height: 1.5;
+                    }
+                    table { 
+                        border-collapse: collapse; 
+                        width: 100%; 
+                        margin-bottom: 10pt;
+                    }
+                    td, th { 
+                        border: 1px solid black; 
+                        padding: 4pt; 
+                        text-align: center; 
+                        vertical-align: middle;
+                    }
+                    .header-title { font-size: 29pt; font-weight: bold; text-align: center; }
+                    .content-header { font-size: 20pt; font-weight: bold; margin-bottom: 5pt; }
+                    .signature-section { margin-top: 30pt; text-align: right; }
                 </style>
             </head>
-            <body><div class="Section1">
+            <body>
+                ${printContent.innerHTML}
+            </body>
+            </html>
         `;
 
-        // 1. Summary Section
-        const summaryHtml = `
-            <div class="header">
-                <div class="title">${schoolName}</div>
-                <div class="subtitle">รายงานสถิติประจำวัน</div>
-                <div class="date">${displayDate}</div>
-            </div>
-            
-            <h3>ภาพรวมสถิติ</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>นักเรียนทั้งหมด</th>
-                        <th>มาเรียน</th>
-                        <th>ป่วย</th>
-                        <th>อยู่บ้าน</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>${students.length}</td>
-                        <td style="color: green; font-weight: bold;">${totalStudentsReport}</td>
-                        <td style="color: red; font-weight: bold;">${totalSick}</td>
-                        <td>${totalHome}</td>
-                    </tr>
-                </tbody>
-            </table>
-        `;
-
-        // 2. Attendance Stats (Student)
-        const studentStatsRows = attendanceStatsData.studentStats.map(s => `
-            <tr>
-                <td class="text-left">${s.period}</td>
-                <td>${s.present}</td>
-                <td>${s.absent}</td>
-                <td>${s.sick}</td>
-                <td>${s.leave}</td>
-            </tr>
-        `).join('');
+        const blob = new Blob(['\ufeff', htmlString], {
+            type: 'application/msword'
+        });
         
-        const studentStatsHtml = `
-            <h3>สถิตินักเรียน</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ช่วงเวลา</th>
-                        <th>มา</th>
-                        <th>ขาด</th>
-                        <th>ป่วย</th>
-                        <th>ลา</th>
-                    </tr>
-                </thead>
-                <tbody>${studentStatsRows}</tbody>
-            </table>
-        `;
-
-        // 3. Attendance Stats (Personnel)
-        const personnelStatsRows = attendanceStatsData.personnelStats.map(s => `
-            <tr>
-                <td class="text-left">${s.period}</td>
-                <td>${s.present}</td>
-                <td>${s.absent}</td>
-                <td>${s.leave}</td>
-                <td>${s.tidy} / ${s.untidy}</td>
-            </tr>
-        `).join('');
-
-        const personnelStatsHtml = `
-            <h3>สถิติบุคลากร</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ช่วงเวลา</th>
-                        <th>มา</th>
-                        <th>ขาด</th>
-                        <th>ลา</th>
-                        <th>แต่งกาย (เรียบร้อย/ไม่)</th>
-                    </tr>
-                </thead>
-                <tbody>${personnelStatsRows}</tbody>
-            </table>
-        `;
-
-        // 4. Dormitory Stats
-        const dormRows = dormitoryData.map(d => `
-            <tr>
-                <td class="text-left">${d.name}</td>
-                <td>${d.present}</td>
-                <td>${d.sick}</td>
-                <td>${d.home}</td>
-                <td>${d.total}</td>
-            </tr>
-        `).join('');
-
-        const dormTableHtml = `
-            <h3>สถิติจำนวนนักเรียนรายเรือนนอน</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>เรือนนอน</th>
-                        <th>มาเรียน</th>
-                        <th>ป่วย</th>
-                        <th>อยู่บ้าน</th>
-                        <th>รวม</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${dormRows}
-                    <tr style="font-weight: bold; background-color: #f9f9f9;">
-                        <td class="text-right">รวม</td>
-                        <td>${totalStudentsReport}</td>
-                        <td>${totalSick}</td>
-                        <td>${totalHome}</td>
-                        <td>${totalStudentsReport + totalSick + totalHome}</td>
-                    </tr>
-                </tbody>
-            </table>
-        `;
-
-        // 5. History Trends
-        const historyRows = historyData.map(h => `
-            <tr>
-                <td class="text-left">${h.date}</td>
-                <td>${h.sickDorm}</td>
-                <td>${h.sickInfirmary}</td>
-                <td>${h.sickDorm + h.sickInfirmary}</td>
-            </tr>
-        `).join('');
-
-        const historyHtml = `
-            <h3>แนวโน้มสถิติผู้ป่วย (7 วันย้อนหลัง)</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>วันที่</th>
-                        <th>ป่วย (ตามเรือนนอน)</th>
-                        <th>ป่วย (เรือนพยาบาล)</th>
-                        <th>รวม</th>
-                    </tr>
-                </thead>
-                <tbody>${historyRows}</tbody>
-            </table>
-        `;
-
-        const signatureHtml = `
-            <div class="signature-section">
-                <div class="signature-box">
-                    <p>ลงชื่อ ........................................................... ผู้รายงาน</p>
-                    <p>(...........................................................)</p>
-                    <p>วันที่ ........./........./.............</p>
-                </div>
-            </div>
-        `;
-
-        const content = summaryHtml + studentStatsHtml + personnelStatsHtml + dormTableHtml + historyHtml + signatureHtml;
-        const html = preHtml + content + "</div></body></html>";
-        
-        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.createElement('a');
         link.href = url;
-        link.download = `full_stats_report_${selectedDate}.doc`;
+        link.download = `report_stats_${selectedDate}.doc`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         setIsExportMenuOpen(false);
+    };
+
+    const handlePrint = () => {
+        setIsExportMenuOpen(false);
+        // Add a class to body to isolate this print view
+        document.body.classList.add('printing-dashboard');
+        window.print();
+        document.body.classList.remove('printing-dashboard');
     };
 
     return (
         <div className="space-y-6 md:space-y-8">
-             {/* ---------------- PRINT LAYOUT (A4) ---------------- */}
-             <div className="hidden print:block font-sarabun text-black">
-                <div className="text-center mb-6">
-                    <h1 className="text-[18pt] font-bold">{schoolName}</h1>
-                    <h2 className="text-[18pt] font-bold">รายงานสถิติประจำวัน</h2>
-                    <p className="text-[16pt]">{displayDate}</p>
+             {/* ---------------- PRINT LAYOUT (Official A4 Government Style - Memo) ---------------- */}
+             <div id="print-dashboard" className="hidden print:block print-visible font-sarabun text-black leading-relaxed">
+                
+                {/* Official Header with Garuda/Logo */}
+                <div className="flex flex-col items-center mb-4">
+                    <img 
+                        src={logoSrc} 
+                        alt="Logo" 
+                        className="h-24 w-auto mb-2 object-contain" 
+                        onError={(e) => (e.currentTarget.style.display = 'none')} 
+                    />
+                    <h1 className="text-2xl font-bold mt-2">บันทึกข้อความ</h1>
                 </div>
 
-                {/* 1. Summary */}
-                <div className="mb-6 border border-black p-4">
-                    <div className="grid grid-cols-4 gap-4 text-center text-[16pt]">
-                        <div>
-                            <div className="font-bold">นักเรียนทั้งหมด</div>
-                            <div>{students.length} คน</div>
+                <div className="mb-2 px-1 text-xl">
+                    <div className="flex gap-2 mb-1 items-baseline">
+                        <span className="font-bold w-20 flex-shrink-0">ส่วนราชการ</span>
+                        <span className="border-b-2 border-dotted border-gray-400 flex-grow px-2">{schoolName}</span>
+                    </div>
+                    <div className="flex gap-4 mb-1">
+                        <div className="flex gap-2 w-1/2 items-baseline">
+                            <span className="font-bold w-10 flex-shrink-0">ที่</span>
+                            <span className="border-b-2 border-dotted border-gray-400 flex-grow px-2">..............................</span>
                         </div>
-                        <div>
-                            <div className="font-bold">มาเรียน</div>
-                            <div>{totalStudentsReport} คน</div>
+                        <div className="flex gap-2 w-1/2 items-baseline">
+                            <span className="font-bold w-10 flex-shrink-0">วันที่</span>
+                            <span className="border-b-2 border-dotted border-gray-400 flex-grow px-2">{buddhistDate}</span>
                         </div>
-                        <div>
-                            <div className="font-bold text-red-600">ป่วย</div>
-                            <div>{totalSick} คน</div>
-                        </div>
-                        <div>
-                            <div className="font-bold">อยู่บ้าน</div>
-                            <div>{totalHome} คน</div>
-                        </div>
+                    </div>
+                    <div className="flex gap-2 mb-2 items-baseline">
+                        <span className="font-bold w-12 flex-shrink-0">เรื่อง</span>
+                        <span className="border-b-2 border-dotted border-gray-400 flex-grow px-2">รายงานสรุปสถิติการมาเรียนและสุขภาพอนามัยนักเรียน</span>
                     </div>
                 </div>
 
-                {/* 2. Attendance Tables */}
-                <div className="grid grid-cols-2 gap-6 mb-6">
+                <div className="border-t border-black w-full mb-4 opacity-50"></div>
+                
+                <div className="mb-4 text-xl">
+                    <p className="font-bold mb-2">เรียน ผู้อำนวยการสถานศึกษา</p>
+                    <p className="indent-[2.5cm] text-justify leading-relaxed">
+                        ด้วยข้าพเจ้าได้รับมอบหมายให้ปฏิบัติหน้าที่เวรประจำวัน ได้ทำการสำรวจข้อมูลการมาเรียนและสุขภาพอนามัยของนักเรียน
+                        ประจำวันที่ {buddhistDate} จึงขอรายงานสรุปผลการดำเนินงานดังนี้
+                    </p>
+                </div>
+
+                {/* 1. Summary Box */}
+                <div className="mb-6">
+                    <h3 className="text-xl font-bold mb-2">1. สรุปภาพรวม</h3>
+                    <table className="w-full border border-black text-center text-xl print-table">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                <th className="border border-black p-2">นักเรียนทั้งหมด</th>
+                                <th className="border border-black p-2">มาเรียน</th>
+                                <th className="border border-black p-2">ป่วย</th>
+                                <th className="border border-black p-2">อยู่บ้าน/ลา</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="border border-black p-2">{students.length}</td>
+                                <td className="border border-black p-2">{totalStudentsReport}</td>
+                                <td className="border border-black p-2">{totalSick}</td>
+                                <td className="border border-black p-2">{totalHome}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* 2. Attendance Statistics */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
                     <div>
-                        <h3 className="text-[18pt] font-bold border-b border-black mb-2">สถิตินักเรียน</h3>
-                        <table className="w-full text-[16pt] border-collapse border border-black">
-                            <thead>
-                                <tr className="bg-gray-100">
-                                    <th className="border border-black p-1">เวลา</th>
+                        <h3 className="text-xl font-bold mb-2">2. สถิตินักเรียน</h3>
+                        <table className="w-full border border-black text-center text-xl print-table">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="border border-black p-1">ช่วงเวลา</th>
                                     <th className="border border-black p-1">มา</th>
                                     <th className="border border-black p-1">ขาด</th>
                                     <th className="border border-black p-1">ป่วย</th>
-                                    <th className="border border-black p-1">ลา</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {attendanceStatsData.studentStats.map(s => (
                                     <tr key={s.period}>
-                                        <td className="border border-black p-1 text-center">{s.period}</td>
-                                        <td className="border border-black p-1 text-center">{s.present}</td>
-                                        <td className="border border-black p-1 text-center">{s.absent}</td>
-                                        <td className="border border-black p-1 text-center">{s.sick}</td>
-                                        <td className="border border-black p-1 text-center">{s.leave}</td>
+                                        <td className="border border-black p-1">{s.period}</td>
+                                        <td className="border border-black p-1">{s.present}</td>
+                                        <td className="border border-black p-1">{s.absent}</td>
+                                        <td className="border border-black p-1">{s.sick}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
+                    
                     <div>
-                        <h3 className="text-[18pt] font-bold border-b border-black mb-2">สถิติบุคลากร</h3>
-                         <table className="w-full text-[16pt] border-collapse border border-black">
-                            <thead>
-                                <tr className="bg-gray-100">
-                                    <th className="border border-black p-1">เวลา</th>
+                        <h3 className="text-xl font-bold mb-2">3. สถิติบุคลากร</h3>
+                         <table className="w-full border border-black text-center text-xl print-table">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="border border-black p-1">ช่วงเวลา</th>
                                     <th className="border border-black p-1">มา</th>
                                     <th className="border border-black p-1">ขาด</th>
                                     <th className="border border-black p-1">ลา</th>
@@ -501,10 +407,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <tbody>
                                 {attendanceStatsData.personnelStats.map(s => (
                                     <tr key={s.period}>
-                                        <td className="border border-black p-1 text-center">{s.period}</td>
-                                        <td className="border border-black p-1 text-center">{s.present}</td>
-                                        <td className="border border-black p-1 text-center">{s.absent}</td>
-                                        <td className="border border-black p-1 text-center">{s.leave}</td>
+                                        <td className="border border-black p-1">{s.period}</td>
+                                        <td className="border border-black p-1">{s.present}</td>
+                                        <td className="border border-black p-1">{s.absent}</td>
+                                        <td className="border border-black p-1">{s.leave}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -512,13 +418,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                 </div>
 
-                {/* 3. Dorm Stats (Table + Chart placeholder if needed, but table is better for report) */}
-                 <div className="mb-6">
-                    <h3 className="text-[18pt] font-bold border-b border-black mb-2">สถิติจำนวนนักเรียนรายเรือนนอน</h3>
-                    <table className="w-full border-collapse border border-black text-[16pt]">
-                        <thead>
-                            <tr className="bg-gray-100">
-                                <th className="border border-black p-1">เรือนนอน</th>
+                {/* 4. Dorm Stats Table */}
+                 <div className="mb-8 avoid-break">
+                    <h3 className="text-xl font-bold mb-2">4. ข้อมูลเรือนนอน</h3>
+                    <table className="w-full border border-black text-center text-xl print-table">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                <th className="border border-black p-1 text-left pl-4">เรือนนอน</th>
                                 <th className="border border-black p-1">มาเรียน</th>
                                 <th className="border border-black p-1">ป่วย</th>
                                 <th className="border border-black p-1">อยู่บ้าน</th>
@@ -528,62 +434,35 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <tbody>
                             {dormitoryData.map(d => (
                                 <tr key={d.name}>
-                                    <td className="border border-black p-1 text-left pl-2">{d.name}</td>
-                                    <td className="border border-black p-1 text-center">{d.present}</td>
-                                    <td className="border border-black p-1 text-center">{d.sick}</td>
-                                    <td className="border border-black p-1 text-center">{d.home}</td>
-                                    <td className="border border-black p-1 text-center">{d.total}</td>
+                                    <td className="border border-black p-1 text-left pl-4">{d.name}</td>
+                                    <td className="border border-black p-1">{d.present}</td>
+                                    <td className="border border-black p-1">{d.sick}</td>
+                                    <td className="border border-black p-1">{d.home}</td>
+                                    <td className="border border-black p-1 font-semibold">{d.total}</td>
                                 </tr>
                             ))}
-                            <tr className="font-bold bg-gray-50">
-                                <td className="border border-black p-1 text-right pr-2">รวม</td>
-                                <td className="border border-black p-1 text-center">{totalStudentsReport}</td>
-                                <td className="border border-black p-1 text-center">{totalSick}</td>
-                                <td className="border border-black p-1 text-center">{totalHome}</td>
-                                <td className="border border-black p-1 text-center">{totalStudentsReport + totalSick + totalHome}</td>
+                            <tr className="font-bold bg-gray-100">
+                                <td className="border border-black p-1 text-right pr-4">รวมทั้งหมด</td>
+                                <td className="border border-black p-1">{totalStudentsReport}</td>
+                                <td className="border border-black p-1">{totalSick}</td>
+                                <td className="border border-black p-1">{totalHome}</td>
+                                <td className="border border-black p-1">{totalStudentsReport + totalSick + totalHome}</td>
                             </tr>
                         </tbody>
                     </table>
-                    {/* Re-render chart for print if desired, but keep table as primary data source */}
-                    <div className="mt-4 h-[300px] border border-gray-200 p-2 page-break-inside-avoid">
-                         <ReportChart data={dormitoryData} />
-                    </div>
                 </div>
                 
-                {/* 4. Trends */}
-                <div className="mb-6 page-break-inside-avoid">
-                    <h3 className="text-[18pt] font-bold border-b border-black mb-2">แนวโน้มสถิติผู้ป่วย</h3>
-                    <div className="h-[300px] border border-gray-200 p-2">
-                        <InfirmaryChart data={historyData} />
-                    </div>
-                    <table className="w-full border-collapse border border-black text-[16pt] mt-4">
-                         <thead>
-                            <tr className="bg-gray-100">
-                                <th className="border border-black p-1">วันที่</th>
-                                <th className="border border-black p-1">ป่วย (ตามเรือนนอน)</th>
-                                <th className="border border-black p-1">ป่วย (เรือนพยาบาล)</th>
-                                <th className="border border-black p-1">รวม</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {historyData.map((h, i) => (
-                                <tr key={i}>
-                                    <td className="border border-black p-1 text-center">{h.date}</td>
-                                    <td className="border border-black p-1 text-center">{h.sickDorm}</td>
-                                    <td className="border border-black p-1 text-center">{h.sickInfirmary}</td>
-                                    <td className="border border-black p-1 text-center font-bold">{h.sickDorm + h.sickInfirmary}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                 <div className="mb-4 text-xl">
+                    <p className="indent-[2.5cm] text-justify">
+                        จึงเรียนมาเพื่อโปรดทราบ
+                    </p>
                 </div>
 
-                 <div className="mt-12 flex justify-end text-[16pt] page-break-inside-avoid">
-                    <div className="text-center w-64">
-                        <div className="border-b border-dotted border-black mb-2"></div>
-                        <p>ลงชื่อผู้รายงาน</p>
-                        <p className="mt-6">(...........................................................)</p>
-                        <p className="mt-1">วันที่ ........./........./.............</p>
+                 <div className="mt-16 flex justify-end text-xl signature-section avoid-break">
+                    <div className="text-center w-80">
+                        <p className="mb-6">ลงชื่อ ........................................................... ผู้รายงาน</p>
+                        <p className="mb-2">(...........................................................)</p>
+                        <p className="mb-2">ตำแหน่ง ...........................................................</p>
                     </div>
                 </div>
             </div>
@@ -608,23 +487,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="relative">
                             <button
                                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                                className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition-colors shadow-sm"
-                                title="Export"
+                                className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition-colors shadow-sm flex items-center gap-2"
+                                title="Export Options"
                             >
+                                <span>ส่งออก</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
                             </button>
                             {isExportMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 overflow-hidden">
-                                    <button onClick={() => { window.print(); setIsExportMenuOpen(false); }} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">
+                                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl z-20 border border-gray-100 overflow-hidden animate-fade-in-up">
+                                    <button onClick={handlePrint} className="block w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
+                                        <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                         พิมพ์ / PDF
                                     </button>
-                                    <button onClick={handleExportWord} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">
-                                        Word (DOC)
+                                    <button onClick={exportToWord} className="block w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                        <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        ส่งออก Word (.doc)
                                     </button>
-                                    <button onClick={exportToCSV} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">
-                                        Excel (CSV)
+                                    <button onClick={exportToExcel} className="block w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors">
+                                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        ส่งออก Excel (.xls)
                                     </button>
                                 </div>
                             )}
@@ -632,52 +515,44 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                     <StatsCard 
-                        title="นักเรียนทั้งหมด" 
-                        value={`${students.length} คน`} 
+                {/* Dashboard Widgets */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-8">
+                    <StatsCard 
+                        title="มาเรียนวันนี้" 
+                        value={totalStudentsReport.toString()} 
                         icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>}
-                        color="bg-blue-500"
+                        color="bg-gradient-to-br from-green-400 to-green-600"
                     />
                     <StatsCard 
-                        title="มาเรียน" 
-                        value={`${totalStudentsReport} คน`} 
-                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-                        color="bg-green-500"
-                        description={`วันที่ ${buddhistDate}`}
+                        title="ป่วยวันนี้" 
+                        value={totalSick.toString()} 
+                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
+                        color="bg-gradient-to-br from-red-400 to-red-600"
                     />
                     <StatsCard 
-                        title="ป่วย" 
-                        value={`${totalSick} คน`} 
-                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-                        color="bg-red-500"
-                        description={`วันที่ ${buddhistDate}`}
-                    />
-                     <StatsCard 
-                        title="อยู่บ้าน" 
-                        value={`${totalHome} คน`}
+                        title="อยู่บ้าน/ลา" 
+                        value={totalHome.toString()} 
                         icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>}
-                        color="bg-gray-500"
-                        description={`วันที่ ${buddhistDate}`}
+                        color="bg-gradient-to-br from-blue-400 to-blue-600"
+                    />
+                    <StatsCard 
+                        title="เรือนที่รายงาน" 
+                        value={`${dormitoryData.length}/${dormitories.length-1}`} 
+                        icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>}
+                        color="bg-gradient-to-br from-purple-400 to-purple-600"
                     />
                 </div>
-            </div>
 
-            {/* Content Section */}
-            <div className="space-y-6 print:hidden">
-                {/* Attendance Stats (Screen View) */}
-                <div>
-                    <AttendanceStats 
-                        stats={attendanceStatsData}
-                        selectedDate={buddhistDate}
-                    />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                     <ReportChart data={dormitoryData} />
+                     <InfirmaryChart data={historyData} />
                 </div>
-                
-                {/* Charts Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <ReportChart data={dormitoryData} />
-                    <InfirmaryChart data={historyData} />
-                </div>
+
+                <h3 className="text-xl font-bold text-navy mb-4">ข้อมูลการเช็คชื่อวันนี้</h3>
+                <AttendanceStats 
+                    stats={attendanceStatsData} 
+                    selectedDate={buddhistDate}
+                />
             </div>
         </div>
     );

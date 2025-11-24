@@ -83,6 +83,44 @@ const StudentPage: React.FC<StudentPageProps> = ({
         setFilters({ class: '', classroom: '', dormitory: '', age: '' });
     };
 
+    const exportToExcel = () => {
+        // Headers
+        const header = ['ชื่อ-นามสกุล', 'ชื่อเล่น', 'ชั้นเรียน', 'เรือนนอน', 'เลขบัตรประชาชน', 'วันเกิด', 'เบอร์โทร', 'ที่อยู่', 'บิดา', 'เบอร์โทรบิดา', 'มารดา', 'เบอร์โทรมารดา', 'ผู้ปกครอง', 'เบอร์โทรผู้ปกครอง'];
+        
+        // Data Rows
+        const rows = filteredStudents.map(s => [
+            `${s.studentTitle}${s.studentName}`,
+            s.studentNickname,
+            s.studentClass,
+            s.dormitory,
+            s.studentIdCard,
+            s.studentDob,
+            s.studentPhone,
+            s.studentAddress,
+            s.fatherName,
+            s.fatherPhone,
+            s.motherName,
+            s.motherPhone,
+            s.guardianName,
+            s.guardianPhone
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += header.map(h => `"${h}"`).join(",") + "\r\n";
+        
+        rows.forEach(row => {
+            csvContent += row.map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(",") + "\r\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `รายชื่อนักเรียน_${new Date().toLocaleDateString('th-TH')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const FilterSelect: React.FC<{label: string, name: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, children: React.ReactNode, disabled?: boolean}> = 
     ({label, name, value, onChange, children, disabled = false}) => (
         <div>
@@ -100,6 +138,13 @@ const StudentPage: React.FC<StudentPageProps> = ({
                     <h2 className="text-xl font-bold text-navy">จัดการข้อมูลนักเรียน</h2>
                     
                     <div className="flex gap-2 no-print">
+                        <button
+                            onClick={exportToExcel}
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <span>Excel</span>
+                        </button>
                         <button
                             onClick={onAddStudent}
                             className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"

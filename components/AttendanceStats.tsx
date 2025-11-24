@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { StudentAttendance, PersonnelAttendance, Student, Personnel } from '../types';
 
@@ -37,6 +36,41 @@ interface AttendanceStatsProps {
     
     selectedDate: string;
 }
+
+interface StatRowProps {
+    period: string;
+    present: number;
+    absent: number;
+    sick?: number;
+    leave: number;
+    color: string;
+}
+
+const StatRow: React.FC<StatRowProps> = ({ period, present, absent, sick, leave, color }) => (
+    <div className="flex items-center justify-between py-3 border-b last:border-0">
+        <div className="w-16 font-semibold text-gray-700">{period}</div>
+        <div className="flex-1 flex justify-end gap-2 md:gap-4 text-xs md:text-sm">
+            <div className="flex flex-col items-center min-w-[40px]">
+                <span className="text-green-600 font-bold text-lg">{present}</span>
+                <span className="text-gray-400 text-[10px]">มา</span>
+            </div>
+            <div className="flex flex-col items-center min-w-[40px]">
+                <span className="text-red-500 font-bold text-lg">{absent}</span>
+                <span className="text-gray-400 text-[10px]">ขาด</span>
+            </div>
+            {sick !== undefined && (
+                 <div className="flex flex-col items-center min-w-[40px]">
+                    <span className="text-orange-500 font-bold text-lg">{sick}</span>
+                    <span className="text-gray-400 text-[10px]">ป่วย</span>
+                </div>
+            )}
+            <div className="flex flex-col items-center min-w-[40px]">
+                <span className="text-yellow-500 font-bold text-lg">{leave}</span>
+                <span className="text-gray-400 text-[10px]">ลา</span>
+            </div>
+        </div>
+    </div>
+);
 
 const AttendanceStats: React.FC<AttendanceStatsProps> = ({ 
     stats,
@@ -85,32 +119,6 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
 
         return { studentStats, personnelStats };
     }, [stats, studentAttendance, personnelAttendance, students.length, personnel.length, selectedDate]);
-
-    const StatRow = ({ period, present, absent, sick, leave, color }: { period: string, present: number, absent: number, sick?: number, leave: number, color: string }) => (
-        <div className="flex items-center justify-between py-3 border-b last:border-0">
-            <div className="w-16 font-semibold text-gray-700">{period}</div>
-            <div className="flex-1 flex justify-end gap-2 md:gap-4 text-xs md:text-sm">
-                <div className="flex flex-col items-center min-w-[40px]">
-                    <span className="text-green-600 font-bold text-lg">{present}</span>
-                    <span className="text-gray-400 text-[10px]">มา</span>
-                </div>
-                <div className="flex flex-col items-center min-w-[40px]">
-                    <span className="text-red-500 font-bold text-lg">{absent}</span>
-                    <span className="text-gray-400 text-[10px]">ขาด</span>
-                </div>
-                {sick !== undefined && (
-                     <div className="flex flex-col items-center min-w-[40px]">
-                        <span className="text-orange-500 font-bold text-lg">{sick}</span>
-                        <span className="text-gray-400 text-[10px]">ป่วย</span>
-                    </div>
-                )}
-                <div className="flex flex-col items-center min-w-[40px]">
-                    <span className="text-yellow-500 font-bold text-lg">{leave}</span>
-                    <span className="text-gray-400 text-[10px]">ลา</span>
-                </div>
-            </div>
-        </div>
-    );
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

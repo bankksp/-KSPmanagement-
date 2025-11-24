@@ -216,7 +216,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
         ];
 
         return (
-            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 snap-x">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 snap-x max-w-[200px]">
                 {options.map((opt) => {
                     const isSelected = currentStatus === opt.val || (opt.val === 'present' && currentStatus === 'activity');
                     const buttonClass = isSelected ? opt.activeClass : opt.inactiveClass;
@@ -355,8 +355,8 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                                             {profileImg && <img src={profileImg} className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />}
                                                         </div>
                                                     </td>
-                                                    <td className="p-2 text-xs font-medium text-gray-800 whitespace-nowrap max-w-[120px] truncate">
-                                                        <div>{s.studentTitle}{s.studentName}</div>
+                                                    <td className="p-2 text-xs font-medium text-gray-800 whitespace-nowrap max-w-[140px] md:max-w-none truncate">
+                                                        <div className="truncate">{s.studentTitle}{s.studentName}</div>
                                                         <div className="text-[10px] text-gray-400">{s.studentClass}</div>
                                                     </td>
                                                     <td className="p-2 whitespace-nowrap">

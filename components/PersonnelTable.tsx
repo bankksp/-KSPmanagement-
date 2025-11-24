@@ -75,7 +75,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                  {selectedIds.size > 0 && (
                      <button 
                         onClick={handleDeleteClick}
-                        className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow transition duration-300 flex items-center justify-center gap-2"
                     >
                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                          ลบ {selectedIds.size} รายการ
@@ -115,17 +115,18 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+            {/* Desktop Table (Hidden on Mobile) */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
                 <table className="min-w-full bg-white">
                     <thead className="bg-navy text-white">
                         <tr>
-                            <th className="p-3 text-left w-10"><input type="checkbox" onChange={handleSelectAll} checked={personnel.length > 0 && selectedIds.size === personnel.length} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></th>
-                            <th className="p-3 text-left">รูปโปรไฟล์</th>
-                            <th className="p-3 text-left">ชื่อ-นามสกุล</th>
-                            <th className="p-3 text-left">ตำแหน่ง</th>
-                            <th className="p-3 text-center">อายุ</th>
-                            <th className="p-3 text-left">เบอร์โทร</th>
-                            <th className="p-3 text-center">การกระทำ</th>
+                            <th className="p-4 text-left w-10"><input type="checkbox" onChange={handleSelectAll} checked={personnel.length > 0 && selectedIds.size === personnel.length} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></th>
+                            <th className="p-4 text-left font-semibold">รูปโปรไฟล์</th>
+                            <th className="p-4 text-left font-semibold">ชื่อ-นามสกุล</th>
+                            <th className="p-4 text-left font-semibold">ตำแหน่ง</th>
+                            <th className="p-4 text-center font-semibold">อายุ</th>
+                            <th className="p-4 text-left font-semibold">เบอร์โทร</th>
+                            <th className="p-4 text-center font-semibold">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -135,10 +136,10 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                             const fullName = `${title} ${person.personnelName || ''}`;
 
                             return (
-                                <tr key={person.id} className={`hover:bg-blue-50 transition-colors ${selectedIds.has(person.id) ? 'bg-blue-50' : ''}`}>
-                                    <td className="p-3"><input type="checkbox" checked={selectedIds.has(person.id)} onChange={() => handleSelect(person.id)} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></td>
-                                    <td className="p-3">
-                                        <div className="w-10 h-12 rounded-md bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-200">
+                                <tr key={person.id} className={`hover:bg-blue-50/50 transition-colors ${selectedIds.has(person.id) ? 'bg-blue-50' : ''}`}>
+                                    <td className="p-4"><input type="checkbox" checked={selectedIds.has(person.id)} onChange={() => handleSelect(person.id)} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></td>
+                                    <td className="p-4">
+                                        <div className="w-10 h-12 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm">
                                             {profileImageUrl ? (
                                                 <img 
                                                     src={profileImageUrl} 
@@ -155,21 +156,21 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                                             )}
                                         </div>
                                     </td>
-                                    <td className="p-3 font-medium text-gray-800">{fullName}</td>
-                                    <td className="p-3 text-gray-600">{person.position}</td>
-                                    <td className="p-3 text-center text-gray-600">{calculateAge(person.dob)}</td>
-                                    <td className="p-3 text-gray-600">{person.phone}</td>
-                                    <td className="p-3">
+                                    <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{fullName}</td>
+                                    <td className="p-4 text-gray-600 whitespace-nowrap">{person.position}</td>
+                                    <td className="p-4 text-center text-gray-600">{calculateAge(person.dob)}</td>
+                                    <td className="p-4 text-gray-600 whitespace-nowrap">{person.phone}</td>
+                                    <td className="p-4">
                                         <div className="flex justify-center items-center gap-2">
                                             <button 
                                               onClick={() => onViewPersonnel(person)}
-                                              className="text-xs bg-sky-100 text-sky-800 font-semibold py-1.5 px-3 rounded-md hover:bg-sky-200 transition-colors"
+                                              className="text-xs bg-sky-100 text-sky-700 hover:bg-sky-200 hover:text-sky-800 font-bold py-1.5 px-3 rounded-lg transition-colors"
                                             >
                                               ดู
                                             </button>
                                             <button 
                                               onClick={() => onEditPersonnel(person)}
-                                              className="text-xs bg-amber-100 text-amber-800 font-semibold py-1.5 px-3 rounded-md hover:bg-amber-200 transition-colors"
+                                              className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 hover:text-amber-800 font-bold py-1.5 px-3 rounded-lg transition-colors"
                                             >
                                               แก้ไข
                                             </button>
@@ -180,7 +181,85 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                         })}
                     </tbody>
                 </table>
-                 {personnel.length === 0 && <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-b-lg">ไม่พบข้อมูลบุคลากร</div>}
+                 {personnel.length === 0 && <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-b-xl border-t border-gray-100">ไม่พบข้อมูลบุคลากร</div>}
+            </div>
+
+            {/* Mobile Card View (Visible on Mobile) */}
+            <div className="md:hidden space-y-4">
+                {personnel.map((person) => {
+                    const profileImageUrl = getFirstImageSource(person.profileImage);
+                    const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
+                    const fullName = `${title} ${person.personnelName || ''}`;
+                    const isSelected = selectedIds.has(person.id);
+
+                    return (
+                        <div key={person.id} className={`bg-white p-4 rounded-xl shadow-sm border transition-all ${isSelected ? 'border-primary-blue ring-1 ring-primary-blue' : 'border-gray-100'}`}>
+                            <div className="flex items-start gap-4">
+                                <div className="flex flex-col items-center gap-3 pt-1">
+                                     <input 
+                                        type="checkbox" 
+                                        checked={isSelected} 
+                                        onChange={() => handleSelect(person.id)} 
+                                        className="w-5 h-5 rounded text-primary-blue focus:ring-primary-blue" 
+                                    />
+                                    <div className="w-16 h-20 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-200 shadow-inner">
+                                        {profileImageUrl ? (
+                                            <img 
+                                                src={profileImageUrl} 
+                                                alt={person.personnelName} 
+                                                className="w-full h-full object-cover"
+                                                referrerPolicy="no-referrer"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display = 'none';
+                                                    e.currentTarget.parentElement?.classList.add('fallback-icon');
+                                                }} 
+                                            />
+                                        ) : (
+                                            <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-bold text-navy leading-tight mb-1">{fullName}</h3>
+                                    <div className="inline-block bg-blue-50 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-100 mb-2">
+                                        {person.position}
+                                    </div>
+                                    <p className="text-sm text-gray-600 flex items-center gap-1 mb-1">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                        {person.phone || '-'}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        อายุ: {calculateAge(person.dob)} ปี
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 flex gap-3">
+                                <button 
+                                    onClick={() => onViewPersonnel(person)}
+                                    className="flex-1 bg-sky-50 text-sky-700 hover:bg-sky-100 py-2 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                    ดูข้อมูล
+                                </button>
+                                <button 
+                                    onClick={() => onEditPersonnel(person)}
+                                    className="flex-1 bg-amber-50 text-amber-700 hover:bg-amber-100 py-2 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                    แก้ไข
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+                
+                {personnel.length === 0 && (
+                    <div className="text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                        <p className="text-gray-500">ไม่พบข้อมูลบุคลากร</p>
+                    </div>
+                )}
             </div>
         </div>
     );

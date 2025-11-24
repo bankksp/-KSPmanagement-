@@ -1,4 +1,5 @@
 
+
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) {
@@ -99,4 +100,105 @@ export const safeParseArray = (input: any): any[] => {
     }
     
     return [];
+};
+
+// Helper: Resize and Compress Image
+export const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: number, quality: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // Calculate new dimensions while maintaining aspect ratio
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    // Compress to JPEG
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(dataUrl);
+                } else {
+                    reject(new Error("Canvas context is null"));
+                }
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
+// Helper to convert a File to a Base64 string object for Google Script
+export const fileToObject = async (file: File): Promise<{ filename: string, mimeType: string, data: string }> => {
+    // If it's an image, try to compress it
+    if (file.type.startsWith('image/')) {
+        try {
+            // Resize to max 1024px, 0.7 quality (High compression, decent quality)
+            const compressedDataUrl = await resizeAndCompressImage(file, 1024, 1024, 0.7);
+            return {
+                filename: file.name.replace(/\.[^/.]+$/, "") + ".jpg", // Force extension to jpg
+                mimeType: 'image/jpeg',
+                data: compressedDataUrl.split(',')[1] // Remove "data:image/jpeg;base64," header
+            };
+        } catch (error) {
+            console.warn("Image compression failed, falling back to original file", error);
+        }
+    }
+
+    // Fallback for non-images (PDFs etc) or failed compression
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            const result = reader.result as string;
+            resolve({
+                filename: file.name,
+                mimeType: file.type,
+                data: result.split(',')[1] // remove data:mime/type;base64, part
+            });
+        };
+        reader.onerror = error => reject(error);
+    });
+};
+
+// Helper to prepare data for API submission, converting all File objects
+export const prepareDataForApi = async (data: any) => {
+    const apiData: any = { ...data }; 
+
+    for (const key in data) {
+        const value = data[key];
+
+        if (value instanceof File) {
+            apiData[key] = await fileToObject(value);
+        } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
+             apiData[key] = await Promise.all(value.map(fileToObject));
+        } else if (key === 'schoolLogo' && typeof value === 'string' && value.startsWith('data:image')) {
+            const result = value;
+            const mimeType = result.match(/data:(.*);/)?.[1] || 'image/png';
+            apiData[key] = {
+                filename: 'school_logo_' + Date.now() + '.png',
+                mimeType: mimeType,
+                data: result.split(',')[1]
+            };
+        }
+    }
+    return apiData;
 };

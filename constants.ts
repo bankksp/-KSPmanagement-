@@ -21,6 +21,18 @@ export const STUDENT_CLASSES = [
 
 export const STUDENT_CLASSROOMS = Array.from({ length: 8 }, (_, i) => (i + 1).toString());
 
+export const LEARNING_AREAS = [
+  "ภาษาไทย",
+  "คณิตศาสตร์",
+  "วิทยาศาสตร์และเทคโนโลยี",
+  "สังคมศึกษา ศาสนา และวัฒนธรรม",
+  "สุขศึกษาและพลศึกษา",
+  "ศิลปะ",
+  "การงานอาชีพ",
+  "ภาษาต่างประเทศ",
+  "กิจกรรมพัฒนาผู้เรียน"
+];
+
 // Updated URL based on user request
 export const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPULly51wnfwG5MgS2VItYEt9Olp1RXBUmdSk8yvsgMViMr5u4iTNVZ6BlNcAheen9CA/exec';
 

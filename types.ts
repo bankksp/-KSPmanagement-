@@ -112,3 +112,43 @@ export interface PersonnelAttendance {
     dressCode?: 'tidy' | 'untidy';
     note?: string;
 }
+
+// --- Academic Work Types ---
+
+export type PlanStatus = 'pending' | 'approved' | 'needs_edit';
+
+export interface AcademicPlan {
+  id: number;
+  date: string; // Submission date
+  teacherId: number;
+  teacherName: string;
+  learningArea: string; // กลุ่มสาระ
+  subjectCode: string;
+  subjectName: string;
+  courseStructureFile?: (File | string)[]; // PDF
+  lessonPlanFile?: (File | string)[]; // PDF
+  additionalLink?: string;
+  status: PlanStatus;
+  comment?: string; // For feedback when requesting edits
+  approverName?: string;
+  approvedDate?: string;
+}
+
+// Navigation Types
+export type Page = 
+    | 'stats' 
+    | 'attendance' 
+    | 'attendance_personnel' 
+    | 'reports' 
+    | 'students' 
+    | 'personnel' 
+    | 'admin' 
+    | 'profile'
+    // New Placeholder Pages
+    | 'academic_plans'
+    | 'personnel_report'
+    | 'personnel_sar'
+    | 'finance_supplies'
+    | 'general_docs'
+    | 'general_repair'
+    | 'general_certs';

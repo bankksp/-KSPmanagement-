@@ -78,6 +78,126 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
         window.print();
     };
 
+    const exportToWord = () => {
+        const logoSrc = getDirectDriveImageSrc(schoolLogo);
+        // Photo size approx 1.5 inches wide (3.81 cm) by 2 inches high (5.08 cm)
+        const photoHtml = profileImageUrl 
+            ? `<img src="${profileImageUrl}" style="width: 3.81cm; height: 5.08cm; object-fit: cover; border: 1px solid #000;">` 
+            : `<div style="width: 3.81cm; height: 5.08cm; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-size: 14pt;">รูปถ่าย</div>`;
+
+        const htmlString = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Personnel Record - ${personnel.personnelName}</title>
+                <style>
+                    @page { size: A4; margin: 2cm; mso-page-orientation: portrait; }
+                    body { font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.4; }
+                    .header-title { font-size: 22pt; font-weight: bold; text-align: center; margin: 0; }
+                    .header-sub { font-size: 18pt; font-weight: bold; text-align: center; margin: 0; }
+                    table { width: 100%; border-collapse: collapse; border: none; }
+                    td { vertical-align: top; padding: 4px 0; }
+                    .label { font-weight: bold; margin-right: 5px; }
+                    .value { border-bottom: 1px dotted #000; padding: 0 5px; display: inline-block; min-width: 50px; }
+                    .section-title { font-weight: bold; font-size: 18pt; border-bottom: 1px solid #000; margin-top: 20px; margin-bottom: 10px; }
+                    .photo-cell { text-align: right; vertical-align: top; padding-left: 20px; width: 4.5cm; }
+                </style>
+            </head>
+            <body>
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="${logoSrc}" width="80" height="80" style="margin-bottom: 10px;" />
+                    <p class="header-title">${schoolName}</p>
+                    <p class="header-sub">ประวัติข้าราชการครูและบุคลากรทางการศึกษา</p>
+                </div>
+
+                 <table style="width: 100%;">
+                    <tr>
+                        <td valign="top">
+                            <p><span class="label">ชื่อ-นามสกุล:</span> <span class="value">${fullName}</span></p>
+                            <p>
+                                <span class="label">ตำแหน่ง:</span> <span class="value">${personnel.position}</span>
+                                &nbsp;&nbsp;
+                                <span class="label">เลขที่ตำแหน่ง:</span> <span class="value">${personnel.positionNumber || '-'}</span>
+                            </p>
+                             <p>
+                                <span class="label">วันเดือนปีเกิด:</span> <span class="value">${personnel.dob || '-'}</span>
+                                &nbsp;&nbsp;
+                                <span class="label">อายุ:</span> <span class="value">${calculateAge(personnel.dob)} ปี</span>
+                            </p>
+                            <p>
+                                <span class="label">เลขบัตรประชาชน:</span> <span class="value">${personnel.idCard || '-'}</span>
+                            </p>
+                             <p>
+                                <span class="label">วันที่บรรจุแต่งตั้ง:</span> <span class="value">${personnel.appointmentDate || '-'}</span>
+                            </p>
+                             <p>
+                                <span class="label">เบอร์โทรศัพท์:</span> <span class="value">${personnel.phone || '-'}</span>
+                            </p>
+                        </td>
+                        <td class="photo-cell" valign="top">
+                            ${photoHtml}
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="section-title">ภาระงาน</div>
+                 <p><span class="label">ครูที่ปรึกษา:</span> <span class="value">${advisoryClassesText}</span></p>
+
+                 <br/><br/><br/>
+                 <table style="width: 100%; text-align: right;">
+                    <tr>
+                        <td>
+                            <p>ลงชื่อ ........................................................... เจ้าของประวัติ</p>
+                            <p>(${fullName})</p>
+                            <p>วันที่ ........./........./.............</p>
+                        </td>
+                    </tr>
+                 </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', htmlString], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ประวัติบุคลากร_${personnel.personnelName}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setIsExportMenuOpen(false);
+    };
+
+    const exportToExcel = () => {
+         const data = [
+            ['หัวข้อ', 'ข้อมูล'],
+            ['ชื่อ-นามสกุล', fullName],
+            ['ตำแหน่ง', personnel.position],
+            ['เลขที่ตำแหน่ง', personnel.positionNumber],
+            ['เลขบัตรประชาชน', personnel.idCard],
+            ['วันเดือนปีเกิด', personnel.dob],
+            ['อายุ', calculateAge(personnel.dob)],
+            ['เบอร์โทร', personnel.phone],
+            ['วันที่บรรจุ', personnel.appointmentDate],
+            ['ครูที่ปรึกษา', advisoryClassesText]
+        ];
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        data.forEach(row => {
+            csvContent += row.map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(",") + "\r\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `ข้อมูลบุคลากร_${personnel.personnelName}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setIsExportMenuOpen(false);
+    }
+
     const handleExportIDCard = () => {
         setIsExportMenuOpen(false);
         const logoSrc = getDirectDriveImageSrc(schoolLogo);
@@ -93,123 +213,32 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                 <style>
                     @page { size: 8.6cm 5.4cm; margin: 0; }
                     body { margin: 0; padding: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f3f4f6; }
-                    
-                    .card-container {
-                        width: 8.6cm; height: 5.4cm; 
-                        position: relative; overflow: hidden;
-                        background: #fff;
-                        border: 1px solid #e5e7eb;
-                        box-sizing: border-box;
-                    }
-                    
-                    /* Background Graphic - Blue/Gold/Gray for Personnel */
-                    .bg-graphic {
-                        position: absolute;
-                        top: 0; left: 0; width: 100%; height: 100%;
-                        z-index: 0;
-                        background: linear-gradient(120deg, #f8fafc 40%, #e2e8f0 40%, #cbd5e1 100%);
-                    }
-                    .circle-deco {
-                        position: absolute;
-                        right: -30px; top: -30px;
-                        width: 150px; height: 150px;
-                        background: rgba(30, 58, 138, 0.05);
-                        border-radius: 50%;
-                    }
-
-                    /* Header */
-                    .header {
-                        position: relative; z-index: 10;
-                        padding: 10px 14px 0 14px;
-                        display: flex; justify-content: space-between; align-items: flex-start;
-                    }
+                    .card-container { width: 8.6cm; height: 5.4cm; position: relative; overflow: hidden; background: #fff; border: 1px solid #e5e7eb; box-sizing: border-box; }
+                    .bg-graphic { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background: linear-gradient(120deg, #f8fafc 40%, #e2e8f0 40%, #cbd5e1 100%); }
+                    .circle-deco { position: absolute; right: -30px; top: -30px; width: 150px; height: 150px; background: rgba(30, 58, 138, 0.05); border-radius: 50%; }
+                    .header { position: relative; z-index: 10; padding: 10px 14px 0 14px; display: flex; justify-content: space-between; align-items: flex-start; }
                     .logo { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
-                    
                     .header-text { text-align: right; }
                     .org-name { font-size: 8px; color: #64748b; font-weight: 500; letter-spacing: 0.3px; }
                     .school-name { font-size: 13px; font-weight: 700; color: #1e3a8a; line-height: 1.1; margin-top: 2px; }
                     .province { font-size: 9px; color: #1e40af; font-weight: 500; margin-top: 1px; }
-                    
-                    /* Content Grid */
-                    .content {
-                        position: relative; z-index: 10;
-                        display: flex;
-                        padding: 8px 14px;
-                        gap: 12px;
-                    }
-                    
-                    /* Photo */
-                    .photo-box {
-                        width: 2.2cm; height: 2.7cm;
-                        background: #e2e8f0;
-                        border-radius: 8px;
-                        border: 2px solid #fff;
-                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-                        overflow: hidden;
-                        flex-shrink: 0;
-                    }
+                    .content { position: relative; z-index: 10; display: flex; padding: 8px 14px; gap: 12px; }
+                    .photo-box { width: 2.2cm; height: 2.7cm; background: #e2e8f0; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; flex-shrink: 0; }
                     .photo-box img { width: 100%; height: 100%; object-fit: cover; }
-                    
-                    /* Info */
                     .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-                    
-                    .person-name { 
-                        font-size: 15px; font-weight: 700; color: #0f172a; 
-                        line-height: 1.1; margin-bottom: 3px;
-                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                        max-width: 170px;
-                    }
-                    .role-badge {
-                        display: inline-block;
-                        background: linear-gradient(to right, #fbbf24, #f59e0b);
-                        color: #78350f;
-                        font-size: 8px; font-weight: 700; text-transform: uppercase;
-                        padding: 2px 8px; border-radius: 4px;
-                        margin-bottom: 6px;
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                        width: fit-content;
-                    }
-                    
-                    .data-row {
-                        display: flex; align-items: baseline;
-                        font-size: 9px; line-height: 1.4;
-                        color: #334155;
-                    }
+                    .person-name { font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+                    .role-badge { display: inline-block; background: linear-gradient(to right, #fbbf24, #f59e0b); color: #78350f; font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: fit-content; }
+                    .data-row { display: flex; align-items: baseline; font-size: 9px; line-height: 1.4; color: #334155; }
                     .label { font-weight: 600; color: #64748b; width: 55px; flex-shrink: 0; }
                     .value { font-weight: 500; }
-                    
-                    /* Footer */
-                    .footer {
-                        position: absolute; bottom: 0; left: 0; width: 100%;
-                        height: 24px;
-                        background: #1e293b; /* Dark Slate */
-                        color: rgba(255,255,255,0.9);
-                        display: flex; justify-content: space-between; align-items: center;
-                        padding: 0 6px; /* Adjusted padding */
-                        font-size: 8px; font-weight: 400;
-                        z-index: 20;
-                    }
-  .phone-container {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    font-weight: 400;
-    color: #fff;
-    font-size: 9px;
-    white-space: nowrap;
-    width: 130px;     /* ลดลงให้พอดีกับพื้นที่จริง */
-    flex-shrink: 0;
-    text-align: right;
-    margin-right: 8px; /* ถอยออกจากขอบด้านขวา */
-}
+                    .footer { position: absolute; bottom: 0; left: 0; width: 100%; height: 24px; background: #1e293b; color: rgba(255,255,255,0.9); display: flex; justify-content: space-between; align-items: center; padding: 0 6px; font-size: 8px; font-weight: 400; z-index: 20; }
+                    .phone-container { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-weight: 400; color: #fff; font-size: 9px; white-space: nowrap; width: 130px; flex-shrink: 0; text-align: right; margin-right: 7px; }
                 </style>
             </head>
             <body onload="window.print()">
                 <div class="card-container">
                     <div class="bg-graphic"></div>
                     <div class="circle-deco"></div>
-                    
                     <div class="header">
                         <img src="${logoSrc}" class="logo" onerror="this.style.opacity=0">
                         <div class="header-text">
@@ -218,7 +247,6 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                             <div class="province">จังหวัดกาฬสินธุ์</div>
                         </div>
                     </div>
-                    
                     <div class="content">
                         <div class="photo-box">
                              ${photoSrc ? `<img src="${photoSrc}">` : ''}
@@ -226,205 +254,36 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                         <div class="info-col">
                             <div class="person-name">${fullName}</div>
                             <div class="role-badge">${personnel.position}</div>
-                            
-                            <div class="data-row">
-                                <span class="label">ID Card</span>
-                                <span class="value">${personnel.idCard}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="label">เบอร์โทร</span>
-                                <span class="value">${personnel.phone}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="label">บรรจุเมื่อ</span>
-                                <span class="value">${personnel.appointmentDate || '-'}</span>
-                            </div>
+                            <div class="data-row"><span class="label">ID Card</span><span class="value">${personnel.idCard}</span></div>
+                            <div class="data-row"><span class="label">เบอร์โทร</span><span class="value">${personnel.phone}</span></div>
+                            <div class="data-row"><span class="label">บรรจุเมื่อ</span><span class="value">${personnel.appointmentDate || '-'}</span></div>
                         </div>
                     </div>
-                    
                     <div class="footer">
                          <div>ผู้ออกบัตร: ผู้อำนวยการสถานศึกษา</div>
-                        <div class="phone-container">
-                            โทร. 043-840842
-                        </div>
+                        <div class="phone-container">โทร. 043-840842</div>
                     </div>
                 </div>
             </body>
             </html>
         `;
-        
         const win = window.open('', '_blank', 'width=600,height=400');
-        if (win) {
-            win.document.write(html);
-            win.document.close();
-        }
-    };
-
-    const handleExportCSV = () => {
-        setIsExportMenuOpen(false);
-        const headers = ['คำนำหน้า', 'ชื่อ-นามสกุล', 'ตำแหน่ง', 'เลขตำแหน่ง', 'วันเกิด', 'เลขบัตรประชาชน', 'เบอร์โทร', 'วันที่บรรจุ'];
-        const title = personnel.personnelTitle === 'อื่นๆ' ? personnel.personnelTitleOther : personnel.personnelTitle;
-        const row = [
-            title,
-            personnel.personnelName,
-            personnel.position,
-            personnel.positionNumber,
-            personnel.dob,
-            `"${personnel.idCard}"`,
-            `"${personnel.phone}"`,
-            personnel.appointmentDate
-        ];
-        
-        let csvContent = "data:text/csv;charset=utf-8," 
-            + "\uFEFF" // BOM
-            + headers.join(",") + "\n" 
-            + row.join(",");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `personnel_${personnel.personnelName}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const handleExportWord = () => {
-        setIsExportMenuOpen(false);
-         const preHtml = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head>
-                <meta charset='utf-8'>
-                <title>Export HTML to Word</title>
-                <style>
-                    @page Section1 {
-                        size: 21.0cm 29.7cm;
-                        margin: 1.5cm 1.5cm 1.5cm 1.5cm;
-                        mso-header-margin: 35.4pt;
-                        mso-footer-margin: 35.4pt;
-                        mso-paper-source: 0;
-                    }
-                    div.Section1 { page:Section1; }
-                    
-                    body {
-                        font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif;
-                    }
-                    
-                    .header { text-align: center; margin-bottom: 20px; }
-                    .title { font-size: 22pt; font-weight: bold; margin: 0; }
-                    .subtitle { font-size: 20pt; font-weight: bold; margin: 0; }
-                    
-                    table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-                    td { vertical-align: bottom; padding: 2px 4px; }
-                    
-                    .label { 
-                        font-size: 18pt; 
-                        font-weight: bold; 
-                        white-space: nowrap;
-                        width: 1%; /* Auto shrink */
-                    }
-                    
-                    .value { 
-                        font-size: 16pt; 
-                        border-bottom: 1px dotted #000; 
-                        padding-left: 5px;
-                        width: auto;
-                    }
-                    
-                    .photo-box { 
-                        border: 1px solid #000; 
-                        width: 120px; 
-                        height: 150px; 
-                        display: flex; 
-                        align-items: center; 
-                        justify-content: center; 
-                        margin-left: auto; 
-                    }
-                </style>
-            </head>
-            <body><div class="Section1">
-        `;
-        const postHtml = "</div></body></html>";
-        
-        const content = `
-            <div style="padding: 10px;">
-                <div class="header">
-                    <div class="title">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
-                    <div class="subtitle">ประวัติบุคลากร</div>
-                </div>
-
-                <table style="margin-bottom: 20px;">
-                    <tr>
-                        <td style="vertical-align: top; padding-right: 20px;">
-                            <table>
-                                <tr>
-                                    <td class="label">ชื่อ-นามสกุล:</td>
-                                    <td class="value">${fullName}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label">ตำแหน่ง:</td>
-                                    <td class="value">${personnel.position}</td>
-                                </tr>
-                                 <tr>
-                                    <td class="label">เลขตำแหน่ง:</td>
-                                    <td class="value">${personnel.positionNumber || '-'}</td>
-                                </tr>
-                                 <tr>
-                                    <td class="label">วันเกิด:</td>
-                                    <td class="value">${personnel.dob}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label">เลขบัตรฯ:</td>
-                                    <td class="value">${personnel.idCard}</td>
-                                </tr>
-                            </table>
-                        </td>
-                        <td style="width: 130px; text-align: right; vertical-align: top;">
-                             <div class="photo-box">
-                                ${profileImageUrl ? `<img src="${profileImageUrl}" width="120" height="150" style="object-fit: cover;" />` : '<span style="font-size: 14pt;">รูปถ่าย</span>'}
-                             </div>
-                        </td>
-                    </tr>
-                </table>
-                
-                <table>
-                    <tr>
-                         <td class="label">วันที่บรรจุ:</td>
-                         <td class="value" style="width: 35%;">${personnel.appointmentDate}</td>
-                         <td class="label" style="padding-left: 15px;">เบอร์โทร:</td>
-                         <td class="value">${personnel.phone || '-'}</td>
-                    </tr>
-                </table>
-
-                <table>
-                    <tr>
-                        <td class="label">ครูที่ปรึกษา:</td>
-                        <td class="value">${advisoryClassesText}</td>
-                    </tr>
-                </table>
-
-                <br/><br/>
-                <div style="text-align: right; margin-top: 30px;">
-                     <p style="font-size: 16pt; margin: 5px 0;">ลงชื่อ ........................................................... เจ้าของประวัติ</p>
-                     <p style="font-size: 16pt; margin: 5px 0;">(${fullName})</p>
-                     <p style="font-size: 16pt; margin: 5px 0;">วันที่ ........./........./.............</p>
-                </div>
-            </div>
-        `;
-
-        const html = preHtml + content + postHtml;
-        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-        const url = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(html);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `profile_${personnel.personnelName}.doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        if (win) { win.document.write(html); win.document.close(); }
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-40 p-4" onClick={onClose}>
+            {/* Style isolation to ensure only this modal prints when open */}
+            <style>{`
+                @media print {
+                    #print-dashboard { display: none !important; }
+                    #print-section-personnel { display: block !important; }
+                    @page { size: A4 portrait; margin: 2cm; }
+                    body { font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; font-size: 16pt; }
+                    .print-dotted-line { border-bottom: 1px dotted #000; flex-grow: 1; margin-left: 5px; padding-left: 5px; }
+                }
+            `}</style>
+            
             <div 
                 className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col print:fixed print:inset-0 print:w-full print:h-full print:max-w-none print:rounded-none print:z-[100] print:bg-white" 
                 onClick={e => e.stopPropagation()}
@@ -438,71 +297,75 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
 
                 <div className="flex-grow overflow-y-auto p-6 print:overflow-visible print:p-8">
                     
-                    {/* ---------------- PRINT LAYOUT (Application Form Style - TH Sarabun) ---------------- */}
-                    <div id="print-section" className="hidden print:block font-sarabun text-black leading-tight">
+                    {/* ---------------- PRINT LAYOUT (Official A4 Government Record) ---------------- */}
+                    <div id="print-section-personnel" className="hidden print:block print-visible font-sarabun text-black leading-normal">
+                        
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold">โรงเรียนกาฬสินธุ์ปัญญานุกูล</h1>
-                            <h2 className="text-2xl font-bold mt-2">ประวัติบุคลากร</h2>
+                             <img src={getDirectDriveImageSrc(schoolLogo)} alt="logo" className="h-20 w-auto mx-auto mb-2" />
+                             <h1 className="text-2xl font-bold">{schoolName}</h1>
+                             <h2 className="text-xl font-bold mt-1">ประวัติข้าราชการครูและบุคลากรทางการศึกษา</h2>
                         </div>
 
-                        <div className="flex justify-between items-start gap-8">
-                            {/* Left Data Column */}
-                            <div className="flex-grow space-y-2 text-xl">
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">ชื่อ-นามสกุล:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{fullName}</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">ตำแหน่ง:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{personnel.position}</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">เลขตำแหน่ง:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{personnel.positionNumber || '-'}</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">วันเกิด:</div>
-                                    <div className="col-span-4 border-b border-dotted border-black pb-1">{personnel.dob}</div>
-                                    <div className="col-span-2 font-bold text-right">อายุ:</div>
-                                    <div className="col-span-3 border-b border-dotted border-black pb-1">{calculateAge(personnel.dob)} ปี</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">เลขบัตรประชาชน:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{personnel.idCard}</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">วันที่บรรจุ:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{personnel.appointmentDate}</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">เบอร์โทร:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{personnel.phone}</div>
-                                </div>
-                                <div className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-3 font-bold">ครูที่ปรึกษา:</div>
-                                    <div className="col-span-9 border-b border-dotted border-black pb-1">{advisoryClassesText}</div>
-                                </div>
+                        <div className="flex justify-between items-start">
+                            {/* Info Column */}
+                            <div className="flex-grow pr-8 space-y-2 text-lg w-2/3">
+                                 <div className="flex items-baseline">
+                                    <span className="font-bold shrink-0">ชื่อ-นามสกุล:</span>
+                                    <span className="print-dotted-line">{fullName}</span>
+                                 </div>
+                                 <div className="flex items-baseline">
+                                    <span className="font-bold shrink-0">ตำแหน่ง:</span>
+                                    <span className="print-dotted-line">{personnel.position}</span>
+                                    <span className="font-bold shrink-0 ml-4">เลขที่ตำแหน่ง:</span>
+                                    <span className="print-dotted-line">{personnel.positionNumber || '-'}</span>
+                                 </div>
+                                 <div className="flex items-baseline">
+                                    <span className="font-bold shrink-0">วันเดือนปีเกิด:</span>
+                                    <span className="print-dotted-line">{personnel.dob || '-'}</span>
+                                    <span className="font-bold shrink-0 ml-4">อายุ:</span>
+                                    <span className="print-dotted-line">{calculateAge(personnel.dob)} ปี</span>
+                                 </div>
+                                 <div className="flex items-baseline">
+                                    <span className="font-bold shrink-0">เลขบัตรประชาชน:</span>
+                                    <span className="print-dotted-line">{personnel.idCard || '-'}</span>
+                                 </div>
+                                 <div className="flex items-baseline">
+                                    <span className="font-bold shrink-0">วันที่บรรจุแต่งตั้ง:</span>
+                                    <span className="print-dotted-line">{personnel.appointmentDate || '-'}</span>
+                                 </div>
+                                 <div className="flex items-baseline">
+                                    <span className="font-bold shrink-0">เบอร์โทรศัพท์:</span>
+                                    <span className="print-dotted-line">{personnel.phone || '-'}</span>
+                                 </div>
                             </div>
 
-                            {/* Right Image Column */}
-                            <div className="flex-shrink-0">
-                                <div className="w-[1.5in] h-[2in] border border-black flex items-center justify-center overflow-hidden">
-                                     {profileImageUrl ? (
-                                        <img src={profileImageUrl} className="w-full h-full object-cover" alt="Profile" />
-                                    ) : (
-                                        <span className="text-lg text-gray-400">ติดรูปถ่าย</span>
-                                    )}
-                                </div>
+                            {/* Photo Column (Top Right) - Fixed Size ~1.5x2 inch */}
+                            <div className="w-[4cm] h-[5.2cm] border border-black flex items-center justify-center bg-gray-50 shrink-0 mb-4 self-start">
+                                {profileImageUrl ? (
+                                    <img src={profileImageUrl} className="w-full h-full object-cover" alt="Profile" />
+                                ) : (
+                                    <span className="text-gray-400 text-sm">รูปถ่าย</span>
+                                )}
                             </div>
                         </div>
 
-                         {/* Signature Section */}
-                         <div className="mt-16 flex justify-end text-xl">
-                            <div className="text-center w-64">
-                                <div className="border-b border-dotted border-black mb-2"></div>
-                                <p>ลงชื่อเจ้าของประวัติ</p>
-                                <p className="mt-6">({fullName})</p>
-                                <p className="mt-1">วันที่ ........./........./.............</p>
+                        {/* Work Info Header */}
+                        <div className="mt-8 mb-4 border-b border-black">
+                            <h3 className="text-lg font-bold pb-1">ภาระงาน</h3>
+                        </div>
+                        
+                         <div className="space-y-2 text-lg">
+                             <div className="flex items-baseline">
+                                <span className="font-bold shrink-0">ครูที่ปรึกษา:</span>
+                                <span className="print-dotted-line">{advisoryClassesText}</span>
+                            </div>
+                        </div>
+
+                         <div className="mt-16 flex justify-end text-lg">
+                            <div className="text-center w-72">
+                                <p className="mb-8">ลงชื่อ ........................................................... เจ้าของประวัติ</p>
+                                <p className="mb-2">({fullName})</p>
+                                <p>วันที่ ........./........./.............</p>
                             </div>
                         </div>
                     </div>
@@ -560,19 +423,19 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                             <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
                                 <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
                                     <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                    พิมพ์ / PDF
+                                    พิมพ์ / บันทึก PDF
+                                </button>
+                                <button onClick={exportToWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    ส่งออก Word (.doc)
+                                </button>
+                                <button onClick={exportToExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    ส่งออก Excel (.csv)
                                 </button>
                                 <button onClick={handleExportIDCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors border-b border-gray-50">
                                     <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
                                     บัตรประจำตัวบุคลากร
-                                </button>
-                                <button onClick={handleExportCSV} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Excel (CSV)
-                                </button>
-                                <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors">
-                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Word (DOC)
                                 </button>
                             </div>
                         )}

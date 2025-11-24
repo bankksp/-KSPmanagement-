@@ -13,122 +13,19 @@ import PersonnelPage from './components/PersonnelPage';
 import PersonnelModal from './components/PersonnelModal';
 import ViewPersonnelModal from './components/ViewPersonnelModal';
 import AttendancePage from './components/AttendancePage';
-import ReportPage from './components/ReportPage'; // New component
+import ReportPage from './components/ReportPage';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
 import ProfilePage from './components/ProfilePage';
+import ComingSoon from './components/ComingSoon';
+import AcademicPage from './components/AcademicPage'; // New Component
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
-
-// Helper: Resize and Compress Image
-const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: number, quality: number): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-
-                // Calculate new dimensions while maintaining aspect ratio
-                if (width > height) {
-                    if (width > maxWidth) {
-                        height *= maxWidth / width;
-                        width = maxWidth;
-                    }
-                } else {
-                    if (height > maxHeight) {
-                        width *= maxHeight / height;
-                        height = maxHeight;
-                    }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    // Compress to JPEG
-                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                    resolve(dataUrl);
-                } else {
-                    reject(new Error("Canvas context is null"));
-                }
-            };
-            img.onerror = (error) => reject(error);
-        };
-        reader.onerror = (error) => reject(error);
-    });
-};
-
-// Helper to convert a File to a Base64 string object for Google Script
-const fileToObject = async (file: File): Promise<{ filename: string, mimeType: string, data: string }> => {
-    // If it's an image, try to compress it
-    if (file.type.startsWith('image/')) {
-        try {
-            // Resize to max 1024px, 0.7 quality (High compression, decent quality)
-            const compressedDataUrl = await resizeAndCompressImage(file, 1024, 1024, 0.7);
-            return {
-                filename: file.name.replace(/\.[^/.]+$/, "") + ".jpg", // Force extension to jpg
-                mimeType: 'image/jpeg',
-                data: compressedDataUrl.split(',')[1] // Remove "data:image/jpeg;base64," header
-            };
-        } catch (error) {
-            console.warn("Image compression failed, falling back to original file", error);
-        }
-    }
-
-    // Fallback for non-images or failed compression
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            const result = reader.result as string;
-            resolve({
-                filename: file.name,
-                mimeType: file.type,
-                data: result.split(',')[1] // remove data:mime/type;base64, part
-            });
-        };
-        reader.onerror = error => reject(error);
-    });
-};
-
-// Helper to prepare data for API submission, converting all File objects
-const prepareDataForApi = async (data: any) => {
-    // FIX: Create a shallow copy first. We must iterate over the ORIGINAL data keys 
-    // because JSON.stringify() destroys File objects (turns them into {}), 
-    // making 'instanceof File' checks fail on a cloned object.
-    const apiData: any = { ...data }; 
-
-    for (const key in data) {
-        const value = data[key];
-
-        if (value instanceof File) {
-            apiData[key] = await fileToObject(value);
-        } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
-             apiData[key] = await Promise.all(value.map(fileToObject));
-        } else if (key === 'schoolLogo' && typeof value === 'string' && value.startsWith('data:image')) {
-            const result = value;
-            const mimeType = result.match(/data:(.*);/)?.[1] || 'image/png';
-            apiData[key] = {
-                filename: 'school_logo_' + Date.now() + '.png',
-                mimeType: mimeType,
-                data: result.split(',')[1]
-            };
-        }
-    }
-    return apiData;
-};
-
+import { prepareDataForApi } from './utils';
 
 const App: React.FC = () => {
-    // Updated page types to include attendance_personnel
-    const [currentPage, setCurrentPage] = useState<'stats' | 'attendance' | 'attendance_personnel' | 'reports' | 'students' | 'personnel' | 'admin' | 'profile'>('stats');
+    const [currentPage, setCurrentPage] = useState<Page>('stats');
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
@@ -154,6 +51,9 @@ const App: React.FC = () => {
     // Attendance states
     const [studentAttendance, setStudentAttendance] = useState<StudentAttendance[]>([]);
     const [personnelAttendance, setPersonnelAttendance] = useState<PersonnelAttendance[]>([]);
+
+    // Academic Plan state
+    const [academicPlans, setAcademicPlans] = useState<AcademicPlan[]>([]);
 
     // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -242,8 +142,6 @@ const App: React.FC = () => {
             const data = response.data || {};
             
             // NORMALIZE: Ensure studentDetails is always a string in the state
-            // The backend (Apps Script) might auto-parse JSON strings into Objects/Arrays.
-            // We convert it back to string here to satisfy the Report interface and prevent double-parsing errors.
             const normalizedReports = (data.reports || []).map((r: any) => {
                 if (r.studentDetails && typeof r.studentDetails !== 'string') {
                     return { ...r, studentDetails: JSON.stringify(r.studentDetails) };
@@ -257,8 +155,6 @@ const App: React.FC = () => {
             // Process personnel to enforce Super Admin
             let fetchedPersonnel: Personnel[] = data.personnel || [];
             fetchedPersonnel = fetchedPersonnel.map(p => {
-                // Enforce Admin Role for specific ID: 1469900181659 (Nuntapat Saengsudta)
-                // Safely handle id type (string or number)
                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
                 if (normalizeId(p.idCard) === '1469900181659') {
                     return { ...p, role: 'admin' as const };
@@ -269,6 +165,7 @@ const App: React.FC = () => {
             setPersonnel(fetchedPersonnel);
             setStudentAttendance(data.studentAttendance || []);
             setPersonnelAttendance(data.personnelAttendance || []);
+            setAcademicPlans(data.academicPlans || []);
 
             if (data.settings) {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
@@ -307,7 +204,6 @@ const App: React.FC = () => {
 
     // Auth Handlers
     const handleLogin = (user: Personnel, rememberMe: boolean) => {
-        // Enforce admin role on login if it matches the hardcoded ID
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
         if (normalizeId(user.idCard) === '1469900181659') {
             user.role = 'admin';
@@ -328,10 +224,7 @@ const App: React.FC = () => {
     };
 
     const handleRegister = async (newPersonnel: Personnel) => {
-        // Reuse the save personnel logic
         await handleSavePersonnel(newPersonnel);
-        // After register, maybe login automatically? 
-        // For now, just close modal and alert
         setIsRegisterModalOpen(false);
         alert('ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ');
         setIsLoginModalOpen(true);
@@ -363,7 +256,7 @@ const App: React.FC = () => {
             const response = await postToGoogleScript({ action, data: apiPayload });
             const savedData = response.data;
 
-            // Normalize saved data as well
+            // Normalize saved data
             const normalizeReport = (r: any) => {
                  if (r.studentDetails && typeof r.studentDetails !== 'string') {
                     return { ...r, studentDetails: JSON.stringify(r.studentDetails) };
@@ -479,7 +372,6 @@ const App: React.FC = () => {
     const handleSavePersonnel = async (person: Personnel) => {
         setIsSaving(true);
         try {
-            // Logic to check if it's a registration or update
             const isEditing = personnel.some(p => p.id === person.id);
             const action = isEditing ? 'updatePersonnel' : 'addPersonnel';
             const apiPayload = await prepareDataForApi(person);
@@ -493,7 +385,6 @@ const App: React.FC = () => {
             }
 
             if (Array.isArray(processedData)) {
-                // Re-apply admin override on save results
                 const processedWithAdmin = processedData.map((p: Personnel) => {
                      const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
                      if (normalizeId(p.idCard) === '1469900181659') return { ...p, role: 'admin' as const };
@@ -501,17 +392,13 @@ const App: React.FC = () => {
                 });
                 setPersonnel(processedWithAdmin);
             } else {
-                 // Re-apply admin override on single object
                  const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
                  if (normalizeId(processedData.idCard) === '1469900181659') processedData.role = 'admin';
 
                 if (isEditing) {
                     setPersonnel(prev => prev.map(p => String(p.id) === String(processedData.id) ? processedData : p));
-                    
-                    // Update current user if self-editing
                     if (currentUser && String(currentUser.id) === String(processedData.id)) {
                          setCurrentUser(processedData);
-                         // Also update local storage if present
                          if (localStorage.getItem('ksp_user')) {
                              localStorage.setItem('ksp_user', JSON.stringify(processedData));
                          }
@@ -567,8 +454,52 @@ const App: React.FC = () => {
         }
     };
 
+    // Academic Plan Handlers
+    const handleSaveAcademicPlan = async (plan: AcademicPlan) => {
+        setIsSaving(true);
+        try {
+            const apiPayload = await prepareDataForApi(plan);
+            const response = await postToGoogleScript({ action: 'saveAcademicPlan', data: apiPayload });
+            const savedPlan = response.data;
+
+            if (Array.isArray(savedPlan)) {
+                setAcademicPlans(savedPlan);
+            } else {
+                setAcademicPlans(prev => [...prev, savedPlan]);
+            }
+            // Alert handled inside AcademicPage currently
+        } catch (error) {
+            console.error(error);
+            alert('เกิดข้อผิดพลาดในการบันทึกแผนการสอน');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleUpdateAcademicPlanStatus = async (id: number, status: PlanStatus, comment?: string) => {
+        setIsSaving(true);
+        try {
+            const response = await postToGoogleScript({ 
+                action: 'updateAcademicPlanStatus', 
+                data: { id, status, comment, approverName: currentUser?.personnelName, approvedDate: new Date().toLocaleDateString('th-TH') } 
+            });
+            const updatedPlan = response.data;
+            
+            // If response returns the full list or single item, handle accordingly
+            // But usually we just update local state
+            setAcademicPlans(prev => prev.map(p => p.id === id ? { ...p, status, comment } : p));
+            alert('อัปเดตสถานะเรียบร้อย');
+        } catch (error) {
+            console.error(error);
+            alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+
     // Routing Guard
-    const navigateTo = (page: typeof currentPage) => {
+    const navigateTo = (page: Page) => {
         if (page === 'stats') {
             setCurrentPage('stats');
             return;
@@ -597,42 +528,23 @@ const App: React.FC = () => {
                 <div className="flex flex-col justify-center items-center h-96">
                     <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary-blue mb-4"></div>
                     <p className="text-xl text-secondary-gray font-medium">กำลังโหลดข้อมูล...</p>
-                    <p className="text-sm text-gray-500 mt-2">กรุณารอสักครู่ ระบบกำลังเชื่อมต่อกับฐานข้อมูล</p>
                 </div>
             )
         }
 
         if (fetchError) {
-            return (
+             return (
                  <div className="flex flex-col justify-center items-center h-96 text-center p-8 bg-white rounded-xl shadow-lg">
                     <div className="bg-red-100 p-4 rounded-full mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800 mb-2">ไม่สามารถดึงข้อมูลได้</h3>
-                    <p className="text-gray-600 mb-6 max-w-md">
-                        {fetchError === "Failed to fetch" 
-                            ? "เกิดปัญหาการเชื่อมต่อเครือข่าย หรือ URL ของ Google Script ไม่ถูกต้อง" 
-                            : `เกิดข้อผิดพลาด: ${fetchError}`}
-                    </p>
-                    <div className="flex gap-4">
-                         <button 
-                            onClick={() => window.location.reload()} 
-                            className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow transition"
-                        >
-                            ลองใหม่อีกครั้ง
-                        </button>
-                         <button 
-                            onClick={() => {
-                                setSettings(DEFAULT_SETTINGS);
-                                setCurrentPage('admin');
-                            }}
-                            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg shadow transition"
-                        >
-                            รีเซ็ตการตั้งค่า
-                        </button>
-                    </div>
+                    <p className="text-gray-600 mb-6 max-w-md">{fetchError}</p>
+                    <button onClick={() => window.location.reload()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow transition">
+                        ลองใหม่อีกครั้ง
+                    </button>
                 </div>
             )
         }
@@ -649,6 +561,17 @@ const App: React.FC = () => {
                             studentAttendance={studentAttendance}
                             personnelAttendance={personnelAttendance}
                         />;
+            case 'academic_plans':
+                return currentUser ? (
+                    <AcademicPage 
+                        currentUser={currentUser}
+                        personnel={personnel}
+                        plans={academicPlans}
+                        onSavePlan={handleSaveAcademicPlan}
+                        onUpdateStatus={handleUpdateAcademicPlanStatus}
+                        isSaving={isSaving}
+                    />
+                ) : null;
             case 'attendance':
                 return <AttendancePage
                             mode="student"
@@ -718,6 +641,21 @@ const App: React.FC = () => {
                         isSaving={isSaving}
                     />
                 ) : null;
+            
+            // Placeholder Pages
+            case 'personnel_report':
+                return <ComingSoon title="รายงานการปฏิบัติงาน" />;
+            case 'personnel_sar':
+                return <ComingSoon title="รายงานผลการประเมินตนเอง SAR" />;
+            case 'finance_supplies':
+                return <ComingSoon title="ข้อมูลพัสดุ" />;
+            case 'general_docs':
+                return <ComingSoon title="หนังสือ/คำสั่ง" />;
+            case 'general_repair':
+                return <ComingSoon title="แจ้งซ่อม" />;
+            case 'general_certs':
+                return <ComingSoon title="ขอเลขเกียรติบัตร" />;
+                
             default:
                 return null;
         }
