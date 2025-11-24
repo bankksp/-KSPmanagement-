@@ -128,236 +128,214 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
 
         const issueDate = formatDate(today);
         const expiryDate = formatDate(expiry);
-        const fullSchoolName = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
-        const provinceName = "จังหวัดกาฬสินธุ์";
         
+        // Get teachers list
+        const teachers = (student.homeroomTeachers || [])
+            .map(id => personnel.find(p => p.id === id))
+            .filter(p => !!p)
+            .map(p => `${p?.personnelTitle === 'อื่นๆ' ? p?.personnelTitleOther : p?.personnelTitle}${p?.personnelName}`);
+        
+        // Generate teachers HTML structure
+        let teachersHtml = '';
+        if (teachers.length > 0) {
+            teachersHtml = teachers.map((name, index) => `<div class="teacher-name">${name}</div>`).join('');
+        } else {
+            teachersHtml = '<div class="teacher-name">-</div>';
+        }
+
+        // Logic to fix duplicated student class string if it occurs (e.g., "M2/4M2/4")
+        let displayClass = student.studentClass || '-';
+        if (displayClass.length > 5 && displayClass.length % 2 === 0) {
+            const halfIndex = displayClass.length / 2;
+            const firstHalf = displayClass.substring(0, halfIndex);
+            const secondHalf = displayClass.substring(halfIndex);
+            if (firstHalf === secondHalf) {
+                displayClass = firstHalf;
+            }
+        }
+
         const html = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8">
                 <title>บัตรประจำตัวนักเรียน - ${student.studentName}</title>
-                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+                <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
                 <style>
-                    @page {
-                        size: 8.6cm 5.4cm;
-                        margin: 0;
-                    }
-                    body {
-                        margin: 0;
-                        padding: 0;
-                        font-family: 'Sarabun', sans-serif;
-                        background-color: white;
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
-                    }
+                    @page { size: 8.6cm 5.4cm; margin: 0; }
+                    body { margin: 0; padding: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f3f4f6; }
+                    
                     .card-container {
-                        width: 8.56cm;
-                        height: 5.398cm;
-                        position: relative;
-                        overflow: hidden;
-                        border-radius: 10px;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                        /* Gray-Green School Theme Gradient */
-                        background: linear-gradient(135deg, #E8E8E8 0%, #A8CABA 60%, #84A98C 100%);
+                        width: 8.6cm; height: 5.4cm; 
+                        position: relative; overflow: hidden;
+                        background: #fff;
+                        border: 1px solid #e5e7eb;
+                        box-sizing: border-box;
                     }
                     
-                    /* Subtle decorative curve */
-                    .card-container::before {
-                        content: '';
+                    /* Background Graphic */
+                    .bg-graphic {
                         position: absolute;
-                        top: -50%;
-                        right: -20%;
-                        width: 80%;
-                        height: 200%;
-                        background: rgba(255, 255, 255, 0.15);
-                        transform: rotate(-15deg);
-                        pointer-events: none;
+                        top: 0; left: 0; width: 100%; height: 100%;
                         z-index: 0;
+                        background: linear-gradient(120deg, #ffffff 40%, #f0fdf4 40%, #dcfce7 100%);
+                    }
+                    .circle-deco {
+                        position: absolute;
+                        right: -30px; top: -30px;
+                        width: 150px; height: 150px;
+                        background: rgba(22, 163, 74, 0.1);
+                        border-radius: 50%;
                     }
 
-                    .card-header {
-                        padding: 8px 10px 5px 10px;
+                    /* Header */
+                    .header {
+                        position: relative; z-index: 10;
+                        padding: 10px 14px 0 14px;
+                        display: flex; justify-content: space-between; align-items: flex-start;
+                    }
+                    .logo { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+                    
+                    .header-text { text-align: right; }
+                    .org-name { font-size: 8px; color: #6b7280; font-weight: 500; letter-spacing: 0.3px; }
+                    .school-name { font-size: 13px; font-weight: 700; color: #15803d; line-height: 1.1; margin-top: 2px; }
+                    .province { font-size: 9px; color: #16a34a; font-weight: 500; margin-top: 1px; }
+                    
+                    /* Content Grid */
+                    .content {
+                        position: relative; z-index: 10;
                         display: flex;
-                        align-items: center;
-                        position: relative;
-                        z-index: 1;
-                    }
-                    .logo {
-                        width: 42px;
-                        height: 42px;
-                        object-fit: contain;
-                        margin-right: 8px;
-                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
-                    }
-                    .school-name-container {
-                        flex-grow: 1;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                    }
-                    .school-name {
-                        font-weight: 700;
-                        font-size: 13pt;
-                        color: #2F4F4F; /* Dark Slate Gray */
-                        line-height: 1.1;
-                        white-space: nowrap;
-                    }
-                    .school-province {
-                         font-weight: 600;
-                         font-size: 10pt;
-                         color: #2F4F4F;
+                        padding: 8px 14px;
+                        gap: 12px;
                     }
                     
-                    .card-body {
-                        padding: 2px 12px;
-                        display: flex;
-                        position: relative;
-                        z-index: 1;
-                        align-items: flex-start;
-                    }
-                    .student-photo-container {
-                        width: 85px;
-                        height: 105px;
-                        border: 3px solid white;
+                    /* Photo */
+                    .photo-box {
+                        width: 2.2cm; height: 2.7cm;
+                        background: #e5e7eb;
                         border-radius: 8px;
+                        border: 2px solid #fff;
+                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
                         overflow: hidden;
-                        background: #f5f5f5;
-                        margin-right: 10px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
                         flex-shrink: 0;
                     }
-                    .student-photo {
-                        width: 100%;
-                        height: 100%;
-                        object-fit: cover;
-                    }
+                    .photo-box img { width: 100%; height: 100%; object-fit: cover; }
                     
-                    .student-info {
-                        flex-grow: 1;
-                        min-width: 0; /* Essential for text-overflow to work in flex item */
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                    }
+                    /* Info */
+                    .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
                     
-                    .info-row {
-                        margin-bottom: 2px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        line-height: 1.3;
+                    .student-name { 
+                        font-size: 15px; font-weight: 700; color: #111827; 
+                        line-height: 1.1; margin-bottom: 3px;
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                        max-width: 170px;
                     }
-                    
-                    .info-label {
-                        font-size: 9pt;
-                        font-weight: 600;
-                        color: #555;
-                        margin-right: 4px;
-                    }
-                    
-                    .info-value {
-                        font-size: 11pt;
-                        font-weight: 700;
-                        color: #222;
-                    }
-                    
-                    .student-name {
-                        font-size: 13pt;
-                        font-weight: 800;
-                        color: #1b4332; /* Dark Green */
-                        margin-bottom: 2px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-
-                    .teacher-info {
-                        margin-top: 4px;
-                        font-size: 8pt;
-                        color: #444;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-                    
-                    .card-footer {
-                        position: absolute;
-                        bottom: 0;
-                        left: 0;
-                        right: 0;
-                        background: #52796F; /* Solid Gray-Green */
-                        padding: 4px 12px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        height: 26px;
+                    .role-badge {
+                        display: inline-block;
+                        background: linear-gradient(to right, #16a34a, #15803d);
                         color: white;
-                        z-index: 2;
+                        font-size: 8px; font-weight: 600; text-transform: uppercase;
+                        padding: 2px 8px; border-radius: 4px;
+                        margin-bottom: 6px;
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                        width: fit-content;
                     }
                     
-                    .dates {
-                        font-size: 7pt;
-                        font-weight: 400;
-                        opacity: 0.95;
-                        line-height: 1.1;
+                    .data-row {
+                        display: flex; align-items: baseline;
+                        font-size: 9px; line-height: 1.4;
+                        color: #374151;
                     }
+                    .label { font-weight: 600; color: #4b5563; width: 55px; flex-shrink: 0; }
+                    .value { font-weight: 500; }
                     
-                    .contact {
-                        font-size: 10pt;
-                        font-weight: 600;
+                    /* Teacher Grid for alignment */
+                    .teacher-container {
+                        display: grid;
+                        grid-template-columns: 55px 1fr;
+                        margin-top: 2px;
+                        font-size: 9px; line-height: 1.2;
+                        color: #374151;
                     }
-                </style>
+                    .teacher-label { font-weight: 600; color: #4b5563; }
+                    .teacher-list { display: flex; flex-direction: column; gap: 1px; }
+                    .teacher-name { font-weight: 500; font-size: 8px; }
+
+                    /* Footer */
+                    .footer {
+                        position: absolute; bottom: 0; left: 0; width: 100%;
+                        height: 24px;
+                        background: #14532d; /* Dark Green */
+                        color: rgba(255,255,255,0.9);
+                        display: flex; justify-content: space-between; align-items: center;
+                        padding: 0 6px; /* Adjusted padding to ensure text fits */
+                        font-size: 8px; font-weight: 400;
+                        z-index: 20;
+                    }
+                    .phone-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    font-weight: 400;
+    color: #fff;
+    font-size: 9px;
+    white-space: nowrap;
+    width: 130px;     /* ลดลงให้พอดีกับพื้นที่จริง */
+    flex-shrink: 0;
+    text-align: right;
+    margin-right: 8px; /* ถอยออกจากขอบด้านขวา */
+}
+                    </style>
             </head>
             <body onload="window.print()">
                 <div class="card-container">
-                    <div class="card-header">
-                        <img src="${logoSrc}" class="logo" alt="logo" onerror="this.style.display='none'">
-                        <div class="school-name-container">
-                            <div class="school-name">${fullSchoolName}</div>
-                            <div class="school-province">${provinceName}</div>
+                    <div class="bg-graphic"></div>
+                    <div class="circle-deco"></div>
+                    
+                    <div class="header">
+                        <img src="${logoSrc}" class="logo" onerror="this.style.opacity=0">
+                        <div class="header-text">
+                            <div class="org-name">สำนักบริหารงานการศึกษาพิเศษ</div>
+                            <div class="school-name">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
+                            <div class="province">จังหวัดกาฬสินธุ์</div>
                         </div>
                     </div>
                     
-                    <div class="card-body">
-                        <div class="student-photo-container">
-                            ${photoSrc 
-                                ? `<img src="${photoSrc}" class="student-photo" alt="student">`
-                                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:8pt;">No Photo</div>'
-                            }
+                    <div class="content">
+                        <div class="photo-box">
+                             ${photoSrc ? `<img src="${photoSrc}">` : ''}
                         </div>
-                        <div class="student-info">
-                            <div class="student-name">${student.studentTitle} ${student.studentName}</div>
+                        <div class="info-col">
+                            <div class="student-name">${student.studentTitle}${student.studentName}</div>
+                            <div class="role-badge">นักเรียน Student</div>
                             
-                            <div class="info-row">
-                                <span class="info-label">ID:</span>
-                                <span class="info-value">${student.studentIdCard}</span>
+                            <div class="data-row">
+                                <span class="label">เลขประจำตัว</span>
+                                <span class="value">${student.studentIdCard}</span>
+                            </div>
+                             <div class="data-row">
+                                <span class="label">ชั้นเรียน</span>
+                                <span class="value">${displayClass}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="label">เรือนนอน</span>
+                                <span class="value">${student.dormitory}</span>
                             </div>
                             
-                            <div style="display:flex; gap: 8px;">
-                                <div class="info-row" style="flex: 1;">
-                                    <span class="info-label">ชั้น:</span>
-                                    <span class="info-value">${student.studentClass}</span>
+                            <div class="teacher-container">
+                                <div class="teacher-label">ครูประจำชั้น:</div>
+                                <div class="teacher-list">
+                                    ${teachersHtml}
                                 </div>
-                                <div class="info-row" style="flex: 1;">
-                                    <span class="info-label">เรือน:</span>
-                                    <span class="info-value">${student.dormitory}</span>
-                                </div>
-                            </div>
-                            
-                            <div class="teacher-info">
-                                <span style="font-weight:600;">ครูประจำชั้น:</span> ${homeroomTeacherNames || '-'}
                             </div>
                         </div>
                     </div>
                     
-                    <div class="card-footer">
-                        <div class="dates">
-                             <div>ออกบัตร: ${issueDate}</div>
-                             <div>หมดอายุ: ${expiryDate}</div>
-                        </div>
-                        <div class="contact">
-                            โทร. 043840842
+                    <div class="footer">
+                        <div>ออกบัตร: ${issueDate}  |  หมดอายุ: ${expiryDate}</div>
+                        <div class="phone-container">
+                            โทร. 043-840842
                         </div>
                     </div>
                 </div>
@@ -365,7 +343,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
             </html>
         `;
         
-        const win = window.open('', '_blank', 'width=400,height=300');
+        const win = window.open('', '_blank', 'width=600,height=400');
         if (win) {
             win.document.write(html);
             win.document.close();
@@ -460,13 +438,6 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                         justify-content: center; 
                         margin-left: auto; 
                     }
-                    
-                    /* Utility to force width for multi-column tables */
-                    .w-10 { width: 10%; }
-                    .w-15 { width: 15%; }
-                    .w-20 { width: 20%; }
-                    .w-40 { width: 40%; }
-                    .w-50 { width: 50%; }
                 </style>
             </head>
             <body><div class="Section1">

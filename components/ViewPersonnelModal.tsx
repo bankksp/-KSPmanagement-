@@ -83,232 +83,169 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
         const logoSrc = getDirectDriveImageSrc(schoolLogo);
         const photoSrc = profileImageUrl || '';
         
-        const today = new Date();
-        const expiry = new Date();
-        expiry.setFullYear(expiry.getFullYear() + 1);
-        
-        const formatDate = (date: Date) => {
-            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${(date.getFullYear() + 543).toString().slice(-2)}`;
-        };
-
-        const issueDate = formatDate(today);
-        const expiryDate = formatDate(expiry);
-        const fullSchoolName = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
-        const provinceName = "จังหวัดกาฬสินธุ์";
-        
         const html = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8">
                 <title>บัตรประจำตัวบุคลากร - ${personnel.personnelName}</title>
-                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+                <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
                 <style>
-                    @page {
-                        size: 8.6cm 5.4cm;
-                        margin: 0;
-                    }
-                    body {
-                        margin: 0;
-                        padding: 0;
-                        font-family: 'Sarabun', sans-serif;
-                        background-color: white;
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
-                    }
+                    @page { size: 8.6cm 5.4cm; margin: 0; }
+                    body { margin: 0; padding: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f3f4f6; }
+                    
                     .card-container {
-                        width: 8.56cm;
-                        height: 5.398cm;
-                        position: relative;
-                        overflow: hidden;
-                        border-radius: 10px;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                        /* Gray-Green School Theme Gradient */
-                        background: linear-gradient(135deg, #E8E8E8 0%, #A8CABA 60%, #84A98C 100%);
+                        width: 8.6cm; height: 5.4cm; 
+                        position: relative; overflow: hidden;
+                        background: #fff;
+                        border: 1px solid #e5e7eb;
+                        box-sizing: border-box;
                     }
                     
-                    /* Subtle decorative curve */
-                    .card-container::before {
-                        content: '';
+                    /* Background Graphic - Blue/Gold/Gray for Personnel */
+                    .bg-graphic {
                         position: absolute;
-                        top: -50%;
-                        right: -20%;
-                        width: 80%;
-                        height: 200%;
-                        background: rgba(255, 255, 255, 0.15);
-                        transform: rotate(-15deg);
-                        pointer-events: none;
+                        top: 0; left: 0; width: 100%; height: 100%;
                         z-index: 0;
+                        background: linear-gradient(120deg, #f8fafc 40%, #e2e8f0 40%, #cbd5e1 100%);
+                    }
+                    .circle-deco {
+                        position: absolute;
+                        right: -30px; top: -30px;
+                        width: 150px; height: 150px;
+                        background: rgba(30, 58, 138, 0.05);
+                        border-radius: 50%;
                     }
 
-                    .card-header {
-                        padding: 8px 10px 5px 10px;
+                    /* Header */
+                    .header {
+                        position: relative; z-index: 10;
+                        padding: 10px 14px 0 14px;
+                        display: flex; justify-content: space-between; align-items: flex-start;
+                    }
+                    .logo { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+                    
+                    .header-text { text-align: right; }
+                    .org-name { font-size: 8px; color: #64748b; font-weight: 500; letter-spacing: 0.3px; }
+                    .school-name { font-size: 13px; font-weight: 700; color: #1e3a8a; line-height: 1.1; margin-top: 2px; }
+                    .province { font-size: 9px; color: #1e40af; font-weight: 500; margin-top: 1px; }
+                    
+                    /* Content Grid */
+                    .content {
+                        position: relative; z-index: 10;
                         display: flex;
-                        align-items: center;
-                        position: relative;
-                        z-index: 1;
-                    }
-                    .logo {
-                        width: 42px;
-                        height: 42px;
-                        object-fit: contain;
-                        margin-right: 8px;
-                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
-                    }
-                    .school-name-container {
-                        flex-grow: 1;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                    }
-                    .school-name {
-                        font-weight: 700;
-                        font-size: 13pt;
-                        color: #2F4F4F; /* Dark Slate Gray */
-                        line-height: 1.1;
-                        white-space: nowrap;
-                    }
-                    .school-province {
-                         font-weight: 600;
-                         font-size: 10pt;
-                         color: #2F4F4F;
+                        padding: 8px 14px;
+                        gap: 12px;
                     }
                     
-                    .card-body {
-                        padding: 2px 12px;
-                        display: flex;
-                        position: relative;
-                        z-index: 1;
-                        align-items: flex-start;
-                    }
-                    .photo-container {
-                        width: 85px;
-                        height: 105px;
-                        border: 3px solid white;
+                    /* Photo */
+                    .photo-box {
+                        width: 2.2cm; height: 2.7cm;
+                        background: #e2e8f0;
                         border-radius: 8px;
+                        border: 2px solid #fff;
+                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
                         overflow: hidden;
-                        background: #f5f5f5;
-                        margin-right: 10px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
                         flex-shrink: 0;
                     }
-                    .photo {
-                        width: 100%;
-                        height: 100%;
-                        object-fit: cover;
+                    .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+                    
+                    /* Info */
+                    .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+                    
+                    .person-name { 
+                        font-size: 15px; font-weight: 700; color: #0f172a; 
+                        line-height: 1.1; margin-bottom: 3px;
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                        max-width: 170px;
+                    }
+                    .role-badge {
+                        display: inline-block;
+                        background: linear-gradient(to right, #fbbf24, #f59e0b);
+                        color: #78350f;
+                        font-size: 8px; font-weight: 700; text-transform: uppercase;
+                        padding: 2px 8px; border-radius: 4px;
+                        margin-bottom: 6px;
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                        width: fit-content;
                     }
                     
-                    .info-container {
-                        flex-grow: 1;
-                        min-width: 0;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
+                    .data-row {
+                        display: flex; align-items: baseline;
+                        font-size: 9px; line-height: 1.4;
+                        color: #334155;
                     }
+                    .label { font-weight: 600; color: #64748b; width: 55px; flex-shrink: 0; }
+                    .value { font-weight: 500; }
                     
-                    .info-row {
-                        margin-bottom: 2px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        line-height: 1.3;
+                    /* Footer */
+                    .footer {
+                        position: absolute; bottom: 0; left: 0; width: 100%;
+                        height: 24px;
+                        background: #1e293b; /* Dark Slate */
+                        color: rgba(255,255,255,0.9);
+                        display: flex; justify-content: space-between; align-items: center;
+                        padding: 0 6px; /* Adjusted padding */
+                        font-size: 8px; font-weight: 400;
+                        z-index: 20;
                     }
-                    
-                    .info-label {
-                        font-size: 9pt;
-                        font-weight: 600;
-                        color: #555;
-                        margin-right: 4px;
-                    }
-                    
-                    .info-value {
-                        font-size: 11pt;
-                        font-weight: 700;
-                        color: #222;
-                    }
-                    
-                    .name {
-                        font-size: 13pt;
-                        font-weight: 800;
-                        color: #1b4332; /* Dark Green */
-                        margin-bottom: 2px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-
-                    .card-footer {
-                        position: absolute;
-                        bottom: 0;
-                        left: 0;
-                        right: 0;
-                        background: #52796F; /* Solid Gray-Green */
-                        padding: 4px 12px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        height: 26px;
-                        color: white;
-                        z-index: 2;
-                    }
-                    
-                    .dates {
-                        font-size: 7pt;
-                        font-weight: 400;
-                        opacity: 0.95;
-                        line-height: 1.1;
-                    }
-                    
-                    .contact {
-                        font-size: 10pt;
-                        font-weight: 600;
-                    }
+  .phone-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    font-weight: 400;
+    color: #fff;
+    font-size: 9px;
+    white-space: nowrap;
+    width: 130px;     /* ลดลงให้พอดีกับพื้นที่จริง */
+    flex-shrink: 0;
+    text-align: right;
+    margin-right: 8px; /* ถอยออกจากขอบด้านขวา */
+}
                 </style>
             </head>
             <body onload="window.print()">
                 <div class="card-container">
-                    <div class="card-header">
-                        <img src="${logoSrc}" class="logo" alt="logo" onerror="this.style.display='none'">
-                        <div class="school-name-container">
-                            <div class="school-name">${fullSchoolName}</div>
-                            <div class="school-province">${provinceName}</div>
+                    <div class="bg-graphic"></div>
+                    <div class="circle-deco"></div>
+                    
+                    <div class="header">
+                        <img src="${logoSrc}" class="logo" onerror="this.style.opacity=0">
+                        <div class="header-text">
+                            <div class="org-name">สำนักบริหารงานการศึกษาพิเศษ</div>
+                            <div class="school-name">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
+                            <div class="province">จังหวัดกาฬสินธุ์</div>
                         </div>
                     </div>
                     
-                    <div class="card-body">
-                        <div class="photo-container">
-                            ${photoSrc 
-                                ? `<img src="${photoSrc}" class="photo" alt="personnel">`
-                                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:8pt;">No Photo</div>'
-                            }
+                    <div class="content">
+                        <div class="photo-box">
+                             ${photoSrc ? `<img src="${photoSrc}">` : ''}
                         </div>
-                        <div class="info-container">
-                            <div class="name">${fullName}</div>
+                        <div class="info-col">
+                            <div class="person-name">${fullName}</div>
+                            <div class="role-badge">${personnel.position}</div>
                             
-                            <div class="info-row">
-                                <span class="info-label">ตำแหน่ง:</span>
-                                <span class="info-value">${personnel.position}</span>
+                            <div class="data-row">
+                                <span class="label">ID Card</span>
+                                <span class="value">${personnel.idCard}</span>
                             </div>
-                            
-                             <div class="info-row">
-                                <span class="info-label">เลขบัตรฯ:</span>
-                                <span class="info-value">${personnel.idCard}</span>
+                            <div class="data-row">
+                                <span class="label">เบอร์โทร</span>
+                                <span class="value">${personnel.phone}</span>
                             </div>
-
-                            <div class="info-row">
-                                <span class="info-label">เบอร์โทร:</span>
-                                <span class="info-value">${personnel.phone}</span>
+                            <div class="data-row">
+                                <span class="label">บรรจุเมื่อ</span>
+                                <span class="value">${personnel.appointmentDate || '-'}</span>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="card-footer">
-                        <div class="dates">
-                             <div>ออกบัตร: ${issueDate}</div>
-                             <div>หมดอายุ: ${expiryDate}</div>
-                        </div>
-                        <div class="contact">
-                            โทร. 043840842
+                    <div class="footer">
+                         <div>ผู้ออกบัตร: ผู้อำนวยการสถานศึกษา</div>
+                        <div class="phone-container">
+                            โทร. 043-840842
                         </div>
                     </div>
                 </div>
@@ -316,7 +253,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
             </html>
         `;
         
-        const win = window.open('', '_blank', 'width=400,height=300');
+        const win = window.open('', '_blank', 'width=600,height=400');
         if (win) {
             win.document.write(html);
             win.document.close();
