@@ -91,7 +91,8 @@ const Header: React.FC<HeaderProps> = ({
             key: 'finance',
             label: 'การเงิน/พัสดุ',
             items: [
-                { label: 'ข้อมูลพัสดุ', page: 'finance_supplies' as Page }
+                { label: 'ระบบพัสดุ (วัสดุสิ้นเปลือง)', page: 'finance_supplies' as Page },
+                { label: 'ระบบครุภัณฑ์', page: 'durable_goods' as Page }
             ]
         },
         {

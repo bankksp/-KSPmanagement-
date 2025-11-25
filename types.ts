@@ -134,6 +134,151 @@ export interface AcademicPlan {
   approvedDate?: string;
 }
 
+// --- Supply Management Types ---
+
+export interface SupplyItem {
+  id: number;
+  code: string;
+  name: string;
+  unit: string;
+  unitPrice: number;
+  initialStock: number; // Opening balance
+  addedStock: number; // Total purchased/added
+}
+
+export interface SupplyRequestItem {
+  itemId: number;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  price: number; // Snapshot of price at request time
+}
+
+export interface SupplyRequest {
+  id: number;
+  date: string; // DD/MM/YYYY
+  requesterId: number;
+  requesterName: string;
+  position: string;
+  department: string; // ฝ่าย/กลุ่มสาระ/โครงการ
+  reason: string;
+  items: SupplyRequestItem[];
+  status: 'pending' | 'approved' | 'rejected';
+  note?: string; // Admin note
+  approverName?: string;
+  approvedDate?: string;
+}
+
+// --- Durable Goods Types (New) ---
+
+export type DurableGoodStatus = 'available' | 'in_use' | 'repair' | 'write_off';
+
+export interface DurableGood {
+  id: number;
+  code: string; // รหัสครุภัณฑ์
+  name: string; // ชื่อครุภัณฑ์
+  category: string; // หมวดหมู่
+  price: number; // ราคา
+  acquisitionDate: string; // วันที่ได้มา
+  location: string; // สถานที่จัดเก็บ
+  status: DurableGoodStatus; // สถานะ
+  description?: string;
+  image?: (File | string)[];
+}
+
+// --- Certificate Request Types ---
+
+export interface CertificateRequest {
+  id: number;
+  requesterName: string; // ชื่อ-สกุลผู้ขอ
+  date: string; // วันที่
+  activityName: string; // ชื่อกิจกรรม
+  peopleCount: number; // จำนวนคน
+  academicYear: string; // ปีการศึกษา
+  activityNo: string; // กิจกรรมที่
+  prefix: string; // อักษรย่อ (default กส.ปญ)
+  generatedNumber: string; // เลขที่เกียรติบัตร (Auto-generated)
+  note?: string; // หมายเหตุ
+}
+
+// --- Maintenance Request Types ---
+
+export type MaintenanceStatus = 'pending' | 'in_progress' | 'completed' | 'cannot_repair';
+
+export interface MaintenanceRequest {
+  id: number;
+  date: string; // Request date
+  requesterName: string; // Who requested
+  itemName: string; // What is broken
+  description: string; // Detail
+  location: string; // Where
+  status: MaintenanceStatus;
+  image?: (File | string)[];
+  repairerName?: string; // Who fixed it
+  completionDate?: string;
+  cost?: number; // Cost of repair
+  remark?: string;
+}
+
+// --- Personnel Performance Report Types ---
+
+export interface PerformanceReport {
+  id: number;
+  personnelId: number;
+  name: string;
+  position: string;
+  academicYear: string;
+  round: string; // '1' or '2'
+  file?: (File | string)[];
+  score?: number;
+  status: 'pending' | 'approved' | 'needs_edit';
+  submissionDate: string;
+  note?: string;
+}
+
+// --- SAR Report Types (New) ---
+
+export interface SARReport {
+  id: number;
+  personnelId: number;
+  name: string;
+  position: string;
+  academicYear: string;
+  round: string; // '1' or '2'
+  file?: (File | string)[];
+  score?: number;
+  status: 'pending' | 'approved' | 'needs_edit';
+  submissionDate: string;
+  note?: string;
+}
+
+// --- Document & Order Types (New) ---
+
+export type DocumentType = 'incoming' | 'order'; // หนังสือเข้า | คำสั่ง
+export type DocumentStatus = 'draft' | 'proposed' | 'endorsed' | 'distributed'; // ร่าง | เสนอ ผอ. | เกษียนแล้ว | ส่งแล้ว
+
+export interface Endorsement {
+  signature?: string; // Base64 image of signature
+  comment: string; // ข้อความเกษียน
+  date: string;
+  signerName: string;
+}
+
+export interface Document {
+  id: number;
+  type: DocumentType;
+  number: string; // เลขที่หนังสือ
+  date: string; // ลงวันที่
+  title: string; // เรื่อง
+  from: string; // จาก
+  to: string; // ถึง
+  file?: (File | string)[]; // ไฟล์แนบ (PDF)
+  status: DocumentStatus;
+  endorsement?: Endorsement; // การเกษียนหนังสือ
+  recipients: number[]; // IDs of personnel who received this doc
+  createdDate: string;
+}
+
 // Navigation Types
 export type Page = 
     | 'stats' 
@@ -144,11 +289,12 @@ export type Page =
     | 'personnel' 
     | 'admin' 
     | 'profile'
-    // New Placeholder Pages
+    // New Pages
     | 'academic_plans'
+    | 'finance_supplies'
+    | 'durable_goods'
     | 'personnel_report'
     | 'personnel_sar'
-    | 'finance_supplies'
     | 'general_docs'
     | 'general_repair'
-    | 'general_certs';
+    | 'general_certs'; // ขอเลขเกียรติบัตร
