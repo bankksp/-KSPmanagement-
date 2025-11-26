@@ -41,14 +41,28 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
     }, [personnel]);
 
     const filteredPersonnel = useMemo(() => {
+        const lowerTerm = searchTerm.toLowerCase().trim();
+
         return personnel.filter(person => {
             const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
             const name = person.personnelName || '';
-            const fullName = title + name;
+            const idCard = String(person.idCard || '');
+            const position = person.position || '';
+            const positionNumber = String(person.positionNumber || '');
+            const phone = String(person.phone || '');
+
+            const fullNameNoSpace = `${title}${name}`.toLowerCase();
+            const fullNameWithSpace = `${title} ${name}`.toLowerCase();
+            const justName = name.toLowerCase();
             
-            const matchesSearch = fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  (person.idCard || '').includes(searchTerm) ||
-                                  (person.position || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = !lowerTerm || 
+                                  fullNameNoSpace.includes(lowerTerm) ||
+                                  fullNameWithSpace.includes(lowerTerm) ||
+                                  justName.includes(lowerTerm) ||
+                                  idCard.includes(lowerTerm) ||
+                                  position.toLowerCase().includes(lowerTerm) ||
+                                  positionNumber.includes(lowerTerm) ||
+                                  phone.includes(lowerTerm);
 
             const matchesPosition = !positionFilter || person.position === positionFilter;
 
@@ -181,7 +195,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                             <label className="block text-sm font-medium text-gray-700 mb-1">ค้นหา</label>
                             <input
                                 type="text"
-                                placeholder="ค้นหาชื่อ, เลขบัตร, ตำแหน่ง..."
+                                placeholder="ค้นหาชื่อ, เลขบัตร, ตำแหน่ง, เบอร์โทร..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
