@@ -11,6 +11,7 @@ interface PersonnelModalProps {
     students: Student[];
     isSaving: boolean;
     currentUserRole?: string;
+    currentUser?: Personnel | null;
 }
 
 const initialFormData: Omit<Personnel, 'id'> = {
@@ -59,14 +60,15 @@ interface InputFieldProps {
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     required?: boolean;
     wrapperClass?: string;
+    type?: string;
 }
 
 // Define the InputField component outside the PersonnelModal component to prevent focus loss on re-renders
-const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, required = false, wrapperClass = '' }) => (
+const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, required = false, wrapperClass = '', type = 'text' }) => (
     <div className={wrapperClass}>
         <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
         <input 
-            type="text" 
+            type={type} 
             name={name} 
             value={value} 
             onChange={onChange} 
@@ -77,7 +79,7 @@ const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, r
 );
 
 
-const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole }) => {
+const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole, currentUser }) => {
     const [formData, setFormData] = useState(initialFormData);
     const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
@@ -141,8 +143,8 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
         const personnelData: Personnel = {
             ...formData,
             id: isEditing ? personnelToEdit.id : Date.now(),
-            // If new user, default password is ID Card
-            password: isEditing ? formData.password : formData.idCard,
+            // If new user, default password is ID Card (if password field was empty/not shown)
+            password: formData.password || formData.idCard,
         };
         onSave(personnelData);
     };
@@ -159,6 +161,9 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
         };
     }, [profileImageUrl]);
     
+    // Use either the prop passed explicitly or derive from currentUser object
+    const effectiveRole = currentUserRole || currentUser?.role;
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -182,19 +187,32 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                     <input id="profileImage-upload" name="profileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
                                 </label>
                             </div>
-                            {currentUserRole === 'admin' && (
-                                <div className="mt-4 bg-blue-50 p-2 rounded border border-blue-200">
-                                    <label className="block text-sm font-bold text-blue-800 mb-1">สิทธิ์การใช้งาน (Role)</label>
-                                    <select 
-                                        name="role" 
-                                        value={formData.role} 
-                                        onChange={handleChange} 
-                                        className="w-full px-2 py-1 border border-blue-300 rounded text-sm text-navy bg-white"
-                                    >
-                                        <option value="user">User (ทั่วไป)</option>
-                                        <option value="pro">Pro (เจ้าหน้าที่)</option>
-                                        <option value="admin">Admin KSP (ผู้ดูแลระบบ)</option>
-                                    </select>
+                            {effectiveRole === 'admin' && (
+                                <div className="mt-4 space-y-3">
+                                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                                        <label className="block text-sm font-bold text-blue-800 mb-1">สิทธิ์การใช้งาน (Role)</label>
+                                        <select 
+                                            name="role" 
+                                            value={formData.role} 
+                                            onChange={handleChange} 
+                                            className="w-full px-2 py-1 border border-blue-300 rounded text-sm text-navy bg-white"
+                                        >
+                                            <option value="user">User (ทั่วไป)</option>
+                                            <option value="pro">Pro (เจ้าหน้าที่)</option>
+                                            <option value="admin">Admin KSP (ผู้ดูแลระบบ)</option>
+                                        </select>
+                                    </div>
+                                    <div className="bg-yellow-50 p-2 rounded border border-yellow-200">
+                                        <label className="block text-sm font-bold text-yellow-800 mb-1">แก้ไขรหัสผ่าน</label>
+                                        <input 
+                                            type="text" 
+                                            name="password" 
+                                            value={formData.password || ''} 
+                                            onChange={handleChange} 
+                                            placeholder="รหัสผ่านใหม่"
+                                            className="w-full px-2 py-1 border border-yellow-300 rounded text-sm text-navy bg-white"
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>

@@ -8,6 +8,7 @@ interface PersonnelTableProps {
     onViewPersonnel: (person: Personnel) => void;
     onEditPersonnel: (person: Personnel) => void;
     onDeletePersonnel: (ids: number[]) => void;
+    currentUser: Personnel | null;
 }
 
 const calculateAge = (dobString: string): number => {
@@ -32,7 +33,7 @@ const calculateAge = (dobString: string): number => {
     return age;
 };
 
-const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPersonnel, onEditPersonnel, onDeletePersonnel }) => {
+const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPersonnel, onEditPersonnel, onDeletePersonnel, currentUser }) => {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     
@@ -126,6 +127,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                             <th className="p-4 text-left font-semibold">ตำแหน่ง</th>
                             <th className="p-4 text-center font-semibold">อายุ</th>
                             <th className="p-4 text-left font-semibold">เบอร์โทร</th>
+                            <th className="p-4 text-left font-semibold">รหัสผ่าน</th>
                             <th className="p-4 text-center font-semibold">จัดการ</th>
                         </tr>
                     </thead>
@@ -134,6 +136,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                             const profileImageUrl = getFirstImageSource(person.profileImage);
                             const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
                             const fullName = `${title} ${person.personnelName || ''}`;
+                            const showPassword = currentUser?.role === 'admin' || currentUser?.id === person.id;
 
                             return (
                                 <tr key={person.id} className={`hover:bg-blue-50/50 transition-colors ${selectedIds.has(person.id) ? 'bg-blue-50' : ''}`}>
@@ -160,6 +163,9 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{person.position}</td>
                                     <td className="p-4 text-center text-gray-600">{calculateAge(person.dob)}</td>
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{person.phone}</td>
+                                    <td className="p-4 text-gray-600 whitespace-nowrap font-mono text-xs">
+                                        {showPassword ? (person.password || person.idCard) : '••••••'}
+                                    </td>
                                     <td className="p-4">
                                         <div className="flex justify-center items-center gap-2">
                                             <button 
@@ -191,6 +197,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                     const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
                     const fullName = `${title} ${person.personnelName || ''}`;
                     const isSelected = selectedIds.has(person.id);
+                    const showPassword = currentUser?.role === 'admin' || currentUser?.id === person.id;
 
                     return (
                         <div key={person.id} className={`bg-white p-4 rounded-xl shadow-sm border transition-all ${isSelected ? 'border-primary-blue ring-1 ring-primary-blue' : 'border-gray-100'}`}>
@@ -232,6 +239,11 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                                     <p className="text-xs text-gray-500">
                                         อายุ: {calculateAge(person.dob)} ปี
                                     </p>
+                                    {showPassword && (
+                                        <p className="text-xs text-gray-500 mt-1 bg-gray-50 p-1 rounded border border-gray-200 inline-block">
+                                            รหัสผ่าน: <span className="font-mono font-bold">{person.password || person.idCard}</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 

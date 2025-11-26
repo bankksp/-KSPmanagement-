@@ -16,8 +16,7 @@ interface GeneralDocsPageProps {
 const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({ 
     currentUser, personnel, documents, onSave, onDelete, isSaving 
 }) => {
-    // Access Level: Admin or 'Pro' (e.g. Saraban) can manage docs. Director is a special case (can be marked via role or specific ID)
-    // For this demo, assume 'admin' includes Director role for signing.
+    // Access Level: Admin or 'Pro' (e.g. Saraban) can manage docs.
     const isStaff = currentUser.role === 'admin' || currentUser.role === 'pro'; 
     const isDirector = currentUser.role === 'admin'; // Simplifying: Only Admin can "Sign" in this demo
 
@@ -72,8 +71,8 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 date: new Date().toLocaleDateString('th-TH'),
                 title: '',
                 from: '',
-                to: 'ผู้อำนวยการโรงเรียน',
-                status: 'proposed', // Default for incoming
+                to: type === 'order' ? 'บุคลากรทุกคน' : 'ผู้อำนวยการโรงเรียน',
+                status: type === 'order' ? 'distributed' : 'proposed', // Default status
                 recipients: [],
                 file: []
             });
@@ -83,11 +82,15 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
     const handleSaveDoc = (e: React.FormEvent) => {
         e.preventDefault();
+        // Ensure type is correctly set from currentDoc state or fallback
         const docToSave: Document = {
             ...currentDoc as Document,
             id: currentDoc.id || Date.now(),
-            createdCreated: currentDoc.createdDate || new Date().toISOString()
-        } as any; // Cast to bypass createdDate check if missing
+            createdDate: currentDoc.createdDate || new Date().toISOString(),
+            // Ensure array fields are initialized
+            recipients: currentDoc.recipients || [], 
+            file: currentDoc.file || []
+        } as Document; 
         
         onSave(docToSave);
         setIsEditModalOpen(false);
@@ -363,7 +366,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                     </h2>
                     {isStaff && (activeTab === 'incoming' || activeTab === 'orders') && (
                         <button 
-                            onClick={() => handleOpenEdit(activeTab as DocumentType)} 
+                            onClick={() => handleOpenEdit(activeTab === 'orders' ? 'order' : 'incoming')} 
                             className="bg-primary-blue text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 shadow flex items-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
@@ -442,25 +445,25 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">เลขที่หนังสือ/คำสั่ง</label>
-                                    <input type="text" required value={currentDoc.number} onChange={e => setCurrentDoc({...currentDoc, number: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <input type="text" required value={currentDoc.number || ''} onChange={e => setCurrentDoc({...currentDoc, number: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">ลงวันที่</label>
-                                    <input type="text" required value={currentDoc.date} onChange={e => setCurrentDoc({...currentDoc, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="วว/ดด/ปปปป" />
+                                    <input type="text" required value={currentDoc.date || ''} onChange={e => setCurrentDoc({...currentDoc, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="วว/ดด/ปปปป" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">เรื่อง</label>
-                                <input type="text" required value={currentDoc.title} onChange={e => setCurrentDoc({...currentDoc, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                <input type="text" required value={currentDoc.title || ''} onChange={e => setCurrentDoc({...currentDoc, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">จาก (หน่วยงาน)</label>
-                                    <input type="text" required value={currentDoc.from} onChange={e => setCurrentDoc({...currentDoc, from: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <input type="text" required value={currentDoc.from || ''} onChange={e => setCurrentDoc({...currentDoc, from: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">เรียน (ถึงใคร)</label>
-                                    <input type="text" required value={currentDoc.to} onChange={e => setCurrentDoc({...currentDoc, to: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <input type="text" required value={currentDoc.to || ''} onChange={e => setCurrentDoc({...currentDoc, to: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
                                 </div>
                             </div>
                             <div>

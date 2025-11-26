@@ -11,11 +11,12 @@ interface PersonnelPageProps {
     onEditPersonnel: (person: Personnel) => void;
     onViewPersonnel: (person: Personnel) => void;
     onDeletePersonnel: (ids: number[]) => void;
+    currentUser: Personnel | null;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1'];
 
-const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onAddPersonnel, onEditPersonnel, onViewPersonnel, onDeletePersonnel }) => {
+const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onAddPersonnel, onEditPersonnel, onViewPersonnel, onDeletePersonnel, currentUser }) => {
     const [activeTab, setActiveTab] = useState<'stats' | 'list'>('stats');
     const [searchTerm, setSearchTerm] = useState('');
     const [positionFilter, setPositionFilter] = useState('');
@@ -160,7 +161,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                                 onClick={exportToExcel}
                                 className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 <span>Excel</span>
                             </button>
                             <button
@@ -209,6 +210,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                             onViewPersonnel={onViewPersonnel} 
                             onEditPersonnel={onEditPersonnel} 
                             onDeletePersonnel={onDeletePersonnel}
+                            currentUser={currentUser}
                         />
                     </div>
                 </div>

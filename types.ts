@@ -1,4 +1,5 @@
 
+
 export interface Report {
   id: number;
   reportDate: string;
@@ -279,6 +280,24 @@ export interface Document {
   createdDate: string;
 }
 
+// --- Home Visit Types ---
+
+export interface HomeVisit {
+  id: number;
+  studentId: number;
+  date: string;
+  term: string; // ภาคเรียนที่
+  academicYear: string; // ปีการศึกษา
+  visitorId: number;
+  visitorName: string;
+  image?: (File | string)[];
+  notes?: string;
+  locationName?: string;
+  status: 'visited' | 'pending';
+  latitude?: number;
+  longitude?: number;
+}
+
 // Navigation Types
 export type Page = 
     | 'stats' 
@@ -297,4 +316,5 @@ export type Page =
     | 'personnel_sar'
     | 'general_docs'
     | 'general_repair'
-    | 'general_certs'; // ขอเลขเกียรติบัตร
+    | 'general_certs' // ขอเลขเกียรติบัตร
+    | 'student_home_visit'; // เยี่ยมบ้านนักเรียน

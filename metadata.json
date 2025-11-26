@@ -1,5 +1,7 @@
 {
   "name": "KSP Management",
   "description": "A web application for Kalasin Panyanukul School to report and track student attendance and health status by dormitory. It features a dashboard with statistics, charts, and a detailed reporting table.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }

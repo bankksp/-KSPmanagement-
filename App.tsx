@@ -1,4 +1,10 @@
 
+
+
+
+
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard'; // Now acts as "Stats" page
@@ -25,9 +31,10 @@ import CertificatePage from './components/CertificatePage';
 import MaintenancePage from './components/MaintenancePage';
 import PersonnelReportPage from './components/PersonnelReportPage';
 import PersonnelSARPage from './components/PersonnelSARPage';
-import GeneralDocsPage from './components/GeneralDocsPage'; // Import new page
+import GeneralDocsPage from './components/GeneralDocsPage'; 
+import StudentHomeVisitPage from './components/StudentHomeVisitPage'; // Import new page
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
 import { prepareDataForApi } from './utils';
 
@@ -81,8 +88,11 @@ const App: React.FC = () => {
     // SAR Reports State
     const [sarReports, setSarReports] = useState<SARReport[]>([]);
 
-    // General Documents State (New)
+    // General Documents State
     const [documents, setDocuments] = useState<Document[]>([]);
+
+    // Home Visit State (New)
+    const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
 
     // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -119,9 +129,14 @@ const App: React.FC = () => {
         if (currentUser && personnel.length > 0) {
             const found = personnel.find(p => p.id === currentUser.id);
             if (found && JSON.stringify(found) !== JSON.stringify(currentUser)) {
-                setCurrentUser(found);
+                const mergedUser = {
+                    ...found,
+                    password: found.password || currentUser.password
+                };
+                
+                setCurrentUser(mergedUser);
                 if (localStorage.getItem('ksp_user')) {
-                    localStorage.setItem('ksp_user', JSON.stringify(found));
+                    localStorage.setItem('ksp_user', JSON.stringify(mergedUser));
                 }
             }
         }
@@ -130,25 +145,22 @@ const App: React.FC = () => {
 
      // Generic function to post data to Google Script
     const postToGoogleScript = async (payload: object) => {
-        // Force use CONSTANT URL to avoid stale settings issues
         const scriptUrl = GOOGLE_SCRIPT_URL;
-            
-        // Append cache buster to prevent browser caching
         const urlWithCacheBuster = `${scriptUrl}?t=${new Date().getTime()}`;
 
          const response = await fetch(urlWithCacheBuster, {
             method: 'POST',
             redirect: 'follow',
             headers: {
-                'Content-Type': 'text/plain;charset=utf-8', // Required for Google Script
+                'Content-Type': 'text/plain;charset=utf-8',
             },
             body: JSON.stringify(payload)
         });
         const result = await response.json();
         if (result.status === 'error') {
             console.error("Google Script Error:", result.message, result.stack);
-            if (result.message && result.message.includes("Invalid action provided")) {
-                throw new Error("Google Script ยังไม่อัปเดต: กรุณานำโค้ดใหม่ไปวางในไฟล์ รหัส.gs แล้ว Deploy ใหม่อีกครั้ง เพื่อใช้งานระบบเช็คชื่อ");
+            if (result.message && (result.message.includes("Invalid action") || result.message.includes("Unknown action"))) {
+                throw new Error(`Google Script ยังไม่อัปเดตฟังก์ชัน "${(payload as any).action}": กรุณานำโค้ดใหม่ไปวางในไฟล์ รหัส.gs แล้ว Deploy ใหม่อีกครั้ง`);
             }
             throw new Error(result.message);
         }
@@ -196,6 +208,7 @@ const App: React.FC = () => {
             setPerformanceReports(data.performanceReports || []);
             setSarReports(data.sarReports || []);
             setDocuments(data.documents || []); 
+            setHomeVisits(data.homeVisits || []); // New
 
             if (data.settings) {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
@@ -383,7 +396,7 @@ const App: React.FC = () => {
         }
     };
 
-    // Personnel handlers (unchanged) ...
+    // Personnel handlers
     const handleOpenPersonnelModal = () => {
         setEditingPersonnel(null);
         setIsPersonnelModalOpen(true);
@@ -411,6 +424,10 @@ const App: React.FC = () => {
             let processedData = savedData;
             if (Array.isArray(savedData) && savedData.length === 1 && personnel.length > 1) {
                  processedData = savedData[0];
+            }
+
+            if (!Array.isArray(processedData) && person.password && !processedData.password) {
+                processedData = { ...processedData, password: person.password };
             }
 
             if (Array.isArray(processedData)) {
@@ -455,25 +472,57 @@ const App: React.FC = () => {
         }
     };
 
-    // Attendance Handlers (unchanged) ...
+    // Attendance Handlers - OPTIMIZED FOR SPEED
     const handleSaveAttendance = async (
         type: 'student' | 'personnel', 
-        data: (StudentAttendance | PersonnelAttendance)[]
+        newData: (StudentAttendance | PersonnelAttendance)[]
     ) => {
+        
+        // 1. Diffing Strategy: Calculate changes to send minimal payload
+        const currentRecordsMap = new Map<string, StudentAttendance | PersonnelAttendance>(
+            (type === 'student' ? studentAttendance : personnelAttendance)
+            .map(r => [r.id, r] as [string, StudentAttendance | PersonnelAttendance])
+        );
+
+        const changedRecords = newData.filter(newRecord => {
+            const oldRecord = currentRecordsMap.get(newRecord.id);
+            
+            // New Record (Insert)
+            if (!oldRecord) return true;
+            
+            // Changed Record (Update)
+            if (oldRecord.status !== newRecord.status) return true;
+            if (type === 'personnel' && (oldRecord as PersonnelAttendance).dressCode !== (newRecord as PersonnelAttendance).dressCode) return true;
+            
+            return false; // No change
+        });
+
+        if (changedRecords.length === 0) {
+            // Nothing to save, instant return
+            return; 
+        }
+
         setIsSaving(true);
         try {
             const action = type === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
-            const response = await postToGoogleScript({ action, data });
+            // SEND ONLY CHANGED RECORDS
+            const response = await postToGoogleScript({ action, data: changedRecords });
             const savedData = response.data;
 
             if (type === 'student') {
-                const newAttendance = studentAttendance.filter(sa => !savedData.find((sd: StudentAttendance) => sd.id === sa.id));
-                setStudentAttendance([...newAttendance, ...savedData]);
+                setStudentAttendance(prev => {
+                    const ids = new Set(savedData.map((d: any) => d.id));
+                    const filtered = prev.filter(r => !ids.has(r.id));
+                    return [...filtered, ...savedData];
+                });
             } else {
-                const newAttendance = personnelAttendance.filter(pa => !savedData.find((pd: PersonnelAttendance) => pd.id === pa.id));
-                setPersonnelAttendance([...newAttendance, ...savedData]);
+                setPersonnelAttendance(prev => {
+                    const ids = new Set(savedData.map((d: any) => d.id));
+                    const filtered = prev.filter(r => !ids.has(r.id));
+                    return [...filtered, ...savedData];
+                });
             }
-            alert('บันทึกข้อมูลเช็คชื่อเรียบร้อย');
+            // Removed alert for faster UX feel
         } catch (error) {
             console.error(error);
             const errorMessage = error instanceof Error ? error.message : `เกิดข้อผิดพลาดในการบันทึกการเช็คชื่อ${type === 'student' ? 'นักเรียน' : 'บุคลากร'}`;
@@ -524,31 +573,6 @@ const App: React.FC = () => {
 
     // Supply Handlers
     const handleUpdateSupplyItems = async (newItems: SupplyItem[]) => {
-        // Determine if it's a save (one item) or delete/update all.
-        // Since `SupplyPage` might send the whole list or just call it after adding/editing one item
-        // For efficiency with the new backend, we should check what changed, but for simplicity, 
-        // if SupplyPage handles individual save, we should modify SupplyPage.
-        // But based on existing code structure, let's just save the *changed* item if possible.
-        // However, to be safe and simple, we update local state. The actual save is triggered by specific actions.
-        // Wait, SupplyPage implementation provided previously calls onUpdateItems for Save/Delete/Restock.
-        // I need to intercept those and call API.
-        
-        // Strategy: We accept the new list to update state, but we need to find WHICH item changed to save it.
-        // This is tricky without refactoring SupplyPage.
-        // Let's assume for now we save the *last modified item*.
-        
-        // Actually, let's refactor the SupplyPage call sites.
-        // But since I can't change SupplyPage easily in this block, I will assume the `onUpdateItems` is called with the FULL NEW LIST.
-        // I will iterate and find the difference? No, that's too heavy.
-        // I will change SupplyPage props to `onSaveItem` and `onDeleteItem`.
-        // But wait, the `SupplyPage` I generated uses `onUpdateItems`.
-        
-        // Valid Fix:
-        // I will update `SupplyPage` to use specific handlers in the `SupplyPage` file change block below if I were updating it.
-        // But I am updating `App.tsx`.
-        // I will change `handleUpdateSupplyItems` to NOT act as a save handler, but just a state setter.
-        // AND I will pass specific `onSaveItem` etc to SupplyPage.
-        // See below in `renderPage`.
         setSupplyItems(newItems);
     };
 
@@ -810,7 +834,8 @@ const App: React.FC = () => {
             });
         } catch(e) {
             console.error(e);
-            alert('เกิดข้อผิดพลาดในการบันทึกเอกสาร');
+            // Show the specific error if it's an Error object, otherwise generic
+            alert(e instanceof Error ? e.message : 'เกิดข้อผิดพลาดในการบันทึกเอกสาร');
         } finally {
             setIsSaving(false);
         }
@@ -824,6 +849,32 @@ const App: React.FC = () => {
         } catch(e) {
             console.error(e);
             alert('เกิดข้อผิดพลาด');
+        }
+    };
+
+    // Home Visit Handlers
+    const handleSaveHomeVisit = async (visit: HomeVisit) => {
+        setIsSaving(true);
+        try {
+            const apiPayload = await prepareDataForApi(visit);
+            const response = await postToGoogleScript({ action: 'saveHomeVisit', data: apiPayload });
+            const savedVisit = response.data;
+            setHomeVisits(prev => {
+                const index = prev.findIndex(v => v.id === savedVisit.id);
+                if (index >= 0) {
+                    const newList = [...prev];
+                    newList[index] = savedVisit;
+                    return newList;
+                }
+                return [...prev, savedVisit];
+            });
+            alert('บันทึกการเยี่ยมบ้านเรียบร้อย');
+        } catch (e) {
+            console.error(e);
+            // Show the specific error if it's an Error object (e.g., from postToGoogleScript)
+            alert(e instanceof Error ? e.message : 'เกิดข้อผิดพลาดในการบันทึก');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -955,6 +1006,7 @@ const App: React.FC = () => {
                             onEditPersonnel={handleEditPersonnel}
                             onViewPersonnel={handleViewPersonnel}
                             onDeletePersonnel={deletePersonnel}
+                            currentUser={currentUser}
                         />;
             case 'finance_supplies':
                 return currentUser ? (
@@ -963,32 +1015,13 @@ const App: React.FC = () => {
                         items={supplyItems}
                         requests={supplyRequests}
                         personnel={personnel}
-                        // Map generic updates to specific saves if possible, or just use state
                         onUpdateItems={(items) => {
-                            // We assume the last item in list might be new or we rely on SupplyPage internal logic
-                            // But actually SupplyPage calls this with full list. 
-                            // For now we just update state to reflect UI, saving happens via SupplyPage specific buttons if customized
-                            // BUT to make it work with the new API, SupplyPage needs to call onSaveItem
-                            // Since I can't change SupplyPage prop types easily without rewriting it, I'll stick to basic state update
-                            // AND pass wrapper functions if I could.
-                            // For this specific request, we'll leave it as state update + specific save logic embedded
                             setSupplyItems(items);
                         }}
                         onUpdateRequests={(reqs) => setSupplyRequests(reqs)}
                         onUpdatePersonnel={handleSavePersonnel}
                         settings={settings}
                         onSaveSettings={handleSaveAdminSettings}
-                        // New Props injected via standard spread or if I modified SupplyPage
-                        // Since I can't modify SupplyPage signature here easily, I'll assume SupplyPage was written to use these
-                        // OR I can modify SupplyPage.tsx to accept these new handlers.
-                        // Let's assume SupplyPage uses the handlers I defined inside it (which I didn't, I used onUpdate...).
-                        // To fix this fully, I would need to rewrite SupplyPage to use `handleSaveSupplyItem` etc.
-                        // For now, I will modify SupplyPage in the next step if needed, but let's assume standard behavior.
-                        // Actually, looking at SupplyPage code I generated earlier, it calls `onUpdateItems([...items, newItem])`.
-                        // So `handleUpdateSupplyItems` receives the full list.
-                        // I need to detect change and save. This is hard.
-                        // Best approach: Modify SupplyPage to take `onSaveItem`, `onDeleteItem` props.
-                        // I will include SupplyPage update in this XML too.
                         onSaveItem={handleSaveSupplyItem}
                         onDeleteItem={handleDeleteSupplyItem}
                         onSaveRequest={handleSaveSupplyRequest}
@@ -1033,6 +1066,19 @@ const App: React.FC = () => {
                         documents={documents}
                         onSave={handleSaveDocument}
                         onDelete={handleDeleteDocument}
+                        isSaving={isSaving}
+                    />
+                ) : null;
+            case 'student_home_visit':
+                return currentUser ? (
+                    <StudentHomeVisitPage 
+                        currentUser={currentUser}
+                        students={students}
+                        visits={homeVisits}
+                        onSave={handleSaveHomeVisit}
+                        studentClasses={settings.studentClasses}
+                        studentClassrooms={settings.studentClassrooms}
+                        academicYears={settings.academicYears}
                         isSaving={isSaving}
                     />
                 ) : null;
@@ -1171,6 +1217,7 @@ const App: React.FC = () => {
                     students={students}
                     isSaving={isSaving}
                     currentUserRole={currentUser?.role}
+                    currentUser={currentUser}
                 />
             )}
             {viewingPersonnel && (

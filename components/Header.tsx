@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getDirectDriveImageSrc, getFirstImageSource } from '../utils';
 import { Personnel, Page } from '../types';
@@ -67,8 +66,8 @@ const Header: React.FC<HeaderProps> = ({
     // Mobile Styles - Updated for modern look
     const mobileNavLinkClass = "block w-full text-left px-5 py-4 rounded-xl text-base font-medium text-gray-700 hover:bg-blue-50/80 hover:text-primary-blue transition-all duration-200 active:scale-[0.99] flex justify-between items-center";
     const mobileActiveNavLinkClass = "block w-full text-left px-5 py-4 rounded-xl text-base font-bold text-primary-blue bg-blue-50 border border-blue-100 shadow-sm flex justify-between items-center";
-    const mobileSubMenuClass = "pl-2 pr-2 py-2 space-y-1 mt-1 mb-2 bg-gray-50/80 rounded-xl border border-gray-100 mx-2 shadow-inner";
-    const mobileSubItemClass = "block w-full text-left px-4 py-3 text-sm text-gray-600 hover:text-primary-blue hover:bg-white rounded-lg transition-all active:bg-gray-100 flex items-center gap-2";
+    // const mobileSubMenuClass = "pl-2 pr-2 py-2 space-y-1 mt-1 mb-2 bg-gray-50/80 rounded-xl border border-gray-100 mx-2 shadow-inner";
+    // const mobileSubItemClass = "block w-full text-left px-4 py-3 text-sm text-gray-600 hover:text-primary-blue hover:bg-white rounded-lg transition-all active:bg-gray-100 flex items-center gap-2";
 
     // Menu Structure Definition
     const menuStructure = [
@@ -110,7 +109,8 @@ const Header: React.FC<HeaderProps> = ({
             items: [
                 { label: 'เช็คชื่อนักเรียน', page: 'attendance' as Page },
                 { label: 'เช็คชื่อครู', page: 'attendance_personnel' as Page },
-                { label: 'รายงานเรือนนอน', page: 'reports' as Page }
+                { label: 'รายงานเรือนนอน', page: 'reports' as Page },
+                { label: 'เยี่ยมบ้านนักเรียน', page: 'student_home_visit' as Page }
             ]
         },
         {
@@ -229,7 +229,7 @@ const Header: React.FC<HeaderProps> = ({
                                          </button>
                                          <button 
                                             onClick={() => { onLogoutClick(); setIsProfileDropdownOpen(false); }}
-                                            className="block w-full text-left px-4 py-2 text-sm hover:bg-red-50 hover:text-red-600 transition-colors"
+                                            className="block w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors border-t mt-1"
                                          >
                                              ออกจากระบบ
                                          </button>
@@ -237,139 +237,97 @@ const Header: React.FC<HeaderProps> = ({
                                 )}
                              </div>
                          ) : (
-                            <button 
+                             <button 
                                 onClick={onLoginClick}
-                                className="ml-2 bg-white text-primary-blue hover:bg-blue-50 font-bold py-1.5 px-4 rounded-full text-sm transition-colors shadow-sm"
-                            >
-                                เข้าสู่ระบบ
-                            </button>
+                                className="ml-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-white/30"
+                             >
+                                 เข้าสู่ระบบ
+                             </button>
                          )}
                     </div>
                 </div>
-            </div>
 
-            {/* Mobile Menu Overlay */}
-            {isMobileMenuOpen && (
-                <>
-                    {/* Backdrop */}
-                    <div 
-                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 lg:hidden animate-fade-in"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        style={{ top: '60px' }} // Approx header height
-                    ></div>
-
-                    {/* Menu Content */}
-                    <div className="lg:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-xl shadow-2xl border-t border-white/20 z-50 max-h-[85vh] overflow-y-auto rounded-b-3xl pb-6 transition-all duration-300 ease-out origin-top animate-slide-in-down">
-                        <div className="container mx-auto px-4 pt-4 space-y-2">
-                            {currentUser && (
-                                <div className="flex items-center gap-4 p-4 mb-4 rounded-2xl bg-gradient-to-r from-blue-50 to-white border border-blue-100 shadow-sm">
-                                     <div className="w-14 h-14 rounded-full bg-white overflow-hidden border-2 border-white shadow-md">
-                                        {userProfileImg ? (
-                                            <img src={userProfileImg} alt="User" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="flex items-center justify-center h-full text-xl font-bold text-gray-400 bg-gray-100">{currentUser.personnelName.charAt(0)}</div>
-                                        )}
-                                    </div>
-                                    <div className="overflow-hidden">
-                                        <div className="font-bold text-lg text-navy truncate">{currentUser.personnelName}</div>
-                                        <div className="text-xs font-semibold text-primary-blue bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-1 uppercase tracking-wide">
-                                            {currentUser.role || 'USER'}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                             <button 
+                {/* Mobile Menu Overlay */}
+                {isMobileMenuOpen && (
+                    <div className="lg:hidden absolute top-full left-0 right-0 bg-white shadow-xl border-t border-gray-100 p-4 max-h-[85vh] overflow-y-auto z-40 animate-fade-in-down">
+                        <div className="space-y-2 pb-4">
+                            <button 
                                 onClick={() => handleNav('stats')}
                                 className={currentPage === 'stats' ? mobileActiveNavLinkClass : mobileNavLinkClass}
-                             >
-                                 <div className="flex items-center gap-3">
-                                    <span className="bg-blue-100 p-1.5 rounded-lg text-primary-blue"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg></span>
-                                    หน้าหลัก
-                                 </div>
-                             </button>
-                             
-                             {currentUser && menuStructure.map((menu) => (
-                                 <div key={menu.key} className="bg-white rounded-xl border border-transparent hover:border-gray-100 transition-colors">
-                                    <button
-                                        onClick={() => toggleDropdown(menu.key as MenuKey)}
-                                        className={`${mobileNavLinkClass} ${activeDropdown === menu.key ? 'bg-gray-50 text-primary-blue font-bold' : ''}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            {/* Icon placeholder based on key could go here, generic for now */}
-                                            <span className={`p-1.5 rounded-lg ${activeDropdown === menu.key ? 'bg-blue-100 text-primary-blue' : 'bg-gray-100 text-gray-500'}`}>
-                                                {activeDropdown === menu.key 
-                                                    ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                                    : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" /></svg>
-                                                }
-                                            </span>
-                                            {menu.label}
-                                        </div>
-                                        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${activeDropdown === menu.key ? 'rotate-180 text-primary-blue' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                    </button>
-                                    
-                                    {/* Submenu with animation */}
-                                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${activeDropdown === menu.key ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-                                        <div className={mobileSubMenuClass}>
-                                            {menu.items.map(item => (
-                                                <button
-                                                    key={item.page}
-                                                    onClick={() => handleNav(item.page)}
-                                                    className={`${mobileSubItemClass} ${currentPage === item.page ? 'font-bold text-primary-blue bg-white shadow-sm' : ''}`}
-                                                >
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-                                                    {item.label}
-                                                </button>
-                                            ))}
-                                        </div>
+                            >
+                                หน้าหลัก
+                            </button>
+                            
+                            {currentUser && menuStructure.map((menu) => (
+                                <div key={menu.key} className="border-b border-gray-50 last:border-0 pb-2">
+                                    <div className="px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        {menu.label}
                                     </div>
-                                 </div>
-                             ))}
-                             
-                             {currentUser && currentUser.role === 'admin' && (
-                                  <button 
+                                    <div className="space-y-1">
+                                        {menu.items.map(item => (
+                                            <button
+                                                key={item.page}
+                                                onClick={() => handleNav(item.page)}
+                                                className={`${mobileNavLinkClass} ${currentPage === item.page ? 'bg-blue-50 text-primary-blue font-bold' : ''}`}
+                                            >
+                                                {item.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {currentUser && currentUser.role === 'admin' && (
+                                <button 
                                     onClick={() => handleNav('admin')}
                                     className={currentPage === 'admin' ? mobileActiveNavLinkClass : mobileNavLinkClass}
-                                 >
-                                    <div className="flex items-center gap-3">
-                                        <span className="bg-gray-100 p-1.5 rounded-lg text-gray-600"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span>
-                                        ตั้งค่าระบบ
-                                    </div>
-                                 </button>
-                             )}
+                                >
+                                    ตั้งค่าระบบ
+                                </button>
+                            )}
+                        </div>
 
-                             <div className="pt-4 mt-4 border-t border-gray-100">
-                                {currentUser ? (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button 
-                                            onClick={() => handleNav('profile')}
-                                            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gray-50 text-gray-700 font-bold hover:bg-gray-100 transition-colors"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                            โปรไฟล์
-                                        </button>
-                                        <button 
-                                            onClick={() => { onLogoutClick(); setIsMobileMenuOpen(false); }}
-                                            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                                            ออกจากระบบ
-                                        </button>
+                        <div className="pt-4 border-t border-gray-100">
+                            {currentUser ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-3 px-5 py-2">
+                                        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+                                            {userProfileImg ? (
+                                                <img src={userProfileImg} alt="User" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="flex items-center justify-center h-full text-gray-500 font-bold">{currentUser.personnelName.charAt(0)}</div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-gray-800">{currentUser.personnelName}</div>
+                                            <div className="text-xs text-gray-500">{currentUser.position}</div>
+                                        </div>
                                     </div>
-                                ) : (
                                     <button 
-                                        onClick={() => { onLoginClick(); setIsMobileMenuOpen(false); }}
-                                        className="w-full bg-gradient-to-r from-primary-blue to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 font-bold py-3.5 rounded-xl shadow-lg shadow-blue-200 mt-2 text-center flex items-center justify-center gap-2 transition-all transform active:scale-95"
+                                        onClick={() => handleNav('profile')}
+                                        className="block w-full text-left px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
                                     >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                                        เข้าสู่ระบบ
+                                        แก้ไขข้อมูลส่วนตัว
                                     </button>
-                                )}
-                             </div>
+                                    <button 
+                                        onClick={() => { onLogoutClick(); setIsMobileMenuOpen(false); }}
+                                        className="block w-full text-left px-5 py-3 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium"
+                                    >
+                                        ออกจากระบบ
+                                    </button>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => { onLoginClick(); setIsMobileMenuOpen(false); }}
+                                    className="w-full bg-primary-blue text-white font-bold py-3 rounded-xl shadow-md"
+                                >
+                                    เข้าสู่ระบบ
+                                </button>
+                            )}
                         </div>
                     </div>
-                </>
-            )}
+                )}
+            </div>
         </header>
     );
 };

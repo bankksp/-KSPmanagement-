@@ -89,8 +89,9 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'structure' | 'plan') => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            if (file.type !== 'application/pdf') {
-                alert('กรุณาอัปโหลดไฟล์ PDF เท่านั้น');
+            // Removed strict PDF check to allow Word/Images
+            if (file.size > 10 * 1024 * 1024) {
+                alert('ขนาดไฟล์ต้องไม่เกิน 10MB');
                 return;
             }
             if (type === 'structure') setStructureFile([file]);
@@ -287,7 +288,7 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                             <h3 className="font-bold text-red-500 mb-3 flex items-center gap-1 text-sm md:text-base">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                แนบไฟล์ (.pdf เท่านั้น)
+                                แนบไฟล์ (PDF, Word, รูปภาพ)
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                 <div>
@@ -295,7 +296,7 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
                                     <div className="flex items-center">
                                         <label className="cursor-pointer bg-white border border-gray-300 rounded-l-lg px-3 py-2 md:px-4 hover:bg-gray-50 text-sm font-medium text-gray-700 whitespace-nowrap">
                                             เลือกไฟล์
-                                            <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileChange(e, 'structure')} />
+                                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,image/*" onChange={(e) => handleFileChange(e, 'structure')} />
                                         </label>
                                         <div className="bg-gray-100 border-y border-r border-gray-300 rounded-r-lg px-3 py-2 md:px-4 flex-grow text-xs md:text-sm text-gray-500 truncate">
                                             {structureFile.length > 0 ? structureFile[0].name : 'ไม่ได้เลือกไฟล์ใด'}
@@ -307,7 +308,7 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
                                     <div className="flex items-center">
                                         <label className="cursor-pointer bg-white border border-gray-300 rounded-l-lg px-3 py-2 md:px-4 hover:bg-gray-50 text-sm font-medium text-gray-700 whitespace-nowrap">
                                             เลือกไฟล์
-                                            <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileChange(e, 'plan')} />
+                                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,image/*" onChange={(e) => handleFileChange(e, 'plan')} />
                                         </label>
                                         <div className="bg-gray-100 border-y border-r border-gray-300 rounded-r-lg px-3 py-2 md:px-4 flex-grow text-xs md:text-sm text-gray-500 truncate">
                                             {planFile.length > 0 ? planFile[0].name : 'ไม่ได้เลือกไฟล์ใด'}
