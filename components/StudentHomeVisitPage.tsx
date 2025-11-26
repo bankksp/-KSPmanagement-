@@ -39,6 +39,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
         longitude: undefined
     });
     const [isLocating, setIsLocating] = useState(false);
+    const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
     // Map Reference
     const mapRef = useRef<any>(null);
@@ -50,8 +51,9 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
     const visitMap = useMemo(() => {
         const map = new Map<number, HomeVisit>();
         visits.forEach(v => {
-            if (v.academicYear === filterYear && v.term === filterTerm) {
-                map.set(v.studentId, v);
+            // Use String comparison to handle potential type mismatches from JSON
+            if (String(v.academicYear) === String(filterYear) && String(v.term) === String(filterTerm)) {
+                map.set(Number(v.studentId), v);
             }
         });
         return map;
@@ -164,6 +166,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                 if (container) {
                     if (miniMapRef.current) {
                         miniMapRef.current.remove();
+                        miniMapRef.current = null;
                     }
                     const map = L.map('mini-map', { zoomControl: false, attributionControl: false }).setView([visitForm.latitude, visitForm.longitude], 15);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -171,7 +174,13 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                     miniMapRef.current = map;
                 }
              }, 100);
-             return () => clearTimeout(timer);
+             return () => {
+                 clearTimeout(timer);
+                 if(miniMapRef.current) {
+                     miniMapRef.current.remove();
+                     miniMapRef.current = null;
+                 }
+             };
         }
     }, [isModalOpen, visitForm.latitude, visitForm.longitude]);
 
@@ -180,9 +189,13 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
 
     const handleOpenVisit = (student: Student) => {
         setCurrentStudent(student);
+        setCurrentSlideIndex(0);
         const existingVisit = visitMap.get(student.id);
         if (existingVisit) {
-            setVisitForm(existingVisit);
+            setVisitForm({
+                ...existingVisit,
+                image: Array.isArray(existingVisit.image) ? existingVisit.image : (existingVisit.image ? [existingVisit.image] : [])
+            });
         } else {
             setVisitForm({
                 date: new Date().toLocaleDateString('th-TH'),
@@ -221,8 +234,22 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setVisitForm(prev => ({ ...prev, image: [e.target.files![0]] }));
+        if (e.target.files) {
+            const newFiles = Array.from(e.target.files);
+            setVisitForm(prev => ({
+                ...prev,
+                image: [...(prev.image || []), ...newFiles]
+            }));
+        }
+    };
+
+    const handleRemoveImage = (index: number) => {
+        setVisitForm(prev => ({
+            ...prev,
+            image: (prev.image || []).filter((_, i) => i !== index)
+        }));
+        if (currentSlideIndex >= index && currentSlideIndex > 0) {
+            setCurrentSlideIndex(currentSlideIndex - 1);
         }
     };
 
@@ -232,8 +259,8 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
 
         const visitToSave: HomeVisit = {
             id: visitForm.id || Date.now(),
-            studentId: currentStudent.id,
-            visitorId: currentUser.id,
+            studentId: Number(currentStudent.id),
+            visitorId: Number(currentUser.id),
             visitorName: `${currentUser.personnelTitle}${currentUser.personnelName}`,
             academicYear: filterYear,
             term: filterTerm,
@@ -249,6 +276,15 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
         onSave(visitToSave);
         setIsModalOpen(false);
     };
+
+    const getPreviewSrc = (item: File | string) => {
+        if (item instanceof File) {
+            return URL.createObjectURL(item);
+        }
+        return getDirectDriveImageSrc(item);
+    };
+
+    const images = visitForm.image || [];
 
     return (
         <div className="space-y-6">
@@ -373,6 +409,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                     {filteredStudents.map(student => {
                         const visit = visitMap.get(student.id);
                         const profileImg = getFirstImageSource(student.studentProfileImage);
+                        const visitImgCount = visit && Array.isArray(visit.image) ? visit.image.length : (visit?.image ? 1 : 0);
                         
                         return (
                             <div key={student.id} className={`bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-shadow ${visit ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
@@ -396,7 +433,8 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                                         <p className="text-xs text-gray-500 mb-1">{student.studentNickname} • {student.studentClass}</p>
                                         {visit && (
                                             <div className="text-xs text-green-700 bg-green-100/50 p-1 rounded mb-2">
-                                                <span className="font-semibold">วันที่:</span> {visit.date}
+                                                <div><span className="font-semibold">วันที่:</span> {visit.date}</div>
+                                                {visitImgCount > 0 && <div className="mt-0.5 text-[10px] text-green-600 flex items-center gap-1"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd"/></svg> มีรูปภาพ {visitImgCount} รูป</div>}
                                             </div>
                                         )}
                                         <button 
@@ -425,7 +463,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
             {/* Modal */}
             {isModalOpen && currentStudent && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in-up">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in-up">
                         <div className="p-5 border-b bg-primary-blue text-white rounded-t-xl flex justify-between items-center">
                             <h3 className="text-xl font-bold">บันทึกการเยี่ยมบ้าน</h3>
                             <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 rounded-full p-1"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
@@ -442,46 +480,43 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">วันที่เยี่ยมบ้าน</label>
-                                <input 
-                                    type="text" 
-                                    required 
-                                    value={visitForm.date} 
-                                    onChange={e => setVisitForm({...visitForm, date: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue"
-                                    placeholder="วว/ดด/ปปปป"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">พิกัด GPS (Lat, Long)</label>
-                                <div className="flex gap-2 mb-2">
-                                    <button 
-                                        type="button" 
-                                        onClick={handleGetLocation} 
-                                        disabled={isLocating}
-                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm w-full justify-center"
-                                    >
-                                        {isLocating ? (
-                                            <span className="animate-pulse">กำลังระบุตำแหน่ง...</span>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                บันทึกพิกัด GPS (ปัจจุบัน)
-                                            </>
-                                        )}
-                                    </button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">วันที่เยี่ยมบ้าน</label>
+                                    <input 
+                                        type="text" 
+                                        required 
+                                        value={visitForm.date} 
+                                        onChange={e => setVisitForm({...visitForm, date: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue"
+                                        placeholder="วว/ดด/ปปปป"
+                                    />
                                 </div>
-                                {visitForm.latitude && visitForm.longitude && (
-                                    <div className="border rounded-lg overflow-hidden relative">
-                                        <div className="bg-gray-100 p-2 text-xs text-gray-600 border-b flex justify-between">
-                                            <span>Lat: {visitForm.latitude.toFixed(6)}</span>
-                                            <span>Long: {visitForm.longitude.toFixed(6)}</span>
-                                        </div>
-                                        <div id="mini-map" className="h-32 w-full bg-gray-200"></div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">พิกัด GPS (Lat, Long)</label>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={handleGetLocation} 
+                                            disabled={isLocating}
+                                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex-grow flex items-center justify-center gap-2 shadow-sm"
+                                        >
+                                            {isLocating ? (
+                                                <span className="animate-pulse">กำลังระบุ...</span>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                    จับพิกัด GPS
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
-                                )}
+                                    {visitForm.latitude && (
+                                        <div className="text-[10px] text-gray-500 mt-1 text-center">
+                                            {visitForm.latitude.toFixed(6)}, {visitForm.longitude?.toFixed(6)}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div>
@@ -498,7 +533,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">บันทึกการเยี่ยม/สภาพความเป็นอยู่</label>
                                 <textarea 
-                                    rows={4}
+                                    rows={3}
                                     value={visitForm.notes} 
                                     onChange={e => setVisitForm({...visitForm, notes: e.target.value})}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue"
@@ -506,12 +541,64 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                                 ></textarea>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">รูปภาพประกอบ (ขณะเยี่ยมบ้าน)</label>
-                                <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" />
-                                {visitForm.image && visitForm.image.length > 0 && (
-                                    <div className="mt-2 relative w-full h-40 bg-gray-100 rounded-lg overflow-hidden border">
-                                        <img src={getDirectDriveImageSrc(visitForm.image[0])} className="w-full h-full object-contain" alt="evidence" />
+                            <div className="bg-gray-50 p-4 rounded-lg border">
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="block text-sm font-bold text-gray-700">อัลบั้มรูปภาพการเยี่ยมบ้าน</label>
+                                    <label className="cursor-pointer bg-white border border-blue-300 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-1">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                        เพิ่มรูปภาพ
+                                        <input type="file" multiple accept="image/*" onChange={handleImageChange} className="hidden" />
+                                    </label>
+                                </div>
+
+                                {images.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {/* Slideshow / Main Preview */}
+                                        <div className="relative w-full h-64 bg-gray-200 rounded-lg overflow-hidden border shadow-inner flex items-center justify-center group">
+                                            <img src={getPreviewSrc(images[currentSlideIndex])} className="w-full h-full object-contain" alt="Slide" />
+                                            
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleRemoveImage(currentSlideIndex)}
+                                                className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600 z-10"
+                                                title="ลบรูปนี้"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+
+                                            {/* Nav buttons */}
+                                            {images.length > 1 && (
+                                                <>
+                                                    <button type="button" onClick={() => setCurrentSlideIndex((currentSlideIndex - 1 + images.length) % images.length)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full">
+                                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                                    </button>
+                                                    <button type="button" onClick={() => setCurrentSlideIndex((currentSlideIndex + 1) % images.length)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full">
+                                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                                    </button>
+                                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                                                        {currentSlideIndex + 1} / {images.length}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Thumbnails */}
+                                        <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                                            {images.map((img, idx) => (
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => setCurrentSlideIndex(idx)}
+                                                    className={`relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden cursor-pointer border-2 transition-all snap-start ${currentSlideIndex === idx ? 'border-primary-blue ring-2 ring-blue-200' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                                                >
+                                                    <img src={getPreviewSrc(img)} className="w-full h-full object-cover" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-32 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-lg">
+                                        <svg className="w-10 h-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 00-2-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        <span className="text-sm">ยังไม่มีรูปภาพ</span>
                                     </div>
                                 )}
                             </div>

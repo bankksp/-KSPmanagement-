@@ -1,10 +1,4 @@
 
-
-
-
-
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard'; // Now acts as "Stats" page
@@ -208,7 +202,40 @@ const App: React.FC = () => {
             setPerformanceReports(data.performanceReports || []);
             setSarReports(data.sarReports || []);
             setDocuments(data.documents || []); 
-            setHomeVisits(data.homeVisits || []); // New
+            
+            // Normalize Home Visits (robustly handle single string vs array)
+            const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
+                // Ensure IDs are numbers
+                if (v.studentId) v.studentId = Number(v.studentId);
+                if (v.id) v.id = Number(v.id);
+                if (v.visitorId) v.visitorId = Number(v.visitorId);
+
+                if (v.image) {
+                    if (typeof v.image === 'string') {
+                        // Try parsing as JSON array (e.g. "['url1', 'url2']")
+                        if (v.image.trim().startsWith('[')) {
+                            try { 
+                                const parsed = JSON.parse(v.image);
+                                v.image = Array.isArray(parsed) ? parsed : [parsed];
+                            } catch(e) { 
+                                // If parse fails, check if it has multiple URLs separated by commas? 
+                                // Unlikely for standard flow, assume single URL string
+                                v.image = [v.image]; 
+                            }
+                        } else {
+                            // Treat as single URL string
+                            v.image = [v.image];
+                        }
+                    } else if (!Array.isArray(v.image)) {
+                        // Undefined or unknown type object
+                        v.image = [];
+                    }
+                } else {
+                    v.image = [];
+                }
+                return v;
+            });
+            setHomeVisits(normalizedHomeVisits);
 
             if (data.settings) {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
@@ -859,6 +886,28 @@ const App: React.FC = () => {
             const apiPayload = await prepareDataForApi(visit);
             const response = await postToGoogleScript({ action: 'saveHomeVisit', data: apiPayload });
             const savedVisit = response.data;
+            
+            // Ensure image array normalization on return
+            if (savedVisit.image) {
+                if (typeof savedVisit.image === 'string') {
+                    if (savedVisit.image.startsWith('[')) {
+                        try { 
+                            const parsed = JSON.parse(savedVisit.image);
+                            savedVisit.image = Array.isArray(parsed) ? parsed : [parsed];
+                        } catch(e) { 
+                            savedVisit.image = []; 
+                        }
+                    } else {
+                        savedVisit.image = [savedVisit.image];
+                    }
+                } else if (!Array.isArray(savedVisit.image)) {
+                    savedVisit.image = [];
+                }
+            }
+            // Normalize IDs on return
+            if (savedVisit.studentId) savedVisit.studentId = Number(savedVisit.studentId);
+            if (savedVisit.id) savedVisit.id = Number(savedVisit.id);
+
             setHomeVisits(prev => {
                 const index = prev.findIndex(v => v.id === savedVisit.id);
                 if (index >= 0) {

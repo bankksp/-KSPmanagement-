@@ -1,5 +1,6 @@
 
 
+
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) {
@@ -188,8 +189,15 @@ export const prepareDataForApi = async (data: any) => {
 
         if (value instanceof File) {
             apiData[key] = await fileToObject(value);
-        } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
-             apiData[key] = await Promise.all(value.map(fileToObject));
+        } else if (Array.isArray(value)) {
+             // Support mixed array of Files and Strings (e.g. existing URLs + new Files)
+             apiData[key] = await Promise.all(value.map(async (item) => {
+                 if (item instanceof File) {
+                     return await fileToObject(item);
+                 }
+                 // Keep existing strings/objects as is
+                 return item;
+             }));
         } else if (key === 'schoolLogo' && typeof value === 'string' && value.startsWith('data:image')) {
             const result = value;
             const mimeType = result.match(/data:(.*);/)?.[1] || 'image/png';
