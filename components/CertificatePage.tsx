@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { CertificateRequest, Personnel } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface CertificatePageProps {
     currentUser: Personnel;
@@ -11,6 +12,7 @@ interface CertificatePageProps {
 }
 
 const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests, onSave, onDelete, isSaving }) => {
+    const [activeTab, setActiveTab] = useState<'stats' | 'list'>('stats');
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -26,6 +28,26 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
         prefix: 'กส.ปญ',
         note: ''
     });
+
+    // Stats Logic
+    const stats = useMemo(() => {
+        const total = requests.length;
+        const currentYear = (new Date().getFullYear() + 543).toString();
+        const thisYearCount = requests.filter(r => r.academicYear === currentYear).length;
+
+        // Group by Year
+        const yearCounts: Record<string, number> = {};
+        requests.forEach(r => {
+            const y = r.academicYear || 'ไม่ระบุ';
+            yearCounts[y] = (yearCounts[y] || 0) + 1;
+        });
+
+        const chartData = Object.entries(yearCounts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        return { total, thisYearCount, chartData };
+    }, [requests]);
 
     // Auto-fill requester name if new form
     useEffect(() => {
@@ -69,7 +91,6 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
     const generateCertNumber = (prefix: string, count: number, activityNo: string, year: string) => {
         if (!activityNo || !year) return '-';
         // Logic: กส.ปญ 1-[count]/[activityNo]/[year]
-        // Example: กส.ปญ 1-97/4/2568
         
         let range = '1';
         if (count > 1) {
@@ -122,78 +143,150 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-lg">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                    <h2 className="text-2xl font-bold text-navy flex items-center gap-2">
-                        <svg className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
-                        ระบบขอเลขเกียรติบัตร
-                    </h2>
-                    <button 
-                        onClick={() => handleOpenModal()}
-                        className="bg-primary-blue text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 shadow flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                        ขอเลขเกียรติบัตรใหม่
-                    </button>
-                </div>
-
-                <div className="flex gap-4 mb-4 items-center bg-gray-50 p-4 rounded-lg">
-                    <input 
-                        type="text" 
-                        placeholder="ค้นหาชื่อ, กิจกรรม, เลขที่..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="border rounded-lg px-4 py-2 flex-grow focus:ring-2 focus:ring-primary-blue"
-                    />
-                    {selectedIds.size > 0 && (
-                        <button onClick={handleDeleteSelected} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700">
-                            ลบ {selectedIds.size} รายการ
-                        </button>
-                    )}
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-navy text-white">
-                            <tr>
-                                <th className="p-3 text-center w-10"><input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredRequests.map(r => r.id)) : new Set())} /></th>
-                                <th className="p-3 whitespace-nowrap">วันที่</th>
-                                <th className="p-3 whitespace-nowrap">ชื่อ-สกุลผู้ขอ</th>
-                                <th className="p-3">ชื่อกิจกรรม</th>
-                                <th className="p-3 text-center whitespace-nowrap">จำนวนคน</th>
-                                <th className="p-3 text-center whitespace-nowrap">ปีการศึกษา</th>
-                                <th className="p-3 text-center whitespace-nowrap">กิจกรรมที่</th>
-                                <th className="p-3 text-center whitespace-nowrap">เลขที่เกียรติบัตร</th>
-                                <th className="p-3">หมายเหตุ</th>
-                                <th className="p-3 text-center">จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {filteredRequests.map((req) => (
-                                <tr key={req.id} className="hover:bg-blue-50">
-                                    <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.has(req.id)} onChange={() => handleSelect(req.id)} /></td>
-                                    <td className="p-3 whitespace-nowrap">{req.date}</td>
-                                    <td className="p-3 font-medium">{req.requesterName}</td>
-                                    <td className="p-3">{req.activityName}</td>
-                                    <td className="p-3 text-center">{req.peopleCount}</td>
-                                    <td className="p-3 text-center">{req.academicYear}</td>
-                                    <td className="p-3 text-center">{req.activityNo}</td>
-                                    <td className="p-3 text-center font-mono font-bold text-primary-blue whitespace-nowrap">{req.generatedNumber}</td>
-                                    <td className="p-3 text-gray-500 text-xs">{req.note || '-'}</td>
-                                    <td className="p-3 text-center">
-                                        <button onClick={() => handleOpenModal(req)} className="text-amber-600 hover:bg-amber-100 p-1 rounded mr-1">แก้ไข</button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filteredRequests.length === 0 && (
-                                <tr>
-                                    <td colSpan={10} className="p-8 text-center text-gray-500">ไม่พบข้อมูล</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+            {/* Page Header & Tabs */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+                <h2 className="text-2xl font-bold text-navy flex items-center gap-2">
+                    <svg className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                    ระบบขอเลขเกียรติบัตร
+                </h2>
             </div>
+
+            <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm">
+                <button
+                    onClick={() => setActiveTab('stats')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'stats' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    สถิติ (จำนวน/ปี)
+                </button>
+                <button
+                    onClick={() => setActiveTab('list')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'list' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                    จัดการระบบขอเลขเกียรติบัตร
+                </button>
+            </div>
+
+            {/* --- TAB 1: STATS --- */}
+            {activeTab === 'stats' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500 flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500">เกียรติบัตรทั้งหมด</p>
+                                <h3 className="text-3xl font-bold text-navy">{stats.total} <span className="text-sm font-normal text-gray-400">รายการ</span></h3>
+                            </div>
+                            <div className="p-3 bg-blue-50 rounded-full text-blue-600">
+                                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                            </div>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl shadow border-l-4 border-green-500 flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500">ปีการศึกษา {new Date().getFullYear() + 543}</p>
+                                <h3 className="text-3xl font-bold text-green-600">{stats.thisYearCount} <span className="text-sm font-normal text-gray-400">รายการ</span></h3>
+                            </div>
+                            <div className="p-3 bg-green-50 rounded-full text-green-600">
+                                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Chart */}
+                    <div className="bg-white p-6 rounded-xl shadow">
+                        <h3 className="text-xl font-bold text-navy mb-4">สถิติจำนวนเกียรติบัตรแยกตามปีการศึกษา</h3>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                    <XAxis dataKey="name" tick={{fill: '#6B7280'}} />
+                                    <YAxis tick={{fill: '#6B7280'}} />
+                                    <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}} />
+                                    <Bar dataKey="value" name="จำนวน (รายการ)" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={50}>
+                                        {stats.chartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#3B82F6' : '#60A5FA'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- TAB 2: LIST (MANAGEMENT) --- */}
+            {activeTab === 'list' && (
+                <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 className="text-xl font-bold text-navy">รายการขอเลขเกียรติบัตร</h2>
+                        <button 
+                            onClick={() => handleOpenModal()}
+                            className="bg-primary-blue text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 shadow flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                            ขอเลขเกียรติบัตรใหม่
+                        </button>
+                    </div>
+
+                    <div className="flex gap-4 mb-4 items-center bg-gray-50 p-4 rounded-lg">
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหาชื่อ, กิจกรรม, เลขที่..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="border rounded-lg px-4 py-2 flex-grow focus:ring-2 focus:ring-primary-blue"
+                        />
+                        {selectedIds.size > 0 && (
+                            <button onClick={handleDeleteSelected} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700">
+                                ลบ {selectedIds.size} รายการ
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-navy text-white">
+                                <tr>
+                                    <th className="p-3 text-center w-10"><input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredRequests.map(r => r.id)) : new Set())} /></th>
+                                    <th className="p-3 whitespace-nowrap">วันที่</th>
+                                    <th className="p-3 whitespace-nowrap">ชื่อ-สกุลผู้ขอ</th>
+                                    <th className="p-3">ชื่อกิจกรรม</th>
+                                    <th className="p-3 text-center whitespace-nowrap">จำนวนคน</th>
+                                    <th className="p-3 text-center whitespace-nowrap">ปีการศึกษา</th>
+                                    <th className="p-3 text-center whitespace-nowrap">กิจกรรมที่</th>
+                                    <th className="p-3 text-center whitespace-nowrap">เลขที่เกียรติบัตร</th>
+                                    <th className="p-3">หมายเหตุ</th>
+                                    <th className="p-3 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                                {filteredRequests.map((req) => (
+                                    <tr key={req.id} className="hover:bg-blue-50">
+                                        <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.has(req.id)} onChange={() => handleSelect(req.id)} /></td>
+                                        <td className="p-3 whitespace-nowrap">{req.date}</td>
+                                        <td className="p-3 font-medium">{req.requesterName}</td>
+                                        <td className="p-3">{req.activityName}</td>
+                                        <td className="p-3 text-center">{req.peopleCount}</td>
+                                        <td className="p-3 text-center">{req.academicYear}</td>
+                                        <td className="p-3 text-center">{req.activityNo}</td>
+                                        <td className="p-3 text-center font-mono font-bold text-primary-blue whitespace-nowrap">{req.generatedNumber}</td>
+                                        <td className="p-3 text-gray-500 text-xs">{req.note || '-'}</td>
+                                        <td className="p-3 text-center">
+                                            <button onClick={() => handleOpenModal(req)} className="text-amber-600 hover:bg-amber-100 p-1 rounded mr-1">แก้ไข</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredRequests.length === 0 && (
+                                    <tr>
+                                        <td colSpan={10} className="p-8 text-center text-gray-500">ไม่พบข้อมูล</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Modal */}
             {isModalOpen && (
