@@ -27,8 +27,9 @@ import PersonnelReportPage from './components/PersonnelReportPage';
 import PersonnelSARPage from './components/PersonnelSARPage';
 import GeneralDocsPage from './components/GeneralDocsPage'; 
 import StudentHomeVisitPage from './components/StudentHomeVisitPage'; // Import new page
+import ServiceRegistrationPage from './components/ServiceRegistrationPage'; // Import new page
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
 import { prepareDataForApi } from './utils';
 
@@ -87,6 +88,9 @@ const App: React.FC = () => {
 
     // Home Visit State (New)
     const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
+
+    // Service Registration State (New)
+    const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
 
     // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -202,6 +206,7 @@ const App: React.FC = () => {
             setPerformanceReports(data.performanceReports || []);
             setSarReports(data.sarReports || []);
             setDocuments(data.documents || []); 
+            setServiceRecords(data.serviceRecords || []);
             
             // Normalize Home Visits (robustly handle single string vs array)
             const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
@@ -267,6 +272,25 @@ const App: React.FC = () => {
         } catch (error) {
             console.error("Could not save settings to Google Script", error);
             alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Special handler for updating service locations without redirecting page
+    const handleUpdateServiceLocations = async (locations: string[]) => {
+        setIsSaving(true);
+        try {
+            const newSettings = { ...settings, serviceLocations: locations };
+            // Use updateSettings action but handle UI differently
+            const apiPayload = await prepareDataForApi(newSettings);
+            const response = await postToGoogleScript({ action: 'updateSettings', data: apiPayload });
+            
+            setSettings(response.data);
+            // Intentionally NOT redirecting or alerting to keep flow smooth
+        } catch (error) {
+            console.error("Could not update locations", error);
+            alert('เกิดข้อผิดพลาดในการบันทึกสถานที่');
         } finally {
             setIsSaving(false);
         }
@@ -595,6 +619,43 @@ const App: React.FC = () => {
             alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    // Service Registration Handlers
+    const handleSaveServiceRecord = async (record: ServiceRecord) => {
+        setIsSaving(true);
+        try {
+            const apiPayload = await prepareDataForApi(record);
+            const response = await postToGoogleScript({ action: 'saveServiceRecord', data: apiPayload });
+            const savedRecord = response.data;
+            
+            setServiceRecords(prev => {
+                const index = prev.findIndex(r => r.id === savedRecord.id);
+                if (index >= 0) {
+                    const newList = [...prev];
+                    newList[index] = savedRecord;
+                    return newList;
+                }
+                return [...prev, savedRecord];
+            });
+            alert('บันทึกการใช้บริการเรียบร้อย');
+        } catch (e) {
+            console.error(e);
+            alert('เกิดข้อผิดพลาดในการบันทึก');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteServiceRecord = async (ids: number[]) => {
+        try {
+            await postToGoogleScript({ action: 'deleteServiceRecords', ids });
+            setServiceRecords(prev => prev.filter(r => !ids.includes(r.id)));
+            alert('ลบรายการเรียบร้อย');
+        } catch(e) {
+            console.error(e);
+            alert('เกิดข้อผิดพลาดในการลบ');
         }
     };
 
@@ -999,6 +1060,20 @@ const App: React.FC = () => {
                         plans={academicPlans}
                         onSavePlan={handleSaveAcademicPlan}
                         onUpdateStatus={handleUpdateAcademicPlanStatus}
+                        isSaving={isSaving}
+                    />
+                ) : null;
+            case 'academic_service': // New Service Registration Page
+                return currentUser ? (
+                    <ServiceRegistrationPage 
+                        currentUser={currentUser}
+                        students={students}
+                        personnel={personnel}
+                        records={serviceRecords}
+                        onSaveRecord={handleSaveServiceRecord}
+                        onDeleteRecord={handleDeleteServiceRecord}
+                        serviceLocations={settings.serviceLocations || []}
+                        onUpdateLocations={handleUpdateServiceLocations}
                         isSaving={isSaving}
                     />
                 ) : null;

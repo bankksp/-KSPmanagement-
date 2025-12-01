@@ -88,6 +88,7 @@ export interface Settings {
     studentClassrooms: string[];
     googleScriptUrl: string;
     adminPassword?: string;
+    serviceLocations?: string[]; // New: Service locations
 }
 
 // --- New Attendance Types ---
@@ -133,6 +134,22 @@ export interface AcademicPlan {
   comment?: string; // For feedback when requesting edits
   approverName?: string;
   approvedDate?: string;
+}
+
+// --- Service Registration Types (New) ---
+
+export interface ServiceRecord {
+  id: number;
+  date: string; // DD/MM/YYYY
+  time: string; // HH:mm
+  studentId: number;
+  studentName: string;
+  studentClass: string;
+  location: string;
+  purpose: string;
+  teacherId: number;
+  teacherName: string;
+  images?: (File | string)[];
 }
 
 // --- Supply Management Types ---
@@ -310,6 +327,7 @@ export type Page =
     | 'profile'
     // New Pages
     | 'academic_plans'
+    | 'academic_service' // ลงทะเบียนเข้าใช้บริการ
     | 'finance_supplies'
     | 'durable_goods'
     | 'personnel_report'
