@@ -69,6 +69,7 @@ export interface Personnel {
   advisoryClasses?: string[];
   password?: string;
   role?: 'user' | 'pro' | 'admin';
+  status?: 'pending' | 'approved' | 'blocked'; // New field for approval system
 }
 
 

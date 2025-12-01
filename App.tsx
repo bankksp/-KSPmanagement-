@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard'; // Now acts as "Stats" page
@@ -193,7 +194,11 @@ const App: React.FC = () => {
             fetchedPersonnel = fetchedPersonnel.map(p => {
                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
                 if (normalizeId(p.idCard) === '1469900181659') {
-                    return { ...p, role: 'admin' as const };
+                    return { ...p, role: 'admin' as const, status: 'approved' as const };
+                }
+                // Backward compatibility: If no status, assume approved
+                if (!p.status) {
+                    p.status = 'approved';
                 }
                 return p;
             });
@@ -325,8 +330,8 @@ const App: React.FC = () => {
     const handleRegister = async (newPersonnel: Personnel) => {
         await handleSavePersonnel(newPersonnel);
         setIsRegisterModalOpen(false);
-        alert('ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ');
-        setIsLoginModalOpen(true);
+        // Alert handled in Modal or here? Modal handles submit but we need to give feedback
+        // The modal component will now handle showing the "Pending" message before closing or after this returns
     };
 
 
@@ -482,37 +487,39 @@ const App: React.FC = () => {
                  processedData = savedData[0];
             }
 
-            // CRITICAL FIX: Ensure password from request is preserved if not returned by API
-            // This fixes the issue where user cannot login after password change if API returns object without password
+            // Ensure password preservation
             if (!Array.isArray(processedData) && person.password) {
-                 // Trust the local password if we just sent it, especially if backend returns empty/masked password
                  if (!processedData.password || processedData.password !== person.password) {
                      processedData = { ...processedData, password: person.password };
                  }
             }
 
+            // Helper to process a single personnel item
+            const processPerson = (p: Personnel) => {
+                const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
+                if (normalizeId(p.idCard) === '1469900181659') {
+                    return { ...p, role: 'admin' as const, status: 'approved' as const };
+                }
+                if (!p.status) p.status = 'approved'; // Legacy compatibility
+                return p;
+            };
+
             if (Array.isArray(processedData)) {
-                const processedWithAdmin = processedData.map((p: Personnel) => {
-                     const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
-                     if (normalizeId(p.idCard) === '1469900181659') return { ...p, role: 'admin' as const };
-                     return p;
-                });
-                setPersonnel(processedWithAdmin);
+                setPersonnel(processedData.map(processPerson));
             } else {
-                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
-                 if (normalizeId(processedData.idCard) === '1469900181659') processedData.role = 'admin';
+                const finalPerson = processPerson(processedData);
 
                 if (isEditing) {
-                    setPersonnel(prev => prev.map(p => String(p.id) === String(processedData.id) ? processedData : p));
-                    if (currentUser && String(currentUser.id) === String(processedData.id)) {
-                         setCurrentUser(processedData);
+                    setPersonnel(prev => prev.map(p => String(p.id) === String(finalPerson.id) ? finalPerson : p));
+                    if (currentUser && String(currentUser.id) === String(finalPerson.id)) {
+                         setCurrentUser(finalPerson);
                          if (localStorage.getItem('ksp_user')) {
-                             localStorage.setItem('ksp_user', JSON.stringify(processedData));
+                             localStorage.setItem('ksp_user', JSON.stringify(finalPerson));
                          }
                     }
 
                 } else {
-                    setPersonnel(prev => [...prev, processedData]);
+                    setPersonnel(prev => [...prev, finalPerson]);
                 }
             }
             handleClosePersonnelModal();
@@ -539,7 +546,7 @@ const App: React.FC = () => {
         newData: (StudentAttendance | PersonnelAttendance)[]
     ) => {
         
-        // 1. Diffing Strategy: Calculate changes to send minimal payload
+        // 1. Diffing Strategy
         const currentRecordsMap = new Map<string, StudentAttendance | PersonnelAttendance>(
             (type === 'student' ? studentAttendance : personnelAttendance)
             .map(r => [r.id, r] as [string, StudentAttendance | PersonnelAttendance])
@@ -547,26 +554,17 @@ const App: React.FC = () => {
 
         const changedRecords = newData.filter(newRecord => {
             const oldRecord = currentRecordsMap.get(newRecord.id);
-            
-            // New Record (Insert)
             if (!oldRecord) return true;
-            
-            // Changed Record (Update)
             if (oldRecord.status !== newRecord.status) return true;
             if (type === 'personnel' && (oldRecord as PersonnelAttendance).dressCode !== (newRecord as PersonnelAttendance).dressCode) return true;
-            
-            return false; // No change
+            return false;
         });
 
-        if (changedRecords.length === 0) {
-            // Nothing to save, instant return
-            return; 
-        }
+        if (changedRecords.length === 0) return; 
 
         setIsSaving(true);
         try {
             const action = type === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
-            // SEND ONLY CHANGED RECORDS
             const response = await postToGoogleScript({ action, data: changedRecords });
             const savedData = response.data;
 
@@ -583,7 +581,6 @@ const App: React.FC = () => {
                     return [...filtered, ...savedData];
                 });
             }
-            // Removed alert for faster UX feel
         } catch (error) {
             console.error(error);
             const errorMessage = error instanceof Error ? error.message : `เกิดข้อผิดพลาดในการบันทึกการเช็คชื่อ${type === 'student' ? 'นักเรียน' : 'บุคลากร'}`;
@@ -1322,6 +1319,7 @@ const App: React.FC = () => {
                 currentUser={currentUser}
                 onLoginClick={() => setIsLoginModalOpen(true)}
                 onLogoutClick={handleLogout}
+                personnel={personnel} // Pass personnel for notification count
             />
             <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
                 {renderPage()}

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Personnel } from '../types';
 import PersonnelTable from './PersonnelTable';
@@ -20,6 +21,8 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
     const [activeTab, setActiveTab] = useState<'stats' | 'list'>('stats');
     const [searchTerm, setSearchTerm] = useState('');
     const [positionFilter, setPositionFilter] = useState('');
+
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'pro';
 
     // --- Stats Logic ---
     const stats = useMemo(() => {
@@ -44,6 +47,12 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
         const lowerTerm = searchTerm.toLowerCase().trim();
 
         return personnel.filter(person => {
+            // Hide pending users from the main list unless explicitly needed, or show them with status
+            // For now, let's include them but sort or filter visually in the table if needed.
+            // Actually, typically we might want to hide 'pending' from the public directory.
+            // Let's hide pending from the main list if not admin, or just keep them but show status.
+            // Decision: Show all, but Table will handle visualization.
+            
             const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
             const name = person.personnelName || '';
             const idCard = String(person.idCard || '');
@@ -70,8 +79,24 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
         });
     }, [personnel, searchTerm, positionFilter]);
 
+    const pendingUsers = useMemo(() => {
+        return personnel.filter(p => p.status === 'pending');
+    }, [personnel]);
+
+    const handleApproveUser = (user: Personnel) => {
+        if (window.confirm(`ยืนยันการอนุมัติ ${user.personnelName} เข้าใช้งานระบบ?`)) {
+            onEditPersonnel({ ...user, status: 'approved' });
+        }
+    };
+
+    const handleRejectUser = (user: Personnel) => {
+        if (window.confirm(`ต้องการลบคำขอลงทะเบียนของ ${user.personnelName} ใช่หรือไม่?`)) {
+            onDeletePersonnel([user.id]);
+        }
+    };
+
     const exportToExcel = () => {
-        const header = ['ชื่อ-นามสกุล', 'ตำแหน่ง', 'เลขที่ตำแหน่ง', 'เลขบัตรประชาชน', 'วันเกิด', 'เบอร์โทร', 'วันที่บรรจุ'];
+        const header = ['ชื่อ-นามสกุล', 'ตำแหน่ง', 'เลขที่ตำแหน่ง', 'เลขบัตรประชาชน', 'วันเกิด', 'เบอร์โทร', 'วันที่บรรจุ', 'สถานะ'];
         const rows = filteredPersonnel.map(p => {
              const title = p.personnelTitle === 'อื่นๆ' ? (p.personnelTitleOther || '') : (p.personnelTitle || '');
              return [
@@ -81,7 +106,8 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                 p.idCard,
                 p.dob,
                 p.phone,
-                p.appointmentDate
+                p.appointmentDate,
+                p.status || 'approved'
             ];
         });
 
@@ -166,66 +192,107 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
 
             {/* --- LIST VIEW --- */}
             {activeTab === 'list' && (
-                <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                        <h2 className="text-xl font-bold text-navy">จัดการข้อมูลบุคลากร</h2>
-                        
-                        <div className="flex gap-2 no-print">
-                             <button
-                                onClick={exportToExcel}
-                                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                <span>Excel</span>
-                            </button>
-                            <button
-                                onClick={onAddPersonnel}
-                                className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                <span>เพิ่มบุคลากร</span>
-                            </button>
+                <div className="space-y-6">
+                    {/* Pending Approvals Section (Admin Only) */}
+                    {isAdmin && pendingUsers.length > 0 && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 shadow-sm animate-pulse-slow">
+                            <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2 mb-4">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                รายการรออนุมัติเข้าใช้งาน ({pendingUsers.length})
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {pendingUsers.map(user => (
+                                    <div key={user.id} className="bg-white p-4 rounded-lg shadow-sm border border-orange-100 flex flex-col gap-2">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-500 font-bold">
+                                                {user.personnelName.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-800">{user.personnelTitle}{user.personnelName}</p>
+                                                <p className="text-xs text-gray-500">{user.position} | ID: {user.idCard}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 mt-2">
+                                            <button 
+                                                onClick={() => handleApproveUser(user)}
+                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors"
+                                            >
+                                                อนุมัติ
+                                            </button>
+                                            <button 
+                                                onClick={() => handleRejectUser(user)}
+                                                className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold py-1.5 px-3 rounded transition-colors"
+                                            >
+                                                ลบคำขอ
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end no-print">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">ค้นหา</label>
-                            <input
-                                type="text"
-                                placeholder="ค้นหาชื่อ, เลขบัตร, ตำแหน่ง, เบอร์โทร..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                    <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                            <h2 className="text-xl font-bold text-navy">จัดการข้อมูลบุคลากร</h2>
+                            
+                            <div className="flex gap-2 no-print">
+                                <button
+                                    onClick={exportToExcel}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <span>Excel</span>
+                                </button>
+                                <button
+                                    onClick={onAddPersonnel}
+                                    className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    <span>เพิ่มบุคลากร</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end no-print">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ค้นหา</label>
+                                <input
+                                    type="text"
+                                    placeholder="ค้นหาชื่อ, เลขบัตร, ตำแหน่ง, เบอร์โทร..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
+                                <select
+                                    value={positionFilter}
+                                    onChange={(e) => setPositionFilter(e.target.value)}
+                                    className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                                >
+                                    <option value="">ทั้งหมด</option>
+                                    {positions.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                            </div>
+                            <button onClick={() => { setSearchTerm(''); setPositionFilter(''); }} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg self-end">ล้างค่า</button>
+                        </div>
+
+                        <div className="printable-content">
+                            <div className="hidden print:block text-center mb-4">
+                                <h1 className="text-2xl font-bold">ทะเบียนบุคลากร</h1>
+                            </div>
+                            <PersonnelTable 
+                                personnel={filteredPersonnel} 
+                                onViewPersonnel={onViewPersonnel} 
+                                onEditPersonnel={onEditPersonnel} 
+                                onDeletePersonnel={onDeletePersonnel}
+                                currentUser={currentUser}
                             />
                         </div>
-                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
-                            <select
-                                value={positionFilter}
-                                onChange={(e) => setPositionFilter(e.target.value)}
-                                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                            >
-                                <option value="">ทั้งหมด</option>
-                                {positions.map(p => <option key={p} value={p}>{p}</option>)}
-                            </select>
-                        </div>
-                        <button onClick={() => { setSearchTerm(''); setPositionFilter(''); }} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg self-end">ล้างค่า</button>
-                    </div>
-
-                    <div className="printable-content">
-                        <div className="hidden print:block text-center mb-4">
-                            <h1 className="text-2xl font-bold">ทะเบียนบุคลากร</h1>
-                        </div>
-                        <PersonnelTable 
-                            personnel={filteredPersonnel} 
-                            onViewPersonnel={onViewPersonnel} 
-                            onEditPersonnel={onEditPersonnel} 
-                            onDeletePersonnel={onDeletePersonnel}
-                            currentUser={currentUser}
-                        />
                     </div>
                 </div>
             )}

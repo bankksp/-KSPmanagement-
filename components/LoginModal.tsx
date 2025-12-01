@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Personnel } from '../types';
 
@@ -37,6 +38,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, perso
             const userPassword = user.password || String(user.idCard);
             
             if (userPassword === cleanPass) {
+                // Check Status (New Security Feature)
+                if (user.status === 'pending') {
+                    setError('บัญชีของท่านอยู่ระหว่างรอการอนุมัติจากผู้ดูแลระบบ');
+                    return;
+                }
+                if (user.status === 'blocked') {
+                    setError('บัญชีของท่านถูกระงับการใช้งาน');
+                    return;
+                }
+
                 onLogin(user, rememberMe);
                 onClose();
                 setIdCard('');

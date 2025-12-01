@@ -1,8 +1,5 @@
 
 
-
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getDirectDriveImageSrc, getFirstImageSource } from '../utils';
 import { Personnel, Page } from '../types';
@@ -16,13 +13,14 @@ interface HeaderProps {
     currentUser: Personnel | null;
     onLoginClick: () => void;
     onLogoutClick: () => void;
+    personnel?: Personnel[]; // Added prop
 }
 
 type MenuKey = 'academic' | 'personnel' | 'finance' | 'general' | 'studentAffairs' | 'data' | null;
 
 const Header: React.FC<HeaderProps> = ({ 
     onNavigate, currentPage, schoolName, schoolLogo, 
-    currentUser, onLoginClick, onLogoutClick 
+    currentUser, onLoginClick, onLogoutClick, personnel = []
 }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [activeDropdown, setActiveDropdown] = useState<MenuKey>(null);
@@ -31,6 +29,12 @@ const Header: React.FC<HeaderProps> = ({
     
     const dropdownRef = useRef<HTMLDivElement>(null);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Calculate pending approvals count
+    const pendingCount = useMemo(() => {
+        if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'pro')) return 0;
+        return personnel.filter(p => p.status === 'pending').length;
+    }, [personnel, currentUser]);
 
     // Click outside handler
     useEffect(() => {
@@ -73,11 +77,11 @@ const Header: React.FC<HeaderProps> = ({
     const userProfileImg = useMemo(() => currentUser ? getFirstImageSource(currentUser.profileImage) : null, [currentUser]);
 
     // Styles
-    const navLinkClass = "px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1 text-white/90 hover:bg-white/20 hover:text-white hover:shadow-sm";
+    const navLinkClass = "px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1 text-white/90 hover:bg-white/20 hover:text-white hover:shadow-sm relative";
     const activeNavLinkClass = "bg-white/25 text-white shadow-inner " + navLinkClass;
     
     const dropdownClass = "absolute left-0 mt-2 w-56 bg-white/90 backdrop-blur-md rounded-xl shadow-xl py-2 z-30 text-gray-800 border border-white/50 animate-fade-in-up ring-1 ring-black/5";
-    const dropdownItemClass = "block w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 hover:text-primary-blue transition-colors font-medium";
+    const dropdownItemClass = "block w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 hover:text-primary-blue transition-colors font-medium relative";
     
     // Glassy Button Style
     const glassBtnBase = "backdrop-blur-md transition-all duration-300 border shadow-sm flex items-center justify-center gap-2";
@@ -197,6 +201,12 @@ const Header: React.FC<HeaderProps> = ({
                                  >
                                      {menu.label}
                                      <svg className={`w-3 h-3 transition-transform duration-200 ${activeDropdown === menu.key ? 'rotate-180' : 'group-hover:rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                     {menu.key === 'data' && pendingCount > 0 && (
+                                         <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[9px] text-white justify-center items-center font-bold">{pendingCount}</span>
+                                         </span>
+                                     )}
                                  </button>
                                  
                                  {activeDropdown === menu.key && (
@@ -209,6 +219,9 @@ const Header: React.FC<HeaderProps> = ({
                                                 className={`${dropdownItemClass} ${currentPage === item.page ? 'text-primary-blue font-bold bg-blue-50 border-l-4 border-primary-blue' : 'border-l-4 border-transparent'}`}
                                              >
                                                  {item.label}
+                                                 {item.page === 'personnel' && pendingCount > 0 && (
+                                                     <span className="absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+                                                 )}
                                              </button>
                                          ))}
                                      </div>
@@ -291,9 +304,15 @@ const Header: React.FC<HeaderProps> = ({
                     <div className="lg:hidden">
                         <button
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            className={`p-2 rounded-xl transition-all duration-300 ${isMobileMenuOpen ? 'bg-white/30 rotate-90 shadow-inner' : 'hover:bg-white/10'} text-white shadow-sm`}
+                            className={`p-2 rounded-xl transition-all duration-300 ${isMobileMenuOpen ? 'bg-white/30 rotate-90 shadow-inner' : 'hover:bg-white/10'} text-white shadow-sm relative`}
                             aria-label="Open navigation menu"
                         >
+                             {pendingCount > 0 && (
+                                <span className="absolute top-1 right-1 flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                                </span>
+                             )}
                              {isMobileMenuOpen ? (
                                 <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                              ) : (
@@ -334,6 +353,9 @@ const Header: React.FC<HeaderProps> = ({
                                                     {menu.icon}
                                                 </div>
                                                 <span>{menu.label}</span>
+                                                {menu.key === 'data' && pendingCount > 0 && (
+                                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pendingCount}</span>
+                                                )}
                                             </div>
                                             <svg 
                                                 className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-primary-blue' : ''}`} 
@@ -355,7 +377,13 @@ const Header: React.FC<HeaderProps> = ({
                                                         className={`block w-full text-left px-4 py-3 text-sm rounded-lg transition-all flex items-center justify-between ${currentPage === item.page ? 'bg-white text-primary-blue font-bold shadow-sm border border-gray-100' : 'text-gray-600 hover:bg-white/80 hover:text-primary-blue'}`}
                                                     >
                                                         {item.label}
-                                                        {currentPage === item.page && <div className="w-1.5 h-1.5 rounded-full bg-primary-blue"></div>}
+                                                        {currentPage === item.page ? (
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-primary-blue"></div>
+                                                        ) : (
+                                                            item.page === 'personnel' && pendingCount > 0 && (
+                                                                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+                                                            )
+                                                        )}
                                                     </button>
                                                 ))}
                                             </div>
@@ -415,7 +443,7 @@ const Header: React.FC<HeaderProps> = ({
                                     onClick={() => { onLoginClick(); setIsMobileMenuOpen(false); }}
                                     className="w-full bg-gradient-to-r from-primary-blue/90 to-blue-600/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200/50 active:scale-95 transition-transform flex items-center justify-center gap-2 text-lg backdrop-blur-sm border border-white/20"
                                 >
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" /></svg>
                                     เข้าสู่ระบบ
                                 </button>
                             )}

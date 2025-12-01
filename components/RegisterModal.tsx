@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Personnel } from '../types';
 
@@ -51,10 +52,12 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             positionNumber: '', // Default empty
             password: formData.idCard, // Default password is ID Card
             profileImage: profileImage ? [profileImage] : [],
-            role: 'user'
+            role: 'user',
+            status: 'pending' // Default status for new registration is Pending
         };
 
         onRegister(newPersonnel);
+        alert('ลงทะเบียนสำเร็จ กรุณารอการอนุมัติจากผู้ดูแลระบบก่อนเข้าใช้งาน');
     };
 
     return (
@@ -142,8 +145,9 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
                         />
                     </div>
 
-                    <div className="pt-2 text-xs text-gray-500 text-center">
-                        * เมื่อลงทะเบียนแล้ว รหัสผ่านเริ่มต้นคือเลขบัตรประชาชน ท่านสามารถเปลี่ยนได้ในหน้าโปรไฟล์
+                    <div className="pt-2 text-xs text-gray-500 text-center space-y-1">
+                        <p>* เมื่อลงทะเบียนแล้ว รหัสผ่านเริ่มต้นคือเลขบัตรประชาชน</p>
+                        <p className="text-red-500 font-bold">** ท่านต้องรอให้ Admin อนุมัติสิทธิ์การใช้งานก่อน จึงจะสามารถ Login เข้าระบบได้</p>
                     </div>
 
                     <div className="flex gap-3 pt-2">

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Personnel, Student } from '../types';
 import { getFirstImageSource } from '../utils';
@@ -26,7 +27,8 @@ const initialFormData: Omit<Personnel, 'id'> = {
     phone: '',
     profileImage: [],
     advisoryClasses: [],
-    role: 'user'
+    role: 'user',
+    status: 'approved'
 };
 
 // Helper function to convert Buddhist date string (DD/MM/BBBB) to ISO string (YYYY-MM-DD)
@@ -96,6 +98,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                 ...personnelToEdit,
                 profileImage: personnelToEdit.profileImage || [],
                 role: personnelToEdit.role || 'user',
+                status: personnelToEdit.status || 'approved',
                 // Ensure password is preserved even if not shown/edited directly here
                 password: personnelToEdit.password 
             });
@@ -200,6 +203,19 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                             <option value="user">User (ทั่วไป)</option>
                                             <option value="pro">Pro (เจ้าหน้าที่)</option>
                                             <option value="admin">Admin KSP (ผู้ดูแลระบบ)</option>
+                                        </select>
+                                    </div>
+                                    <div className="bg-green-50 p-2 rounded border border-green-200">
+                                        <label className="block text-sm font-bold text-green-800 mb-1">สถานะ (Status)</label>
+                                        <select 
+                                            name="status" 
+                                            value={formData.status} 
+                                            onChange={handleChange} 
+                                            className="w-full px-2 py-1 border border-green-300 rounded text-sm text-navy bg-white"
+                                        >
+                                            <option value="pending">รออนุมัติ (Pending)</option>
+                                            <option value="approved">อนุมัติ (Approved)</option>
+                                            <option value="blocked">ระงับ (Blocked)</option>
                                         </select>
                                     </div>
                                     <div className="bg-yellow-50 p-2 rounded border border-yellow-200">
