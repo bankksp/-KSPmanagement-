@@ -138,13 +138,26 @@ export interface AcademicPlan {
 
 // --- Service Registration Types (New) ---
 
+export interface ServiceStudent {
+    id: number;
+    name: string;
+    class: string;
+    nickname?: string;
+}
+
 export interface ServiceRecord {
   id: number;
   date: string; // DD/MM/YYYY
   time: string; // HH:mm
-  studentId: number;
-  studentName: string;
-  studentClass: string;
+  
+  // Group Fields
+  students: ServiceStudent[];
+  
+  // Backward compatibility fields (optional)
+  studentId?: number;
+  studentName?: string;
+  studentClass?: string;
+
   location: string;
   purpose: string;
   teacherId: number;
@@ -297,6 +310,35 @@ export interface Document {
   createdDate: string;
 }
 
+// --- Construction Work Types (New) ---
+
+export type ConstructionStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed';
+
+export interface ConstructionRecord {
+  id: number;
+  date: string; // Recording date
+  projectName: string;
+  contractor: string; // ผู้รับเหมา
+  location: string;
+  progress: number; // 0-100
+  status: ConstructionStatus;
+  
+  // Detailed Report Fields
+  contractorWork: string; // รายการปฏิบัติงานของผู้รับจ้าง
+  materials: string; // วัสดุที่นำเข้าในการก่อสร้าง
+  workers: string; // คนงาน (จำนวน หรือ รายละเอียด)
+  description: string; // งานที่ดำเนินการก่อสร้างประจำวัน (Detailed Description)
+  problems: string; // ปัญหาอุสรรค์ต่างๆ
+  
+  startDate: string;
+  endDate: string;
+  budget?: number;
+  media?: (File | string)[]; // Images and Videos
+  
+  reporter: string; // Who recorded (can be redundant if using supervisors[0])
+  supervisors: number[]; // IDs of personnel who signed/supervised
+}
+
 // --- Home Visit Types ---
 
 export interface HomeVisit {
@@ -335,4 +377,5 @@ export type Page =
     | 'general_docs'
     | 'general_repair'
     | 'general_certs' // ขอเลขเกียรติบัตร
+    | 'general_construction' // บันทึกงานก่อสร้าง
     | 'student_home_visit'; // เยี่ยมบ้านนักเรียน

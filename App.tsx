@@ -28,8 +28,9 @@ import PersonnelSARPage from './components/PersonnelSARPage';
 import GeneralDocsPage from './components/GeneralDocsPage'; 
 import StudentHomeVisitPage from './components/StudentHomeVisitPage'; // Import new page
 import ServiceRegistrationPage from './components/ServiceRegistrationPage'; // Import new page
+import ConstructionPage from './components/ConstructionPage'; // Import Construction Page
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
 import { prepareDataForApi } from './utils';
 
@@ -91,6 +92,9 @@ const App: React.FC = () => {
 
     // Service Registration State (New)
     const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
+
+    // Construction Records State (New)
+    const [constructionRecords, setConstructionRecords] = useState<ConstructionRecord[]>([]);
 
     // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -207,6 +211,7 @@ const App: React.FC = () => {
             setSarReports(data.sarReports || []);
             setDocuments(data.documents || []); 
             setServiceRecords(data.serviceRecords || []);
+            setConstructionRecords(data.constructionRecords || []); // Fetch construction records
             
             // Normalize Home Visits (robustly handle single string vs array)
             const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
@@ -477,8 +482,13 @@ const App: React.FC = () => {
                  processedData = savedData[0];
             }
 
-            if (!Array.isArray(processedData) && person.password && !processedData.password) {
-                processedData = { ...processedData, password: person.password };
+            // CRITICAL FIX: Ensure password from request is preserved if not returned by API
+            // This fixes the issue where user cannot login after password change if API returns object without password
+            if (!Array.isArray(processedData) && person.password) {
+                 // Trust the local password if we just sent it, especially if backend returns empty/masked password
+                 if (!processedData.password || processedData.password !== person.password) {
+                     processedData = { ...processedData, password: person.password };
+                 }
             }
 
             if (Array.isArray(processedData)) {
@@ -940,6 +950,42 @@ const App: React.FC = () => {
         }
     };
 
+    // Construction Records Handlers (New)
+    const handleSaveConstructionRecord = async (record: ConstructionRecord) => {
+        setIsSaving(true);
+        try {
+            const apiPayload = await prepareDataForApi(record);
+            const response = await postToGoogleScript({ action: 'saveConstructionRecord', data: apiPayload });
+            const savedRecord = response.data;
+            setConstructionRecords(prev => {
+                const index = prev.findIndex(r => r.id === savedRecord.id);
+                if (index >= 0) {
+                    const newList = [...prev];
+                    newList[index] = savedRecord;
+                    return newList;
+                }
+                return [...prev, savedRecord];
+            });
+            alert('บันทึกข้อมูลงานก่อสร้างเรียบร้อย');
+        } catch (e) {
+            console.error(e);
+            alert(e instanceof Error ? e.message : 'เกิดข้อผิดพลาดในการบันทึก');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteConstructionRecords = async (ids: number[]) => {
+        try {
+            await postToGoogleScript({ action: 'deleteConstructionRecords', ids });
+            setConstructionRecords(prev => prev.filter(r => !ids.includes(r.id)));
+            alert('ลบรายการเรียบร้อย');
+        } catch (e) {
+            console.error(e);
+            alert('เกิดข้อผิดพลาดในการลบ');
+        }
+    };
+
     // Home Visit Handlers
     const handleSaveHomeVisit = async (visit: HomeVisit) => {
         setIsSaving(true);
@@ -1191,6 +1237,17 @@ const App: React.FC = () => {
                         onSave={handleSaveDocument}
                         onDelete={handleDeleteDocument}
                         isSaving={isSaving}
+                    />
+                ) : null;
+            case 'general_construction': // New Construction Page
+                return currentUser ? (
+                    <ConstructionPage 
+                        currentUser={currentUser}
+                        records={constructionRecords}
+                        onSave={handleSaveConstructionRecord}
+                        onDelete={handleDeleteConstructionRecords}
+                        isSaving={isSaving}
+                        personnel={personnel}
                     />
                 ) : null;
             case 'student_home_visit':

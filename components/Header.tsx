@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getDirectDriveImageSrc, getFirstImageSource } from '../utils';
 import { Personnel, Page } from '../types';
@@ -126,6 +128,7 @@ const Header: React.FC<HeaderProps> = ({
             items: [
                 { label: 'หนังสือ/คำสั่ง', page: 'general_docs' as Page },
                 { label: 'แจ้งซ่อม', page: 'general_repair' as Page },
+                { label: 'บันทึกงานก่อสร้าง', page: 'general_construction' as Page },
                 { label: 'ขอเลขเกียรติบัตร', page: 'general_certs' as Page }
             ]
         },
@@ -278,7 +281,7 @@ const Header: React.FC<HeaderProps> = ({
                                 onClick={onLoginClick}
                                 className={`${glassBtnPrimary} ml-3 px-5 py-2 rounded-full text-sm font-bold`}
                              >
-                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" /></svg>
                                  เข้าสู่ระบบ
                              </button>
                          )}

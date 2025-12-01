@@ -56,9 +56,15 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<number>>(new Set());
     const [selectedTeacherId, setSelectedTeacherId] = useState<number | 0>(0);
 
-    // --- View Modal State ---
+    // --- Table & Management State ---
+    const [tableSearch, setTableSearch] = useState('');
+    const [selectedRecordIds, setSelectedRecordIds] = useState<Set<number>>(new Set());
+
+    // --- View/Edit Modal State ---
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewRecord, setViewRecord] = useState<ServiceRecord | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingRecord, setEditingRecord] = useState<ServiceRecord | null>(null);
 
     // --- Settings State ---
     const [newLocation, setNewLocation] = useState('');
@@ -91,7 +97,12 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
         records.forEach(r => {
             locationCounts[r.location] = (locationCounts[r.location] || 0) + 1;
-            studentSet.add(r.studentId);
+            // Check for new array format or fallback to single
+            if (r.students && Array.isArray(r.students)) {
+                r.students.forEach(s => studentSet.add(s.id));
+            } else if (r.studentId) {
+                studentSet.add(r.studentId);
+            }
         });
 
         const graphData = Object.entries(locationCounts)
@@ -117,6 +128,14 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
             return dateMatch && locMatch;
         }).sort((a, b) => a.time.localeCompare(b.time));
     }, [records, reportDate, reportLocation]);
+
+    const filteredTableRecords = useMemo(() => {
+        return records.filter(r => 
+            (r.location && r.location.includes(tableSearch)) ||
+            (r.teacherName && r.teacherName.includes(tableSearch)) ||
+            (r.purpose && r.purpose.includes(tableSearch))
+        ).sort((a, b) => b.id - a.id);
+    }, [records, tableSearch]);
 
     // --- Handlers ---
 
@@ -168,28 +187,33 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
         const teacher = personnel.find(p => p.id === selectedTeacherId);
         
-        // Create a record for each selected student
-        Array.from(selectedStudentIds).forEach(studentId => {
-            const student = students.find(s => s.id === studentId);
-            if (!student) return;
+        // Bundle all selected students into ONE array
+        const selectedStudentsData = students
+            .filter(s => selectedStudentIds.has(s.id))
+            .map(s => ({
+                id: s.id,
+                name: `${s.studentTitle}${s.studentName}`,
+                class: s.studentClass,
+                nickname: s.studentNickname
+            }));
 
-            const recordToSave: ServiceRecord = {
-                id: Date.now() + Math.random(), // Ensure unique ID
-                date: formData.date || new Date().toLocaleDateString('th-TH'),
-                time: formData.time || '',
-                studentId: student.id,
-                studentName: `${student.studentTitle}${student.studentName}`,
-                studentClass: student.studentClass,
-                location: formData.location || '',
-                purpose: formData.purpose || '',
-                teacherId: selectedTeacherId,
-                teacherName: teacher ? `${teacher.personnelTitle}${teacher.personnelName}` : '',
-                images: formData.images || []
-            };
-            onSaveRecord(recordToSave);
-        });
+        const recordToSave: ServiceRecord = {
+            id: Date.now(), // Single Record ID
+            date: formData.date || new Date().toLocaleDateString('th-TH'),
+            time: formData.time || '',
+            
+            // New Group Field
+            students: selectedStudentsData,
+            
+            location: formData.location || '',
+            purpose: formData.purpose || '',
+            teacherId: selectedTeacherId,
+            teacherName: teacher ? `${teacher.personnelTitle}${teacher.personnelName}` : '',
+            images: formData.images || []
+        };
 
-        alert(`บันทึกข้อมูลเรียบร้อย ${selectedStudentIds.size} รายการ`);
+        onSaveRecord(recordToSave);
+        alert(`บันทึกข้อมูลเรียบร้อย (นักเรียน ${selectedStudentsData.length} คน)`);
         resetForm();
     };
 
@@ -203,13 +227,93 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
         });
         setSelectedStudentIds(new Set());
         setSelectedTeacherId(0);
-        // Don't reset filters to allow continuous entry
     };
 
-    // View Modal
+    // Table Handlers
+    const handleSelectRecord = (id: number) => {
+        const newSet = new Set(selectedRecordIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedRecordIds(newSet);
+    };
+
+    const handleSelectAllRecords = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedRecordIds(new Set(filteredTableRecords.map(r => r.id)));
+        } else {
+            setSelectedRecordIds(new Set());
+        }
+    };
+
+    const handleDeleteSelectedRecords = () => {
+        if (selectedRecordIds.size > 0 && window.confirm(`ยืนยันการลบ ${selectedRecordIds.size} รายการ?`)) {
+            onDeleteRecord(Array.from(selectedRecordIds));
+            setSelectedRecordIds(new Set());
+        }
+    };
+
+    // View/Edit Handlers
     const handleView = (record: ServiceRecord) => {
         setViewRecord(record);
         setIsViewModalOpen(true);
+    };
+
+    const handleEdit = (record: ServiceRecord) => {
+        setEditingRecord({ ...record }); // Clone
+        setIsEditModalOpen(true);
+        // Pre-fill selection
+        if (record.students && record.students.length > 0) {
+            setSelectedStudentIds(new Set(record.students.map(s => s.id)));
+        } else if (record.studentId) {
+            setSelectedStudentIds(new Set([record.studentId]));
+        } else {
+            setSelectedStudentIds(new Set());
+        }
+    };
+
+    const handleSaveEdit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (editingRecord) {
+            // Update students list if edited
+            if (editingRecord.students) { // Only if we are editing a group record or migrating
+                 const updatedStudents = students
+                    .filter(s => selectedStudentIds.has(s.id))
+                    .map(s => ({
+                        id: s.id,
+                        name: `${s.studentTitle}${s.studentName}`,
+                        class: s.studentClass,
+                        nickname: s.studentNickname
+                    }));
+                 editingRecord.students = updatedStudents;
+            }
+
+            onSaveRecord(editingRecord);
+            setIsEditModalOpen(false);
+            setEditingRecord(null);
+            setSelectedStudentIds(new Set()); // Clear selection after edit
+            alert('แก้ไขข้อมูลเรียบร้อย');
+        }
+    };
+
+    const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && editingRecord) {
+            const files = Array.from(e.target.files);
+            const currentImages = editingRecord.images || [];
+            if (currentImages.length + files.length > 10) {
+                alert('สามารถอัปโหลดรูปภาพได้สูงสุด 10 รูป');
+                return;
+            }
+            setEditingRecord({ ...editingRecord, images: [...currentImages, ...files] });
+        }
+    };
+
+    const removeEditImage = (index: number) => {
+        if (editingRecord) {
+            setEditingRecord({
+                ...editingRecord,
+                images: (editingRecord.images || []).filter((_, i) => i !== index)
+            });
+        }
     };
 
     // Settings
@@ -233,11 +337,23 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
     };
 
     const handleExportExcel = () => {
+        // Flatten data: One row per student in group
         const title = `รายงานการใช้ห้อง_${reportLocation || 'รวม'}_${isoToBuddhist(reportDate)}`;
         const header = ['วันที่', 'เวลา', 'ชื่อ-สกุล', 'ชั้นเรียน', 'สถานที่', 'วัตถุประสงค์', 'ครูผู้ดูแล'];
-        const rows = reportRecords.map(r => [
-            r.date, r.time, r.studentName, r.studentClass, r.location, r.purpose, r.teacherName
-        ]);
+        
+        let rows: string[][] = [];
+        
+        reportRecords.forEach(r => {
+            const studentList = r.students && r.students.length > 0 
+                ? r.students 
+                : (r.studentName ? [{ name: r.studentName, class: r.studentClass || '' }] : []);
+            
+            studentList.forEach(s => {
+                rows.push([
+                    r.date, r.time, s.name, s.class, r.location, r.purpose, r.teacherName
+                ]);
+            });
+        });
 
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
         csvContent += `${title}\r\n\r\n`;
@@ -255,10 +371,28 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
         document.body.removeChild(link);
     };
 
+    // Updated Word Export for Groups
     const handleExportWord = () => {
         const title = `รายงานการใช้ห้อง${reportLocation ? ` ${reportLocation}` : ''}`;
         const dateStr = isoToBuddhist(reportDate);
         
+        // Create table rows, possibly with rowspan if many students
+        const tableRows = reportRecords.map(r => {
+            const students = r.students || (r.studentName ? [{name: r.studentName, class: r.studentClass}] : []);
+            const studentNames = students.map(s => `<div>${s.name} (${s.class})</div>`).join('');
+            
+            return `
+                <tr>
+                    <td align="center" valign="top">${r.time}</td>
+                    <td valign="top">${studentNames}</td>
+                    <td align="center" valign="top">${students.length} คน</td>
+                    <td valign="top">${r.location}</td>
+                    <td valign="top">${r.purpose}</td>
+                    <td valign="top">${r.teacherName}</td>
+                </tr>
+            `;
+        }).join('');
+
         const html = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head>
@@ -281,24 +415,15 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                     <thead>
                         <tr>
                             <th width="10%">เวลา</th>
-                            <th width="20%">ชื่อ-สกุล</th>
-                            <th width="10%">ชั้น</th>
+                            <th width="30%">รายชื่อนักเรียน</th>
+                            <th width="10%">จำนวน</th>
                             <th width="15%">สถานที่</th>
-                            <th width="25%">วัตถุประสงค์</th>
-                            <th width="20%">ครูผู้ดูแล</th>
+                            <th width="20%">วัตถุประสงค์</th>
+                            <th width="15%">ครูผู้ดูแล</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${reportRecords.map(r => `
-                            <tr>
-                                <td align="center">${r.time}</td>
-                                <td>${r.studentName}</td>
-                                <td align="center">${r.studentClass}</td>
-                                <td>${r.location}</td>
-                                <td>${r.purpose}</td>
-                                <td>${r.teacherName}</td>
-                            </tr>
-                        `).join('')}
+                        ${tableRows}
                     </tbody>
                 </table>
                 ${reportRecords.length === 0 ? '<p style="text-align:center; margin-top:20px;">- ไม่มีรายการ -</p>' : ''}
@@ -350,9 +475,10 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                 </button>
             </div>
 
-            {/* --- TAB 1: STATS & EXPORT --- */}
+            {/* --- TAB 1: STATS & REPORT & TABLE --- */}
             {activeTab === 'stats' && (
                 <div className="space-y-6 animate-fade-in no-print">
+                    
                     {/* Export Controls */}
                     <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-indigo-500">
                         <h3 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
@@ -393,7 +519,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                             </div>
                         </div>
                         <div className="mt-3 text-sm text-gray-600">
-                            พบข้อมูลจำนวน: <span className="font-bold text-indigo-600">{reportRecords.length}</span> รายการ
+                            พบข้อมูลจำนวน: <span className="font-bold text-indigo-600">{reportRecords.length}</span> รายการ (ช่วงเวลา)
                         </div>
                     </div>
 
@@ -401,7 +527,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
                             <p className="text-gray-500">การเข้าใช้บริการทั้งหมด</p>
-                            <h3 className="text-4xl font-bold text-navy mt-2">{stats.totalUsage} <span className="text-lg text-gray-400 font-normal">ครั้ง</span></h3>
+                            <h3 className="text-4xl font-bold text-navy mt-2">{stats.totalUsage} <span className="text-lg text-gray-400 font-normal">ครั้ง (ช่วงเวลา)</span></h3>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
                             <p className="text-gray-500">จำนวนนักเรียนที่มาใช้</p>
@@ -427,10 +553,106 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                             </ResponsiveContainer>
                         </div>
                     </div>
+
+                    {/* --- FULL DATA TABLE SECTION --- */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                            <h2 className="text-xl font-bold text-navy flex items-center gap-2">
+                                <svg className="w-6 h-6 text-primary-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                รายการการรายงานทั้งหมด
+                            </h2>
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาชื่อ, สถานที่, ครู..." 
+                                    value={tableSearch} 
+                                    onChange={(e) => setTableSearch(e.target.value)} 
+                                    className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-blue w-full md:w-64"
+                                />
+                                {selectedRecordIds.size > 0 && (
+                                    <button 
+                                        onClick={handleDeleteSelectedRecords}
+                                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition-colors whitespace-nowrap"
+                                    >
+                                        ลบ {selectedRecordIds.size} รายการ
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-lg border border-gray-200">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-navy text-white">
+                                    <tr>
+                                        <th className="p-3 w-10 text-center">
+                                            <input 
+                                                type="checkbox" 
+                                                onChange={handleSelectAllRecords} 
+                                                checked={filteredTableRecords.length > 0 && selectedRecordIds.size === filteredTableRecords.length}
+                                                className="w-4 h-4 text-primary-blue rounded"
+                                            />
+                                        </th>
+                                        <th className="p-3 whitespace-nowrap">วันที่ / เวลา</th>
+                                        <th className="p-3 text-center">จำนวนนักเรียน</th>
+                                        <th className="p-3">สถานที่</th>
+                                        <th className="p-3">วัตถุประสงค์</th>
+                                        <th className="p-3">ครูผู้ดูแล</th>
+                                        <th className="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredTableRecords.map(r => {
+                                        const studentCount = r.students ? r.students.length : (r.studentId ? 1 : 0);
+                                        return (
+                                            <tr key={r.id} className={`hover:bg-blue-50 transition-colors ${selectedRecordIds.has(r.id) ? 'bg-blue-50' : ''}`}>
+                                                <td className="p-3 text-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedRecordIds.has(r.id)} 
+                                                        onChange={() => handleSelectRecord(r.id)}
+                                                        className="w-4 h-4 text-primary-blue rounded"
+                                                    />
+                                                </td>
+                                                <td className="p-3 whitespace-nowrap">
+                                                    <div className="font-bold text-navy">{r.date}</div>
+                                                    <div className="text-xs text-gray-500">{r.time} น.</div>
+                                                </td>
+                                                <td className="p-3 text-center font-bold text-primary-blue bg-blue-50 rounded mx-1">
+                                                    {studentCount} คน
+                                                </td>
+                                                <td className="p-3 text-blue-600 font-medium">{r.location}</td>
+                                                <td className="p-3 text-gray-600 truncate max-w-[150px]">{r.purpose}</td>
+                                                <td className="p-3 text-gray-600 text-xs">{r.teacherName}</td>
+                                                <td className="p-3 text-center">
+                                                    <div className="flex justify-center gap-1">
+                                                        <button onClick={() => handleView(r)} className="p-1.5 bg-sky-100 text-sky-700 rounded hover:bg-sky-200 transition-colors" title="ดูข้อมูล">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                        </button>
+                                                        <button onClick={() => handleEdit(r)} className="p-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition-colors" title="แก้ไข">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                        </button>
+                                                        <button onClick={() => { if(window.confirm('ยืนยันการลบ?')) onDeleteRecord([r.id]) }} className="p-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors" title="ลบ">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredTableRecords.length === 0 && (
+                                        <tr><td colSpan={8} className="p-8 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 text-right">
+                            แสดง {filteredTableRecords.length} รายการ
+                        </div>
+                    </div>
                 </div>
             )}
 
-            {/* --- TAB 2: REGISTRATION (Improved) --- */}
+            {/* --- TAB 2: REGISTRATION --- */}
             {activeTab === 'register' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in no-print">
                     
@@ -563,22 +785,25 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                                     <thead className="bg-gray-50 text-gray-500">
                                         <tr>
                                             <th className="p-2">เวลา</th>
-                                            <th className="p-2">ชื่อ</th>
+                                            <th className="p-2 text-center">จำนวน</th>
                                             <th className="p-2">ห้อง</th>
                                             <th className="p-2 text-center">ลบ</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {dailyRecords.slice(0, 10).map(r => (
-                                            <tr key={r.id}>
-                                                <td className="p-2 text-gray-500">{r.time}</td>
-                                                <td className="p-2 font-medium truncate max-w-[100px]">{r.studentName}</td>
-                                                <td className="p-2 text-gray-500">{r.location}</td>
-                                                <td className="p-2 text-center">
-                                                    <button onClick={() => {if(window.confirm('ลบ?')) onDeleteRecord([r.id])}} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {dailyRecords.slice(0, 10).map(r => {
+                                            const count = r.students ? r.students.length : 1;
+                                            return (
+                                                <tr key={r.id}>
+                                                    <td className="p-2 text-gray-500">{r.time}</td>
+                                                    <td className="p-2 text-center font-bold text-blue-600">{count}</td>
+                                                    <td className="p-2 text-gray-500">{r.location}</td>
+                                                    <td className="p-2 text-center">
+                                                        <button onClick={() => {if(window.confirm('ลบ?')) onDeleteRecord([r.id])}} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -612,6 +837,142 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                 </div>
             )}
 
+            {/* --- VIEW MODAL --- */}
+            {isViewModalOpen && viewRecord && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-fade-in-up">
+                        <div className="p-5 border-b bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-t-xl flex justify-between items-center">
+                            <h3 className="text-xl font-bold">รายละเอียดการเข้าใช้บริการ</h3>
+                            <button onClick={() => setIsViewModalOpen(false)} className="hover:bg-white/20 rounded-full p-1"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div><label className="block text-gray-500 text-xs font-bold uppercase">วันที่/เวลา</label><p className="font-semibold">{viewRecord.date} เวลา {viewRecord.time} น.</p></div>
+                                <div><label className="block text-gray-500 text-xs font-bold uppercase">สถานที่</label><p className="font-semibold text-blue-600">{viewRecord.location}</p></div>
+                                <div className="col-span-2"><label className="block text-gray-500 text-xs font-bold uppercase">วัตถุประสงค์</label><p className="bg-gray-50 p-2 rounded text-gray-700">{viewRecord.purpose}</p></div>
+                                <div className="col-span-2"><label className="block text-gray-500 text-xs font-bold uppercase">ครูผู้ดูแล</label><p className="font-semibold">{viewRecord.teacherName}</p></div>
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-500 text-xs font-bold uppercase mb-2">รายชื่อนักเรียน ({viewRecord.students ? viewRecord.students.length : (viewRecord.studentName ? 1 : 0)} คน)</label>
+                                <div className="bg-gray-50 border rounded-lg max-h-48 overflow-y-auto p-2">
+                                    <table className="w-full text-sm text-left">
+                                        <thead>
+                                            <tr className="border-b text-gray-500 text-xs">
+                                                <th className="py-1">ชื่อ-สกุล</th>
+                                                <th className="py-1">ชั้น</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {viewRecord.students ? viewRecord.students.map((s, i) => (
+                                                <tr key={i} className="border-b last:border-0">
+                                                    <td className="py-1 font-medium">{s.name}</td>
+                                                    <td className="py-1 text-gray-500">{s.class}</td>
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td className="py-1 font-medium">{viewRecord.studentName}</td>
+                                                    <td className="py-1 text-gray-500">{viewRecord.studentClass}</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            {viewRecord.images && viewRecord.images.length > 0 && (
+                                <div>
+                                    <label className="block text-gray-500 text-xs font-bold uppercase mb-2">รูปภาพประกอบ</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {viewRecord.images.map((img, idx) => (
+                                            <a key={idx} href={getDirectDriveImageSrc(img)} target="_blank" rel="noreferrer" className="block aspect-square rounded overflow-hidden border hover:opacity-80">
+                                                <img src={getDirectDriveImageSrc(img)} className="w-full h-full object-cover" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t flex justify-end">
+                            <button onClick={() => setIsViewModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-bold">ปิด</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- EDIT MODAL --- */}
+            {isEditModalOpen && editingRecord && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in-up">
+                        <div className="p-5 border-b bg-amber-500 text-white rounded-t-xl flex justify-between items-center">
+                            <h3 className="text-xl font-bold">แก้ไขข้อมูล</h3>
+                            <button onClick={() => setIsEditModalOpen(false)} className="hover:bg-white/20 rounded-full p-1"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        </div>
+                        <form onSubmit={handleSaveEdit} className="p-6 overflow-y-auto space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">วันที่</label>
+                                    <input type="text" value={editingRecord.date} onChange={e => setEditingRecord({...editingRecord, date: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">เวลา</label>
+                                    <input type="time" value={editingRecord.time} onChange={e => setEditingRecord({...editingRecord, time: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">สถานที่</label>
+                                <select value={editingRecord.location} onChange={e => setEditingRecord({...editingRecord, location: e.target.value})} className="w-full border rounded px-3 py-2 text-sm">
+                                    {serviceLocations.map(l => <option key={l} value={l}>{l}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">วัตถุประสงค์</label>
+                                <textarea rows={2} value={editingRecord.purpose} onChange={e => setEditingRecord({...editingRecord, purpose: e.target.value})} className="w-full border rounded px-3 py-2 text-sm"></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">ครูผู้ดูแล</label>
+                                <select 
+                                    value={personnel.find(p => `${p.personnelTitle}${p.personnelName}` === editingRecord.teacherName)?.id || 0} 
+                                    onChange={e => {
+                                        const p = personnel.find(per => per.id === Number(e.target.value));
+                                        if(p) setEditingRecord({...editingRecord, teacherId: p.id, teacherName: `${p.personnelTitle}${p.personnelName}`});
+                                    }} 
+                                    className="w-full border rounded px-3 py-2 text-sm"
+                                >
+                                    <option value={0}>{editingRecord.teacherName}</option>
+                                    {personnel.map(p => <option key={p.id} value={p.id}>{p.personnelTitle}{p.personnelName}</option>)}
+                                </select>
+                            </div>
+                            
+                            {/* Student Editing Note */}
+                            <div className="bg-yellow-50 border border-yellow-200 p-2 rounded text-xs text-yellow-800">
+                                <b>หมายเหตุ:</b> การแก้ไขรายชื่อนักเรียน กรุณาเลือกใหม่จากตารางด้านซ้ายในหน้าหลักและทำการบันทึกใหม่ หรือลบรายการนี้แล้วสร้างใหม่หากต้องการเปลี่ยนกลุ่มนักเรียน
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">รูปภาพ</label>
+                                <input type="file" multiple accept="image/*" onChange={handleEditImageChange} className="w-full text-xs" />
+                                {editingRecord.images && editingRecord.images.length > 0 && (
+                                    <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+                                        {editingRecord.images.map((img, idx) => (
+                                            <div key={idx} className="relative w-12 h-12 flex-shrink-0">
+                                                <img src={img instanceof File ? URL.createObjectURL(img) : getDirectDriveImageSrc(img)} className="w-full h-full object-cover rounded border" />
+                                                <button type="button" onClick={() => removeEditImage(idx)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center">&times;</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-4 border-t flex justify-end gap-3">
+                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold">ยกเลิก</button>
+                                <button type="submit" disabled={isSaving} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold shadow hover:bg-amber-600">บันทึก</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* --- PRINT LAYOUT --- */}
             <div id="print-service-report" className="hidden print:block font-sarabun">
                 <div className="text-center mb-6">
@@ -624,24 +985,33 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                     <thead>
                         <tr className="bg-gray-100">
                             <th className="border border-black p-2 text-center" style={{ width: "10%" }}>เวลา</th>
-                            <th className="border border-black p-2" style={{ width: "20%" }}>ชื่อ-สกุล</th>
-                            <th className="border border-black p-2 text-center" style={{ width: "10%" }}>ชั้น</th>
+                            <th className="border border-black p-2" style={{ width: "20%" }}>ชื่อ-สกุล / จำนวน</th>
                             <th className="border border-black p-2" style={{ width: "15%" }}>สถานที่</th>
                             <th className="border border-black p-2" style={{ width: "25%" }}>วัตถุประสงค์</th>
                             <th className="border border-black p-2" style={{ width: "20%" }}>ครูผู้ดูแล</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {reportRecords.map((r, idx) => (
-                            <tr key={idx}>
-                                <td className="border border-black p-2 text-center">{r.time}</td>
-                                <td className="border border-black p-2">{r.studentName}</td>
-                                <td className="border border-black p-2 text-center">{r.studentClass}</td>
-                                <td className="border border-black p-2">{r.location}</td>
-                                <td className="border border-black p-2">{r.purpose}</td>
-                                <td className="border border-black p-2">{r.teacherName}</td>
-                            </tr>
-                        ))}
+                        {reportRecords.map((r, idx) => {
+                            const studentCount = r.students ? r.students.length : (r.studentName ? 1 : 0);
+                            const displayName = r.students ? `นักเรียน ${studentCount} คน` : r.studentName;
+                            return (
+                                <tr key={idx}>
+                                    <td className="border border-black p-2 text-center">{r.time}</td>
+                                    <td className="border border-black p-2">
+                                        {displayName}
+                                        {r.students && (
+                                            <div className="text-[10px] text-gray-500 mt-1">
+                                                (คลิกดูรายละเอียดในระบบ)
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="border border-black p-2">{r.location}</td>
+                                    <td className="border border-black p-2">{r.purpose}</td>
+                                    <td className="border border-black p-2">{r.teacherName}</td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
                 {reportRecords.length === 0 && <p className="text-center mt-4">- ไม่มีรายการ -</p>}
