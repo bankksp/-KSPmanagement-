@@ -173,9 +173,12 @@ const App: React.FC = () => {
         return result;
     };
 
-     const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        setFetchError(null);
+     const fetchData = useCallback(async (isBackground: boolean = false) => {
+        if (!isBackground) {
+            setIsLoading(true);
+            setFetchError(null);
+        }
+        
         try {
             const response = await postToGoogleScript({ action: 'getAllData' });
             const data = response.data || {};
@@ -257,15 +260,30 @@ const App: React.FC = () => {
             }
 
         } catch (error) {
-            console.error("Failed to fetch initial data from Google Script:", error);
-            setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
+            console.error("Failed to fetch data from Google Script:", error);
+            // Only show full error on initial load, otherwise keep silent or log
+            if (!isBackground) {
+                setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
+            }
         } finally {
-            setIsLoading(false);
+            if (!isBackground) {
+                setIsLoading(false);
+            }
         }
     }, []);
 
     useEffect(() => {
-        fetchData();
+        // Initial Fetch
+        fetchData(false);
+
+        // Auto-polling every 10 seconds (Silent Update)
+        // This ensures near real-time data without manual refresh
+        const intervalId = setInterval(() => {
+            fetchData(true);
+        }, 10000); // 10000ms = 10 seconds
+
+        // Cleanup interval on unmount
+        return () => clearInterval(intervalId);
     }, [fetchData]);
 
 
