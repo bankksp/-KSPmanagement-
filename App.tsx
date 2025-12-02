@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard'; // Now acts as "Stats" page
@@ -27,11 +28,12 @@ import MaintenancePage from './components/MaintenancePage';
 import PersonnelReportPage from './components/PersonnelReportPage';
 import PersonnelSARPage from './components/PersonnelSARPage';
 import GeneralDocsPage from './components/GeneralDocsPage'; 
-import StudentHomeVisitPage from './components/StudentHomeVisitPage'; // Import new page
-import ServiceRegistrationPage from './components/ServiceRegistrationPage'; // Import new page
-import ConstructionPage from './components/ConstructionPage'; // Import Construction Page
+import StudentHomeVisitPage from './components/StudentHomeVisitPage'; 
+import ServiceRegistrationPage from './components/ServiceRegistrationPage'; 
+import ConstructionPage from './components/ConstructionPage';
+import BudgetPlanningPage from './components/BudgetPlanningPage'; // Import new page
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal } from './types';
 import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
 import { prepareDataForApi } from './utils';
 
@@ -97,6 +99,9 @@ const App: React.FC = () => {
     // Construction Records State (New)
     const [constructionRecords, setConstructionRecords] = useState<ConstructionRecord[]>([]);
 
+    // Project Proposals (New)
+    const [projectProposals, setProjectProposals] = useState<ProjectProposal[]>([]);
+
     // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
@@ -146,34 +151,78 @@ const App: React.FC = () => {
     }, [personnel, currentUser]);
 
 
-     // Generic function to post data to Google Script
-    const postToGoogleScript = async (payload: object) => {
+     // Generic function to post data to Google Script with Retry Logic and Timeout
+    const postToGoogleScript = async (payload: object, retries = 3) => {
         const scriptUrl = GOOGLE_SCRIPT_URL;
         const urlWithCacheBuster = `${scriptUrl}?t=${new Date().getTime()}`;
+        let lastError: any;
 
-         const response = await fetch(urlWithCacheBuster, {
-            method: 'POST',
-            redirect: 'follow',
-            headers: {
-                'Content-Type': 'text/plain;charset=utf-8',
-            },
-            body: JSON.stringify(payload)
-        });
-        const result = await response.json();
-        if (result.status === 'error') {
-            console.error("Google Script Error:", result.message, result.stack);
-            if (result.message && (result.message.includes("Invalid action") || result.message.includes("Unknown action"))) {
-                throw new Error(`Google Script ยังไม่อัปเดตฟังก์ชัน "${(payload as any).action}": กรุณานำโค้ดใหม่ไปวางในไฟล์ รหัส.gs แล้ว Deploy ใหม่อีกครั้ง`);
+        for (let i = 0; i < retries; i++) {
+            try {
+                // Create a controller to abort the fetch if it takes too long (e.g., 30 seconds)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                const response = await fetch(urlWithCacheBuster, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8',
+                    },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const text = await response.text();
+                if (!text) throw new Error("Server returned empty response");
+
+                let result;
+                try {
+                    result = JSON.parse(text);
+                } catch (e) {
+                    // If parsing fails, try to extract error from HTML if possible
+                    const msg = text.includes('<title>') ? 
+                        text.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown HTML Error' : 
+                        text.substring(0, 100);
+                    throw new Error(`Invalid JSON response: ${msg}`);
+                }
+
+                if (result.status === 'error') {
+                    console.error("Google Script Error:", result.message, result.stack);
+                    if (result.message && (result.message.includes("Invalid action") || result.message.includes("Unknown action"))) {
+                        throw new Error(`Google Script ยังไม่อัปเดตฟังก์ชัน "${(payload as any).action}": กรุณานำโค้ดใหม่ไปวางในไฟล์ รหัส.gs แล้ว Deploy ใหม่อีกครั้ง`);
+                    }
+                    throw new Error(result.message);
+                }
+                
+                return result;
+
+            } catch (error: any) {
+                lastError = error;
+                console.warn(`Attempt ${i + 1} failed: ${error.message}`);
+                
+                // If it's a specific logic error from script, don't retry
+                if (error.message && error.message.includes("Google Script")) {
+                    throw error;
+                }
+
+                // If retries left, wait before retrying (Exponential Backoff)
+                if (i < retries - 1) {
+                    await new Promise(res => setTimeout(res, 2000 * (i + 1))); 
+                }
             }
-            throw new Error(result.message);
         }
-        if (!response.ok) {
-            throw new Error(`Failed to post data. Status: ${response.status}.`);
-        }
-        return result;
+        throw lastError;
     };
 
      const fetchData = useCallback(async (isBackground: boolean = false) => {
+        // Only show loading spinner on initial load or manual refresh
         if (!isBackground) {
             setIsLoading(true);
             setFetchError(null);
@@ -219,7 +268,8 @@ const App: React.FC = () => {
             setSarReports(data.sarReports || []);
             setDocuments(data.documents || []); 
             setServiceRecords(data.serviceRecords || []);
-            setConstructionRecords(data.constructionRecords || []); // Fetch construction records
+            setConstructionRecords(data.constructionRecords || []); 
+            setProjectProposals(data.projectProposals || []); // Fetch project proposals
             
             // Normalize Home Visits (robustly handle single string vs array)
             const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
@@ -261,7 +311,7 @@ const App: React.FC = () => {
 
         } catch (error) {
             console.error("Failed to fetch data from Google Script:", error);
-            // Only show full error on initial load, otherwise keep silent or log
+            // Only show full error on initial load or if it's not a background sync
             if (!isBackground) {
                 setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
             }
@@ -276,18 +326,17 @@ const App: React.FC = () => {
         // Initial Fetch
         fetchData(false);
 
-        // Auto-polling every 10 seconds (Silent Update)
-        // This ensures near real-time data without manual refresh
+        // Auto-polling every 30 seconds (Silent Update)
         const intervalId = setInterval(() => {
             fetchData(true);
-        }, 10000); // 10000ms = 10 seconds
+        }, 30000); 
 
         // Cleanup interval on unmount
         return () => clearInterval(intervalId);
     }, [fetchData]);
 
 
-    const handleSaveAdminSettings = async (newSettings: Settings) => {
+    const handleSaveAdminSettings = async (newSettings: Settings, redirect: boolean = true) => {
         setIsSaving(true);
         try {
             const apiPayload = await prepareDataForApi(newSettings);
@@ -295,8 +344,11 @@ const App: React.FC = () => {
             const savedSettings = response.data;
             
             setSettings(savedSettings);
-            setCurrentPage('stats');
-            alert('บันทึกการตั้งค่าเรียบร้อยแล้ว');
+            
+            if (redirect) {
+                setCurrentPage('stats');
+                alert('บันทึกการตั้งค่าเรียบร้อยแล้ว');
+            }
         } catch (error) {
             console.error("Could not save settings to Google Script", error);
             alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า');
@@ -348,8 +400,6 @@ const App: React.FC = () => {
     const handleRegister = async (newPersonnel: Personnel) => {
         await handleSavePersonnel(newPersonnel);
         setIsRegisterModalOpen(false);
-        // Alert handled in Modal or here? Modal handles submit but we need to give feedback
-        // The modal component will now handle showing the "Pending" message before closing or after this returns
     };
 
 
@@ -518,7 +568,7 @@ const App: React.FC = () => {
                 if (normalizeId(p.idCard) === '1469900181659') {
                     return { ...p, role: 'admin' as const, status: 'approved' as const };
                 }
-                if (!p.status) p.status = 'approved'; // Legacy compatibility
+                if (!p.status) p.status = 'approved'; 
                 return p;
             };
 
@@ -563,8 +613,6 @@ const App: React.FC = () => {
         type: 'student' | 'personnel', 
         newData: (StudentAttendance | PersonnelAttendance)[]
     ) => {
-        
-        // 1. Diffing Strategy
         const currentRecordsMap = new Map<string, StudentAttendance | PersonnelAttendance>(
             (type === 'student' ? studentAttendance : personnelAttendance)
             .map(r => [r.id, r] as [string, StudentAttendance | PersonnelAttendance])
@@ -608,7 +656,7 @@ const App: React.FC = () => {
         }
     };
 
-    // Academic Plan Handlers (unchanged) ...
+    // Academic Plan Handlers
     const handleSaveAcademicPlan = async (plan: AcademicPlan) => {
         setIsSaving(true);
         try {
@@ -644,6 +692,43 @@ const App: React.FC = () => {
             alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    // Project Proposal Handlers (New)
+    const handleSaveProjectProposal = async (proposal: ProjectProposal) => {
+        setIsSaving(true);
+        try {
+            const apiPayload = await prepareDataForApi(proposal);
+            const response = await postToGoogleScript({ action: 'saveProjectProposal', data: apiPayload });
+            const savedProposal = response.data;
+            
+            setProjectProposals(prev => {
+                const index = prev.findIndex(p => p.id === savedProposal.id);
+                if (index >= 0) {
+                    const newList = [...prev];
+                    newList[index] = savedProposal;
+                    return newList;
+                }
+                return [...prev, savedProposal];
+            });
+            alert('บันทึกโครงการเรียบร้อย');
+        } catch (e) {
+            console.error(e);
+            alert('เกิดข้อผิดพลาดในการบันทึกโครงการ');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteProjectProposal = async (ids: number[]) => {
+        try {
+            await postToGoogleScript({ action: 'deleteProjectProposals', ids });
+            setProjectProposals(prev => prev.filter(p => !ids.includes(p.id)));
+            alert('ลบโครงการเรียบร้อย');
+        } catch (e) {
+            console.error(e);
+            alert('เกิดข้อผิดพลาดในการลบ');
         }
     };
 
@@ -1124,7 +1209,7 @@ const App: React.FC = () => {
                         isSaving={isSaving}
                     />
                 ) : null;
-            case 'academic_service': // New Service Registration Page
+            case 'academic_service': 
                 return currentUser ? (
                     <ServiceRegistrationPage 
                         currentUser={currentUser}
@@ -1213,6 +1298,20 @@ const App: React.FC = () => {
                         onUpdateRequestStatus={handleUpdateSupplyRequestStatus}
                     />
                 ) : null;
+            case 'finance_projects': // New Budget Planning Page
+                return currentUser ? (
+                    <BudgetPlanningPage 
+                        currentUser={currentUser}
+                        proposals={projectProposals}
+                        personnel={personnel}
+                        settings={settings}
+                        onSave={handleSaveProjectProposal}
+                        onDelete={handleDeleteProjectProposal}
+                        onUpdateSettings={(s) => handleSaveAdminSettings(s, false)}
+                        onUpdatePersonnel={handleSavePersonnel} // For updating project manager role
+                        isSaving={isSaving}
+                    />
+                ) : null;
             case 'durable_goods': 
                 return currentUser ? (
                     <DurableGoodsPage 
@@ -1243,7 +1342,7 @@ const App: React.FC = () => {
                         isSaving={isSaving}
                     />
                 ) : null;
-            case 'general_docs': // New Page
+            case 'general_docs': 
                 return currentUser ? (
                     <GeneralDocsPage 
                         currentUser={currentUser}
@@ -1254,7 +1353,7 @@ const App: React.FC = () => {
                         isSaving={isSaving}
                     />
                 ) : null;
-            case 'general_construction': // New Construction Page
+            case 'general_construction': 
                 return currentUser ? (
                     <ConstructionPage 
                         currentUser={currentUser}

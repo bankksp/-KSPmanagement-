@@ -70,6 +70,7 @@ export interface Personnel {
   password?: string;
   role?: 'user' | 'pro' | 'admin';
   status?: 'pending' | 'approved' | 'blocked'; // New field for approval system
+  isProjectManager?: boolean; // Deprecated in favor of Settings.projectManagerIds, kept for backward compat if needed
 }
 
 
@@ -90,6 +91,8 @@ export interface Settings {
     googleScriptUrl: string;
     adminPassword?: string;
     serviceLocations?: string[]; // New: Service locations
+    projectGroups?: string[]; // New: Strategic Groups for projects
+    projectManagerIds?: number[]; // New: List of personnel IDs who are Project Managers
 }
 
 // --- New Attendance Types ---
@@ -340,6 +343,30 @@ export interface ConstructionRecord {
   supervisors: number[]; // IDs of personnel who signed/supervised
 }
 
+// --- Project Planning Types (New) ---
+
+export type ProjectStatus = 'pending_approval' | 'approved' | 'rejected';
+export type ProjectProcessStatus = 'not_started' | 'in_progress' | 'completed';
+
+export interface ProjectProposal {
+  id: number;
+  name: string;
+  fiscalYear: string;
+  group: string; // Strategic Group e.g. Academic, Personnel
+  budget: number;
+  responsiblePersonId: number;
+  responsiblePersonName: string;
+  status: ProjectStatus; // Approval Status
+  processStatus: ProjectProcessStatus; // Execution Status
+  description: string;
+  files?: (File | string)[]; // PDF, Doc, Excel
+  images?: (File | string)[]; // Activity Photos
+  createdDate: string;
+  approverName?: string;
+  approvedDate?: string;
+  rejectReason?: string;
+}
+
 // --- Home Visit Types ---
 
 export interface HomeVisit {
@@ -372,6 +399,7 @@ export type Page =
     | 'academic_plans'
     | 'academic_service' // ลงทะเบียนเข้าใช้บริการ
     | 'finance_supplies'
+    | 'finance_projects' // ระบบแผนงาน (New)
     | 'durable_goods'
     | 'personnel_report'
     | 'personnel_sar'
