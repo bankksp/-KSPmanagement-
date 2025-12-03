@@ -202,7 +202,7 @@ const BudgetPlanningPage: React.FC<BudgetPlanningPageProps> = ({
 
     // --- Render View Modal ---
     const renderViewModal = () => {
-        if (!isViewModalOpen || !viewProject) return null; // FIX: Ensure viewProject is present
+        if (!isViewModalOpen || !viewProject) return null; 
         const images = safeParseArray(viewProject.images);
         const files = safeParseArray(viewProject.files);
 
