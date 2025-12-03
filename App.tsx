@@ -1,7 +1,5 @@
 
-
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard'; // Now acts as "Stats" page
 import Footer from './components/Footer';
@@ -159,9 +157,9 @@ const App: React.FC = () => {
 
         for (let i = 0; i < retries; i++) {
             try {
-                // Create a controller to abort the fetch if it takes too long (e.g., 30 seconds)
+                // Create a controller to abort the fetch if it takes too long (e.g., 180 seconds - 3 minutes)
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                const timeoutId = setTimeout(() => controller.abort(), 180000);
 
                 const response = await fetch(urlWithCacheBuster, {
                     method: 'POST',
@@ -204,6 +202,16 @@ const App: React.FC = () => {
                 return result;
 
             } catch (error: any) {
+                // Better timeout detection
+                const isTimeout = error.name === 'AbortError' || 
+                                  (error.message && (error.message.includes('aborted') || error.message.includes('signal is aborted')));
+
+                if (isTimeout) {
+                    const timeoutError = new Error("การเชื่อมต่อหมดเวลา (Timeout) กรุณาลองใหม่อีกครั้ง หรือตรวจสอบสัญญาณอินเทอร์เน็ต");
+                    if (i === retries - 1) throw timeoutError;
+                    error = timeoutError;
+                }
+                
                 lastError = error;
                 console.warn(`Attempt ${i + 1} failed: ${error.message}`);
                 
@@ -322,18 +330,43 @@ const App: React.FC = () => {
         }
     }, []);
 
+    // Check if any critical modal is open to pause polling
+    // This prevents the form from resetting while the user is typing due to a background re-fetch
+    const isUIBusy = useMemo(() => {
+        return isReportModalOpen || 
+               isStudentModalOpen || 
+               isPersonnelModalOpen || 
+               isLoginModalOpen || 
+               isRegisterModalOpen ||
+               !!editingReport ||
+               !!editingStudent ||
+               !!editingPersonnel;
+    }, [
+        isReportModalOpen, isStudentModalOpen, isPersonnelModalOpen, 
+        isLoginModalOpen, isRegisterModalOpen, 
+        editingReport, editingStudent, editingPersonnel
+    ]);
+
     useEffect(() => {
         // Initial Fetch
         fetchData(false);
-
-        // Auto-polling every 30 seconds (Silent Update)
-        const intervalId = setInterval(() => {
-            fetchData(true);
-        }, 30000); 
-
-        // Cleanup interval on unmount
-        return () => clearInterval(intervalId);
     }, [fetchData]);
+
+    useEffect(() => {
+        // If UI is busy (Modals Open), STOP Auto-polling
+        if (isUIBusy) return;
+
+        // Auto-polling every 45 seconds (Increased from 10/30s to prevent UI jank and race conditions)
+        const intervalId = setInterval(() => {
+            // Check visibility to save resources
+            if (!document.hidden) {
+                fetchData(true);
+            }
+        }, 45000); 
+
+        // Cleanup interval on unmount or when UI becomes busy
+        return () => clearInterval(intervalId);
+    }, [fetchData, isUIBusy]);
 
 
     const handleSaveAdminSettings = async (newSettings: Settings, redirect: boolean = true) => {
