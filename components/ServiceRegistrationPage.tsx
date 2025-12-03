@@ -43,6 +43,9 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
     // Settings State
     const [newLocation, setNewLocation] = useState('');
+    
+    // Export State
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
     // --- Stats Calculations ---
     const stats = useMemo(() => {
@@ -214,28 +217,75 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
         }
     };
 
-    // Export Handler
-    const handleExportStats = () => {
-        const header = ['วันที่', 'เวลา', 'สถานที่', 'วัตถุประสงค์', 'ครูผู้ดูแล', 'จำนวนนักเรียน'];
-        const rows = stats.filteredByDate.map(r => [
-            `"${r.date}"`,
-            `"${r.time}"`,
-            `"${r.location}"`,
-            `"${r.purpose.replace(/"/g, '""')}"`,
-            `"${r.teacherName}"`,
-            r.students ? r.students.length : (r.studentId ? 1 : 0)
-        ]);
+    // --- EXPORT HANDLERS ---
 
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        csvContent += header.join(",") + "\r\n";
-        rows.forEach(row => {
-            csvContent += row.join(",") + "\r\n";
-        });
+    const handlePrint = () => {
+        setIsExportMenuOpen(false);
+        window.print();
+    };
 
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `service_stats_${statsMonth}_${statsYear}.csv`);
+    const getExportContent = () => {
+        const content = document.getElementById('print-service-stats');
+        return content ? content.innerHTML : '';
+    };
+
+    const handleExportWord = () => {
+        setIsExportMenuOpen(false);
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>รายงานสถิติการใช้บริการ</title>
+                <style>
+                    body { font-family: 'TH Sarabun PSK', sans-serif; font-size: 16pt; }
+                    table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+                    td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+                    th { background-color: #f0f0f0; text-align: center; font-weight: bold; }
+                    .header { text-align: center; font-weight: bold; font-size: 20pt; margin-bottom: 20px; }
+                    .sub-header { font-weight: bold; font-size: 18pt; margin-top: 15px; margin-bottom: 5px; }
+                    .text-center { text-align: center; }
+                    .text-right { text-align: right; }
+                </style>
+            </head>
+            <body>
+                ${getExportContent()}
+            </body>
+            </html>
+        `;
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `service_stats_${statsMonth}_${statsYear}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleExportExcel = () => {
+        setIsExportMenuOpen(false);
+        const html = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+                <style>
+                    body { font-family: 'TH Sarabun PSK', sans-serif; font-size: 16pt; }
+                    table { border-collapse: collapse; width: 100%; }
+                    td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+                    th { background-color: #f0f0f0; font-weight: bold; text-align: center; }
+                    .text-center { text-align: center; }
+                </style>
+            </head>
+            <body>
+                ${getExportContent()}
+            </body>
+            </html>
+        `;
+        const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `service_stats_${statsMonth}_${statsYear}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -243,8 +293,139 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
     return (
         <div className="space-y-6">
+            
+            {/* PRINT LAYOUT (Hidden by default) */}
+            <div id="print-service-stats" className="hidden print:block print:visible font-sarabun text-black bg-white p-8">
+                <div className="text-center mb-6">
+                    <h1 className="text-2xl font-bold">รายงานสถิติการเข้าใช้บริการแหล่งเรียนรู้</h1>
+                    <h2 className="text-xl">ประจำเดือน {new Date(0, statsMonth - 1).toLocaleString('th-TH', { month: 'long' })} ปีการศึกษา {statsYear}</h2>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">1. สรุปภาพรวม</h3>
+                    <table className="w-full border border-black">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="border border-black p-2 text-center">รายการ</th>
+                                <th className="border border-black p-2 text-center">จำนวน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="border border-black p-2">จำนวนครั้งที่เข้าใช้บริการ</td>
+                                <td className="border border-black p-2 text-center">{stats.totalRequests} ครั้ง</td>
+                            </tr>
+                            <tr>
+                                <td className="border border-black p-2">จำนวนนักเรียนที่เข้าใช้บริการรวม</td>
+                                <td className="border border-black p-2 text-center">{stats.totalStudentsServed} คน</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">2. สถิติแยกตามสถานที่</h3>
+                    <table className="w-full border border-black">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="border border-black p-2 text-center">ลำดับ</th>
+                                <th className="border border-black p-2 text-left">สถานที่</th>
+                                <th className="border border-black p-2 text-center">จำนวนครั้ง</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {stats.locationData.map((loc, idx) => (
+                                <tr key={idx}>
+                                    <td className="border border-black p-2 text-center">{idx + 1}</td>
+                                    <td className="border border-black p-2">{loc.name}</td>
+                                    <td className="border border-black p-2 text-center">{loc.value}</td>
+                                </tr>
+                            ))}
+                            {stats.locationData.length === 0 && <tr><td colSpan={3} className="border border-black p-2 text-center">ไม่มีข้อมูล</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">3. สถิติรายวัน</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                        <table className="w-full border border-black">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border border-black p-1 text-center">วันที่</th>
+                                    <th className="border border-black p-1 text-center">จำนวนครั้ง</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.dailyData.slice(0, 16).map((d, i) => (
+                                    <tr key={i}>
+                                        <td className="border border-black p-1 text-center">{d.day}</td>
+                                        <td className="border border-black p-1 text-center">{d.count > 0 ? d.count : '-'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <table className="w-full border border-black">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border border-black p-1 text-center">วันที่</th>
+                                    <th className="border border-black p-1 text-center">จำนวนครั้ง</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.dailyData.slice(16).map((d, i) => (
+                                    <tr key={i}>
+                                        <td className="border border-black p-1 text-center">{d.day}</td>
+                                        <td className="border border-black p-1 text-center">{d.count > 0 ? d.count : '-'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="page-break-before">
+                    <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">4. รายละเอียดการเข้าใช้บริการ</h3>
+                    <table className="w-full border border-black text-sm">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="border border-black p-2 text-center" style={{width: '12%'}}>ว/ด/ป เวลา</th>
+                                <th className="border border-black p-2 text-left" style={{width: '15%'}}>สถานที่</th>
+                                <th className="border border-black p-2 text-left" style={{width: '20%'}}>วัตถุประสงค์</th>
+                                <th className="border border-black p-2 text-left" style={{width: '15%'}}>ครูผู้ดูแล</th>
+                                <th className="border border-black p-2 text-center" style={{width: '8%'}}>จำนวน</th>
+                                <th className="border border-black p-2 text-left">รายชื่อนักเรียน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {stats.filteredByDate.map((r, idx) => (
+                                <tr key={idx}>
+                                    <td className="border border-black p-2 text-center">
+                                        {r.date}<br/>{r.time} น.
+                                    </td>
+                                    <td className="border border-black p-2">{r.location}</td>
+                                    <td className="border border-black p-2">{r.purpose}</td>
+                                    <td className="border border-black p-2">{r.teacherName}</td>
+                                    <td className="border border-black p-2 text-center">
+                                        {r.students ? r.students.length : (r.studentId ? 1 : 0)}
+                                    </td>
+                                    <td className="border border-black p-2">
+                                        {r.students && r.students.length > 0 ? (
+                                            r.students.map(s => s.name).join(', ')
+                                        ) : (
+                                            r.studentName || '-'
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                            {stats.filteredByDate.length === 0 && <tr><td colSpan={6} className="border border-black p-4 text-center">ไม่มีข้อมูล</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             {/* Tabs */}
-            <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2">
+            <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 no-print">
                 <button onClick={() => setActiveTab('stats')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'stats' ? 'bg-purple-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>สถิติการใช้งาน</button>
                 <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'list' ? 'bg-primary-blue text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>รายการทั้งหมด</button>
                 <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'settings' ? 'bg-gray-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>ตั้งค่าสถานที่</button>
@@ -252,7 +433,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
             {/* STATS TAB (New Default) */}
             {activeTab === 'stats' && (
-                <div className="space-y-6 animate-fade-in">
+                <div className="space-y-6 animate-fade-in no-print">
                     
                     {/* Control Bar */}
                     <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm gap-4">
@@ -260,7 +441,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                             <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                             สถิติประจำเดือน
                         </h2>
-                        <div className="flex gap-2 items-center">
+                        <div className="flex gap-2 items-center relative">
                             <select 
                                 value={statsMonth} 
                                 onChange={(e) => setStatsMonth(Number(e.target.value))}
@@ -279,13 +460,32 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                                     <option key={y} value={y}>ปี {y}</option>
                                 ))}
                             </select>
-                            <button 
-                                onClick={handleExportStats}
-                                className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 shadow flex items-center gap-1"
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                เช็คพอร์ต (Export)
-                            </button>
+                            
+                            <div className="relative">
+                                <button 
+                                    onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 shadow flex items-center gap-1 transition-all"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    ส่งออก (Export)
+                                </button>
+                                {isExportMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 overflow-hidden animate-fade-in-up">
+                                        <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-red-600 flex items-center gap-3 transition-colors border-b border-gray-50 text-sm font-medium">
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                            พิมพ์ / PDF
+                                        </button>
+                                        <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50 text-sm font-medium">
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            Word (.doc)
+                                        </button>
+                                        <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors text-sm font-medium">
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            Excel (.xls)
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -369,7 +569,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
             {/* LIST TAB */}
             {activeTab === 'list' && (
-                <div className="bg-white p-6 rounded-xl shadow animate-fade-in">
+                <div className="bg-white p-6 rounded-xl shadow animate-fade-in no-print">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <h2 className="text-xl font-bold text-navy flex items-center gap-2">
                             <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
@@ -442,7 +642,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
             {/* SETTINGS TAB */}
             {activeTab === 'settings' && (
-                <div className="bg-white p-6 rounded-xl shadow max-w-2xl mx-auto animate-fade-in">
+                <div className="bg-white p-6 rounded-xl shadow max-w-2xl mx-auto animate-fade-in no-print">
                     <h2 className="text-xl font-bold text-navy mb-4">ตั้งค่าสถานที่ให้บริการ</h2>
                     <div className="flex gap-2 mb-4">
                         <input 
