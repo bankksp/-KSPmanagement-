@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Settings } from '../types';
 import { getDirectDriveImageSrc } from '../utils';
@@ -124,7 +123,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                                     className="h-20 w-20 object-contain bg-gray-100 p-2 rounded-md border"
                                     onError={(e) => (e.currentTarget.src = 'https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png')}
                                 />
-                                <input type="file" onChange={handleLogoUpload} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100"/>
+                                <div className="flex-grow">
+                                    <input 
+                                        type="text" 
+                                        name="schoolLogo" 
+                                        value={localSettings.schoolLogo} 
+                                        onChange={handleSettingsChange} 
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 text-sm"
+                                        placeholder="วาง URL รูปภาพที่นี่ (หรืออัปโหลดด้านล่าง)"
+                                    />
+                                    <input type="file" onChange={handleLogoUpload} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100"/>
+                                </div>
                             </div>
                         </div>
                     </div>

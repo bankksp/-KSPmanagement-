@@ -1,5 +1,4 @@
-
-
+import { GOOGLE_SCRIPT_URL } from './constants';
 
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -209,4 +208,101 @@ export const prepareDataForApi = async (data: any) => {
         }
     }
     return apiData;
+};
+
+// Generic function to post data to Google Script with Retry Logic and Timeout
+export const postToGoogleScript = async (payload: any, retries = 3) => {
+    const scriptUrl = GOOGLE_SCRIPT_URL;
+    const urlWithCacheBuster = `${scriptUrl}?t=${new Date().getTime()}`;
+    let lastError: any;
+
+    // Inject Auth Token if available in localStorage
+    try {
+        const storedUser = localStorage.getItem('ksp_user');
+        if (storedUser) {
+            const user = JSON.parse(storedUser);
+            // Inject auth info into payload
+            // This allows the backend to verify the request
+            payload.auth = {
+                id: user.id,
+                token: user.token || user.password, // Fallback to password if no token
+                idCard: user.idCard
+            };
+        }
+    } catch(e) {
+        // Ignore parsing errors, just don't attach auth
+    }
+
+    for (let i = 0; i < retries; i++) {
+        try {
+            // Create a controller to abort the fetch if it takes too long (e.g., 180 seconds - 3 minutes)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 180000);
+
+            const response = await fetch(urlWithCacheBuster, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8',
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const text = await response.text();
+            if (!text) throw new Error("Server returned empty response");
+
+            let result;
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                // If parsing fails, try to extract error from HTML if possible
+                const msg = text.includes('<title>') ? 
+                    text.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown HTML Error' : 
+                    text.substring(0, 100);
+                throw new Error(`Invalid JSON response: ${msg}`);
+            }
+
+            if (result.status === 'error') {
+                console.error("Google Script Error:", result.message, result.stack);
+                if (result.message && (result.message.includes("Invalid action") || result.message.includes("Unknown action"))) {
+                    throw new Error(`Google Script ยังไม่อัปเดตฟังก์ชัน "${(payload as any).action}": กรุณานำโค้ดใหม่ไปวางในไฟล์ รหัส.gs แล้ว Deploy ใหม่อีกครั้ง`);
+                }
+                throw new Error(result.message);
+            }
+            
+            return result;
+
+        } catch (error: any) {
+            // Better timeout detection
+            const isTimeout = error.name === 'AbortError' || 
+                              (error.message && (error.message.includes('aborted') || error.message.includes('signal is aborted')));
+
+            if (isTimeout) {
+                const timeoutError = new Error("การเชื่อมต่อหมดเวลา (Timeout) กรุณาลองใหม่อีกครั้ง หรือตรวจสอบสัญญาณอินเทอร์เน็ต");
+                if (i === retries - 1) throw timeoutError;
+                error = timeoutError;
+            }
+            
+            lastError = error;
+            console.warn(`Attempt ${i + 1} failed: ${error.message}`);
+            
+            // If it's a specific logic error from script, don't retry
+            if (error.message && error.message.includes("Google Script")) {
+                throw error;
+            }
+
+            // If retries left, wait before retrying (Exponential Backoff)
+            if (i < retries - 1) {
+                await new Promise(res => setTimeout(res, 2000 * (i + 1))); 
+            }
+        }
+    }
+    throw lastError;
 };

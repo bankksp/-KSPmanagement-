@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getDirectDriveImageSrc, getFirstImageSource } from '../utils';
 import { Personnel, Page } from '../types';
@@ -178,7 +177,7 @@ const Header: React.FC<HeaderProps> = ({
                     </div>
                      <div className="flex flex-col">
                         <h1 className="text-sm sm:text-base md:text-lg font-bold whitespace-nowrap leading-tight tracking-tight drop-shadow-sm">{schoolName}</h1>
-                        <span className="text-[10px] sm:text-xs text-blue-100 font-medium">ระบบสารสนเทศเพื่อการบริหารจัดการ</span>
+                        <span className="text-[10px] sm:text-xs text-blue-100 font-medium">KSP Management</span>
                      </div>
                 </div>
                 

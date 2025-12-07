@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
-import Dashboard from './components/Dashboard'; // Now acts as "Stats" page
+import Dashboard from './components/Dashboard';
 import Footer from './components/Footer';
 import ReportModal from './components/ReportModal';
 import ViewReportModal from './components/ViewReportModal';
@@ -17,7 +17,6 @@ import ReportPage from './components/ReportPage';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
 import ProfilePage from './components/ProfilePage';
-import ComingSoon from './components/ComingSoon';
 import AcademicPage from './components/AcademicPage';
 import SupplyPage from './components/SupplyPage';
 import DurableGoodsPage from './components/DurableGoodsPage';
@@ -29,17 +28,19 @@ import GeneralDocsPage from './components/GeneralDocsPage';
 import StudentHomeVisitPage from './components/StudentHomeVisitPage'; 
 import ServiceRegistrationPage from './components/ServiceRegistrationPage'; 
 import ConstructionPage from './components/ConstructionPage';
-import BudgetPlanningPage from './components/BudgetPlanningPage'; // Import new page
+import BudgetPlanningPage from './components/BudgetPlanningPage';
+import LandingPage from './components/LandingPage';
 
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal } from './types';
-import { DEFAULT_SETTINGS, GOOGLE_SCRIPT_URL } from './constants';
-import { prepareDataForApi } from './utils';
+import { DEFAULT_SETTINGS } from './constants';
+import { prepareDataForApi, postToGoogleScript } from './utils';
 
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('stats');
     const [isSaving, setIsSaving] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false); // Initially false, we wait for login
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     // Report states
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -114,7 +115,7 @@ const App: React.FC = () => {
         root.style.setProperty('--color-primary-hover', settings.themeColors.primaryHover);
     }, [settings.themeColors]);
     
-    // Restore login session
+    // Auth Check on Mount
     useEffect(() => {
         const storedUser = localStorage.getItem('ksp_user');
         if (storedUser) {
@@ -124,112 +125,20 @@ const App: React.FC = () => {
                     user.role = 'admin';
                 }
                 setCurrentUser(user);
+                setIsAuthenticated(true);
             } catch (e) {
                 localStorage.removeItem('ksp_user');
+                setIsAuthenticated(false);
             }
+        } else {
+            setIsAuthenticated(false);
         }
     }, []);
 
-    // Sync Current User with fetched data
-    useEffect(() => {
-        if (currentUser && personnel.length > 0) {
-            const found = personnel.find(p => p.id === currentUser.id);
-            if (found && JSON.stringify(found) !== JSON.stringify(currentUser)) {
-                const mergedUser = {
-                    ...found,
-                    password: found.password || currentUser.password
-                };
-                
-                setCurrentUser(mergedUser);
-                if (localStorage.getItem('ksp_user')) {
-                    localStorage.setItem('ksp_user', JSON.stringify(mergedUser));
-                }
-            }
-        }
-    }, [personnel, currentUser]);
+    // Fetch Data ONLY if authenticated
+    const fetchData = useCallback(async (isBackground: boolean = false) => {
+        if (!isAuthenticated) return;
 
-
-     // Generic function to post data to Google Script with Retry Logic and Timeout
-    const postToGoogleScript = async (payload: object, retries = 3) => {
-        const scriptUrl = GOOGLE_SCRIPT_URL;
-        const urlWithCacheBuster = `${scriptUrl}?t=${new Date().getTime()}`;
-        let lastError: any;
-
-        for (let i = 0; i < retries; i++) {
-            try {
-                // Create a controller to abort the fetch if it takes too long (e.g., 180 seconds - 3 minutes)
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 180000);
-
-                const response = await fetch(urlWithCacheBuster, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: {
-                        'Content-Type': 'text/plain;charset=utf-8',
-                    },
-                    body: JSON.stringify(payload),
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const text = await response.text();
-                if (!text) throw new Error("Server returned empty response");
-
-                let result;
-                try {
-                    result = JSON.parse(text);
-                } catch (e) {
-                    // If parsing fails, try to extract error from HTML if possible
-                    const msg = text.includes('<title>') ? 
-                        text.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown HTML Error' : 
-                        text.substring(0, 100);
-                    throw new Error(`Invalid JSON response: ${msg}`);
-                }
-
-                if (result.status === 'error') {
-                    console.error("Google Script Error:", result.message, result.stack);
-                    if (result.message && (result.message.includes("Invalid action") || result.message.includes("Unknown action"))) {
-                        throw new Error(`Google Script ยังไม่อัปเดตฟังก์ชัน "${(payload as any).action}": กรุณานำโค้ดใหม่ไปวางในไฟล์ รหัส.gs แล้ว Deploy ใหม่อีกครั้ง`);
-                    }
-                    throw new Error(result.message);
-                }
-                
-                return result;
-
-            } catch (error: any) {
-                // Better timeout detection
-                const isTimeout = error.name === 'AbortError' || 
-                                  (error.message && (error.message.includes('aborted') || error.message.includes('signal is aborted')));
-
-                if (isTimeout) {
-                    const timeoutError = new Error("การเชื่อมต่อหมดเวลา (Timeout) กรุณาลองใหม่อีกครั้ง หรือตรวจสอบสัญญาณอินเทอร์เน็ต");
-                    if (i === retries - 1) throw timeoutError;
-                    error = timeoutError;
-                }
-                
-                lastError = error;
-                console.warn(`Attempt ${i + 1} failed: ${error.message}`);
-                
-                // If it's a specific logic error from script, don't retry
-                if (error.message && error.message.includes("Google Script")) {
-                    throw error;
-                }
-
-                // If retries left, wait before retrying (Exponential Backoff)
-                if (i < retries - 1) {
-                    await new Promise(res => setTimeout(res, 2000 * (i + 1))); 
-                }
-            }
-        }
-        throw lastError;
-    };
-
-     const fetchData = useCallback(async (isBackground: boolean = false) => {
         // Only show loading spinner on initial load or manual refresh
         if (!isBackground) {
             setIsLoading(true);
@@ -237,6 +146,7 @@ const App: React.FC = () => {
         }
         
         try {
+            // postToGoogleScript now handles auth injection from localStorage inside utils.ts
             const response = await postToGoogleScript({ action: 'getAllData' });
             const data = response.data || {};
             
@@ -256,7 +166,6 @@ const App: React.FC = () => {
                 if (normalizeId(p.idCard) === '1469900181659') {
                     return { ...p, role: 'admin' as const, status: 'approved' as const };
                 }
-                // Backward compatibility: If no status, assume approved
                 if (!p.status) {
                     p.status = 'approved';
                 }
@@ -277,33 +186,26 @@ const App: React.FC = () => {
             setDocuments(data.documents || []); 
             setServiceRecords(data.serviceRecords || []);
             setConstructionRecords(data.constructionRecords || []); 
-            setProjectProposals(data.projectProposals || []); // Fetch project proposals
+            setProjectProposals(data.projectProposals || []); 
             
-            // Normalize Home Visits (robustly handle single string vs array)
             const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
-                // Ensure IDs are numbers
                 if (v.studentId) v.studentId = Number(v.studentId);
                 if (v.id) v.id = Number(v.id);
                 if (v.visitorId) v.visitorId = Number(v.visitorId);
 
                 if (v.image) {
                     if (typeof v.image === 'string') {
-                        // Try parsing as JSON array (e.g. "['url1', 'url2']")
                         if (v.image.trim().startsWith('[')) {
                             try { 
                                 const parsed = JSON.parse(v.image);
                                 v.image = Array.isArray(parsed) ? parsed : [parsed];
                             } catch(e) { 
-                                // If parse fails, check if it has multiple URLs separated by commas? 
-                                // Unlikely for standard flow, assume single URL string
                                 v.image = [v.image]; 
                             }
                         } else {
-                            // Treat as single URL string
                             v.image = [v.image];
                         }
                     } else if (!Array.isArray(v.image)) {
-                        // Undefined or unknown type object
                         v.image = [];
                     }
                 } else {
@@ -317,21 +219,25 @@ const App: React.FC = () => {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch data from Google Script:", error);
-            // Only show full error on initial load or if it's not a background sync
             if (!isBackground) {
-                setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
+                // If error is authentication related, logout
+                if (error.message && (error.message.includes("Unauthorized") || error.message.includes("Session expired"))) {
+                    handleLogout();
+                    alert("เซสชั่นหมดอายุหรือไม่มีสิทธิ์เข้าถึง กรุณาเข้าสู่ระบบใหม่");
+                } else {
+                    setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
+                }
             }
         } finally {
             if (!isBackground) {
                 setIsLoading(false);
             }
         }
-    }, []);
+    }, [isAuthenticated]);
 
     // Check if any critical modal is open to pause polling
-    // This prevents the form from resetting while the user is typing due to a background re-fetch
     const isUIBusy = useMemo(() => {
         return isReportModalOpen || 
                isStudentModalOpen || 
@@ -348,25 +254,23 @@ const App: React.FC = () => {
     ]);
 
     useEffect(() => {
-        // Initial Fetch
-        fetchData(false);
-    }, [fetchData]);
+        // Only fetch if authenticated
+        if (isAuthenticated) {
+            fetchData(false);
+        }
+    }, [isAuthenticated, fetchData]);
 
     useEffect(() => {
-        // If UI is busy (Modals Open), STOP Auto-polling
-        if (isUIBusy) return;
+        if (!isAuthenticated || isUIBusy) return;
 
-        // Auto-polling every 45 seconds (Increased from 10/30s to prevent UI jank and race conditions)
         const intervalId = setInterval(() => {
-            // Check visibility to save resources
             if (!document.hidden) {
                 fetchData(true);
             }
         }, 45000); 
 
-        // Cleanup interval on unmount or when UI becomes busy
         return () => clearInterval(intervalId);
-    }, [fetchData, isUIBusy]);
+    }, [fetchData, isUIBusy, isAuthenticated]);
 
 
     const handleSaveAdminSettings = async (newSettings: Settings, redirect: boolean = true) => {
@@ -390,17 +294,13 @@ const App: React.FC = () => {
         }
     };
 
-    // Special handler for updating service locations without redirecting page
     const handleUpdateServiceLocations = async (locations: string[]) => {
         setIsSaving(true);
         try {
             const newSettings = { ...settings, serviceLocations: locations };
-            // Use updateSettings action but handle UI differently
             const apiPayload = await prepareDataForApi(newSettings);
             const response = await postToGoogleScript({ action: 'updateSettings', data: apiPayload });
-            
             setSettings(response.data);
-            // Intentionally NOT redirecting or alerting to keep flow smooth
         } catch (error) {
             console.error("Could not update locations", error);
             alert('เกิดข้อผิดพลาดในการบันทึกสถานที่');
@@ -409,8 +309,23 @@ const App: React.FC = () => {
         }
     };
 
-    // Auth Handlers
-    const handleLogin = (user: Personnel, rememberMe: boolean) => {
+    // --- AUTH Handlers ---
+
+    // Called from LandingPage
+    const handleLoginSuccess = (user: Personnel) => {
+        // Add Admin bypass check
+        const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
+        if (normalizeId(user.idCard) === '1469900181659') {
+            user.role = 'admin';
+        }
+        
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        localStorage.setItem('ksp_user', JSON.stringify(user));
+    };
+
+    // Called from LoginModal (Session refresh / switch user)
+    const handleSessionLogin = (user: Personnel, rememberMe: boolean) => {
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
         if (normalizeId(user.idCard) === '1469900181659') {
             user.role = 'admin';
@@ -419,15 +334,19 @@ const App: React.FC = () => {
         setCurrentUser(user);
         if (rememberMe) {
             localStorage.setItem('ksp_user', JSON.stringify(user));
-        } else {
-            localStorage.removeItem('ksp_user');
         }
+        // Note: We don't remove item if not rememberMe, to keep session active until browser close
+        // But for explicit logout we do.
     };
 
     const handleLogout = () => {
         setCurrentUser(null);
+        setIsAuthenticated(false);
         localStorage.removeItem('ksp_user');
         setCurrentPage('stats');
+        setReports([]); // Clear sensitive data
+        setStudents([]);
+        setPersonnel([]);
     };
 
     const handleRegister = async (newPersonnel: Personnel) => {
@@ -588,14 +507,12 @@ const App: React.FC = () => {
                  processedData = savedData[0];
             }
 
-            // Ensure password preservation
             if (!Array.isArray(processedData) && person.password) {
                  if (!processedData.password || processedData.password !== person.password) {
                      processedData = { ...processedData, password: person.password };
                  }
             }
 
-            // Helper to process a single personnel item
             const processPerson = (p: Personnel) => {
                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
                 if (normalizeId(p.idCard) === '1469900181659') {
@@ -641,7 +558,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Attendance Handlers - OPTIMIZED FOR SPEED
     const handleSaveAttendance = async (
         type: 'student' | 'personnel', 
         newData: (StudentAttendance | PersonnelAttendance)[]
@@ -689,7 +605,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Academic Plan Handlers
     const handleSaveAcademicPlan = async (plan: AcademicPlan) => {
         setIsSaving(true);
         try {
@@ -728,7 +643,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Project Proposal Handlers (New)
     const handleSaveProjectProposal = async (proposal: ProjectProposal) => {
         setIsSaving(true);
         try {
@@ -765,7 +679,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Service Registration Handlers
     const handleSaveServiceRecord = async (record: ServiceRecord) => {
         setIsSaving(true);
         try {
@@ -802,7 +715,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Supply Handlers
     const handleUpdateSupplyItems = async (newItems: SupplyItem[]) => {
         setSupplyItems(newItems);
     };
@@ -855,7 +767,6 @@ const App: React.FC = () => {
     }
 
     const handleUpdateSupplyRequestStatus = async (req: SupplyRequest) => {
-        // Specifically for approve/reject
         setIsSaving(true);
         try {
              const response = await postToGoogleScript({ action: 'updateSupplyRequestStatus', data: req });
@@ -869,7 +780,6 @@ const App: React.FC = () => {
         setSupplyRequests(requests);
     }
 
-    // Durable Goods Handlers
     const handleSaveDurableGood = async (item: DurableGood) => {
         setIsSaving(true);
         try {
@@ -906,7 +816,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Certificate Handlers
     const handleSaveCertificateRequest = async (request: CertificateRequest) => {
         setIsSaving(true);
         try {
@@ -941,7 +850,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Maintenance Handlers
     const handleSaveMaintenanceRequest = async (request: MaintenanceRequest) => {
         setIsSaving(true);
         try {
@@ -977,7 +885,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Performance Report Handlers
     const handleSavePerformanceReport = async (report: PerformanceReport) => {
         setIsSaving(true);
         try {
@@ -1012,7 +919,6 @@ const App: React.FC = () => {
         }
     };
 
-    // SAR Report Handlers
     const handleSaveSARReport = async (report: SARReport) => {
         setIsSaving(true);
         try {
@@ -1047,7 +953,6 @@ const App: React.FC = () => {
         }
     };
 
-    // General Documents Handlers (New)
     const handleSaveDocument = async (doc: Document) => {
         setIsSaving(true);
         try {
@@ -1065,7 +970,6 @@ const App: React.FC = () => {
             });
         } catch(e) {
             console.error(e);
-            // Show the specific error if it's an Error object, otherwise generic
             alert(e instanceof Error ? e.message : 'เกิดข้อผิดพลาดในการบันทึกเอกสาร');
         } finally {
             setIsSaving(false);
@@ -1083,7 +987,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Construction Records Handlers (New)
     const handleSaveConstructionRecord = async (record: ConstructionRecord) => {
         setIsSaving(true);
         try {
@@ -1119,7 +1022,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Home Visit Handlers
     const handleSaveHomeVisit = async (visit: HomeVisit) => {
         setIsSaving(true);
         try {
@@ -1127,7 +1029,6 @@ const App: React.FC = () => {
             const response = await postToGoogleScript({ action: 'saveHomeVisit', data: apiPayload });
             const savedVisit = response.data;
             
-            // Ensure image array normalization on return
             if (savedVisit.image) {
                 if (typeof savedVisit.image === 'string') {
                     if (savedVisit.image.startsWith('[')) {
@@ -1144,7 +1045,6 @@ const App: React.FC = () => {
                     savedVisit.image = [];
                 }
             }
-            // Normalize IDs on return
             if (savedVisit.studentId) savedVisit.studentId = Number(savedVisit.studentId);
             if (savedVisit.id) savedVisit.id = Number(savedVisit.id);
 
@@ -1160,7 +1060,6 @@ const App: React.FC = () => {
             alert('บันทึกการเยี่ยมบ้านเรียบร้อย');
         } catch (e) {
             console.error(e);
-            // Show the specific error if it's an Error object (e.g., from postToGoogleScript)
             alert(e instanceof Error ? e.message : 'เกิดข้อผิดพลาดในการบันทึก');
         } finally {
             setIsSaving(false);
@@ -1168,7 +1067,6 @@ const App: React.FC = () => {
     };
 
 
-    // Routing Guard
     const navigateTo = (page: Page) => {
         if (page === 'stats') {
             setCurrentPage('stats');
@@ -1331,7 +1229,7 @@ const App: React.FC = () => {
                         onUpdateRequestStatus={handleUpdateSupplyRequestStatus}
                     />
                 ) : null;
-            case 'finance_projects': // New Budget Planning Page
+            case 'finance_projects': 
                 return currentUser ? (
                     <BudgetPlanningPage 
                         currentUser={currentUser}
@@ -1341,7 +1239,7 @@ const App: React.FC = () => {
                         onSave={handleSaveProjectProposal}
                         onDelete={handleDeleteProjectProposal}
                         onUpdateSettings={(s) => handleSaveAdminSettings(s, false)}
-                        onUpdatePersonnel={handleSavePersonnel} // For updating project manager role
+                        onUpdatePersonnel={handleSavePersonnel} 
                         isSaving={isSaving}
                     />
                 ) : null;
@@ -1457,6 +1355,17 @@ const App: React.FC = () => {
         }
     };
 
+    // --- MAIN RENDER ---
+    
+    if (!isAuthenticated) {
+        return (
+            <LandingPage 
+                onLoginSuccess={handleLoginSuccess}
+                schoolName={settings.schoolName}
+                schoolLogo={settings.schoolLogo}
+            />
+        );
+    }
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -1469,17 +1378,18 @@ const App: React.FC = () => {
                 currentUser={currentUser}
                 onLoginClick={() => setIsLoginModalOpen(true)}
                 onLogoutClick={handleLogout}
-                personnel={personnel} // Pass personnel for notification count
+                personnel={personnel} 
             />
             <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
                 {renderPage()}
             </main>
             <Footer />
 
+            {/* This LoginModal is for session refresh or user switch inside app */}
             <LoginModal 
                 isOpen={isLoginModalOpen}
                 onClose={() => setIsLoginModalOpen(false)}
-                onLogin={handleLogin}
+                onLogin={handleSessionLogin}
                 personnelList={personnel}
                 onRegisterClick={() => {
                     setIsLoginModalOpen(false);

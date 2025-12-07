@@ -33,6 +33,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
     const currentMonth = new Date().getMonth() + 1;
     const [statsMonth, setStatsMonth] = useState<number>(currentMonth);
     const [statsYear, setStatsYear] = useState<number>(currentYear);
+    const [filterLocation, setFilterLocation] = useState<string>(''); // New: Location Filter for Stats
 
     // View Modal State
     const [viewRecord, setViewRecord] = useState<ServiceRecord | null>(null);
@@ -49,10 +50,12 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
 
     // --- Stats Calculations ---
     const stats = useMemo(() => {
-        // Filter records by Month/Year
+        // Filter records by Month/Year AND Location (if selected)
         const filteredByDate = records.filter(r => {
             const [d, m, y] = r.date.split('/').map(Number);
-            return m === statsMonth && y === statsYear;
+            const matchDate = m === statsMonth && y === statsYear;
+            const matchLoc = filterLocation === '' || r.location === filterLocation;
+            return matchDate && matchLoc;
         });
 
         const totalRequests = filteredByDate.length;
@@ -86,7 +89,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
             topLocations,
             filteredByDate // Pass filtered data for export
         };
-    }, [records, statsMonth, statsYear]);
+    }, [records, statsMonth, statsYear, filterLocation]);
 
     const filteredRecords = useMemo(() => {
         return records.filter(r => {
@@ -256,7 +259,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `service_stats_${statsMonth}_${statsYear}.doc`;
+        link.download = `service_stats_${statsMonth}_${statsYear}_${filterLocation || 'all'}.doc`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -285,20 +288,24 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `service_stats_${statsMonth}_${statsYear}.xls`;
+        link.download = `service_stats_${statsMonth}_${statsYear}_${filterLocation || 'all'}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
     return (
-        <div className="space-y-6">
+        <div className="min-h-screen -m-4 md:-m-6 lg:-m-8 p-4 md:p-6 lg:p-8 bg-gradient-to-br from-cyan-50 via-blue-50 to-purple-50">
             
-            {/* PRINT LAYOUT (Hidden by default) */}
+            {/* PRINT LAYOUT (Hidden by default, used for PDF/Word/Excel) */}
             <div id="print-service-stats" className="hidden print:block print:visible font-sarabun text-black bg-white p-8">
                 <div className="text-center mb-6">
                     <h1 className="text-2xl font-bold">รายงานสถิติการเข้าใช้บริการแหล่งเรียนรู้</h1>
-                    <h2 className="text-xl">ประจำเดือน {new Date(0, statsMonth - 1).toLocaleString('th-TH', { month: 'long' })} ปีการศึกษา {statsYear}</h2>
+                    <h2 className="text-xl">
+                        ประจำเดือน {new Date(0, statsMonth - 1).toLocaleString('th-TH', { month: 'long' })} ปีการศึกษา {statsYear}
+                        {filterLocation && <br/>}
+                        {filterLocation && `สถานที่: ${filterLocation}`}
+                    </h2>
                 </div>
 
                 <div className="mb-6">
@@ -323,28 +330,30 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                     </table>
                 </div>
 
-                <div className="mb-6">
-                    <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">2. สถิติแยกตามสถานที่</h3>
-                    <table className="w-full border border-black">
-                        <thead>
-                            <tr className="bg-gray-100">
-                                <th className="border border-black p-2 text-center">ลำดับ</th>
-                                <th className="border border-black p-2 text-left">สถานที่</th>
-                                <th className="border border-black p-2 text-center">จำนวนครั้ง</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {stats.locationData.map((loc, idx) => (
-                                <tr key={idx}>
-                                    <td className="border border-black p-2 text-center">{idx + 1}</td>
-                                    <td className="border border-black p-2">{loc.name}</td>
-                                    <td className="border border-black p-2 text-center">{loc.value}</td>
+                {filterLocation === '' && (
+                    <div className="mb-6">
+                        <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">2. สถิติแยกตามสถานที่</h3>
+                        <table className="w-full border border-black">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border border-black p-2 text-center">ลำดับ</th>
+                                    <th className="border border-black p-2 text-left">สถานที่</th>
+                                    <th className="border border-black p-2 text-center">จำนวนครั้ง</th>
                                 </tr>
-                            ))}
-                            {stats.locationData.length === 0 && <tr><td colSpan={3} className="border border-black p-2 text-center">ไม่มีข้อมูล</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {stats.locationData.map((loc, idx) => (
+                                    <tr key={idx}>
+                                        <td className="border border-black p-2 text-center">{idx + 1}</td>
+                                        <td className="border border-black p-2">{loc.name}</td>
+                                        <td className="border border-black p-2 text-center">{loc.value}</td>
+                                    </tr>
+                                ))}
+                                {stats.locationData.length === 0 && <tr><td colSpan={3} className="border border-black p-2 text-center">ไม่มีข้อมูล</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
 
                 <div className="mb-6">
                     <h3 className="text-lg font-bold border-b border-black pb-1 mb-2">3. สถิติรายวัน</h3>
@@ -424,246 +433,298 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 no-print">
-                <button onClick={() => setActiveTab('stats')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'stats' ? 'bg-purple-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>สถิติการใช้งาน</button>
-                <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'list' ? 'bg-primary-blue text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>รายการทั้งหมด</button>
-                <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'settings' ? 'bg-gray-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>ตั้งค่าสถานที่</button>
-            </div>
+            {/* Main Content Area - Glassmorphism Wrapper */}
+            <div className="max-w-7xl mx-auto">
+                {/* Tabs */}
+                <div className="flex flex-wrap gap-3 mb-6 no-print justify-center md:justify-start">
+                    <button 
+                        onClick={() => setActiveTab('stats')} 
+                        className={`px-6 py-2.5 rounded-2xl font-bold text-sm transition-all duration-300 shadow-sm backdrop-blur-md border ${activeTab === 'stats' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-transparent shadow-purple-200' : 'bg-white/70 text-gray-600 border-white/50 hover:bg-white'}`}
+                    >
+                        สถิติการใช้งาน
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('list')} 
+                        className={`px-6 py-2.5 rounded-2xl font-bold text-sm transition-all duration-300 shadow-sm backdrop-blur-md border ${activeTab === 'list' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-transparent shadow-blue-200' : 'bg-white/70 text-gray-600 border-white/50 hover:bg-white'}`}
+                    >
+                        รายการทั้งหมด
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('settings')} 
+                        className={`px-6 py-2.5 rounded-2xl font-bold text-sm transition-all duration-300 shadow-sm backdrop-blur-md border ${activeTab === 'settings' ? 'bg-gray-700 text-white border-transparent' : 'bg-white/70 text-gray-600 border-white/50 hover:bg-white'}`}
+                    >
+                        ตั้งค่าสถานที่
+                    </button>
+                </div>
 
-            {/* STATS TAB (New Default) */}
-            {activeTab === 'stats' && (
-                <div className="space-y-6 animate-fade-in no-print">
-                    
-                    {/* Control Bar */}
-                    <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm gap-4">
-                        <h2 className="text-xl font-bold text-navy flex items-center gap-2">
-                            <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                            สถิติประจำเดือน
-                        </h2>
-                        <div className="flex gap-2 items-center relative">
-                            <select 
-                                value={statsMonth} 
-                                onChange={(e) => setStatsMonth(Number(e.target.value))}
-                                className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 bg-gray-50"
-                            >
-                                {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                                    <option key={m} value={m}>เดือน {new Date(0, m - 1).toLocaleString('th-TH', { month: 'long' })}</option>
-                                ))}
-                            </select>
-                            <select 
-                                value={statsYear} 
-                                onChange={(e) => setStatsYear(Number(e.target.value))}
-                                className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 bg-gray-50"
-                            >
-                                {Array.from({length: 5}, (_, i) => currentYear - 2 + i).map(y => (
-                                    <option key={y} value={y}>ปี {y}</option>
-                                ))}
-                            </select>
-                            
-                            <div className="relative">
-                                <button 
-                                    onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 shadow flex items-center gap-1 transition-all"
+                {/* STATS TAB (New Default) */}
+                {activeTab === 'stats' && (
+                    <div className="space-y-6 animate-fade-in no-print">
+                        
+                        {/* Control Bar - Glassy */}
+                        <div className="flex flex-col lg:flex-row justify-between items-center bg-white/70 backdrop-blur-xl p-5 rounded-2xl shadow-xl border border-white/40 gap-4">
+                            <h2 className="text-xl font-bold text-navy flex items-center gap-3">
+                                <span className="bg-purple-100 p-2 rounded-xl text-purple-600">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                                </span>
+                                สถิติประจำเดือน
+                            </h2>
+                            <div className="flex flex-wrap gap-3 items-center justify-center relative">
+                                <select 
+                                    value={filterLocation} 
+                                    onChange={(e) => setFilterLocation(e.target.value)}
+                                    className="border border-gray-200/50 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 bg-white/80 shadow-sm font-medium text-gray-700"
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    ส่งออก (Export)
-                                </button>
-                                {isExportMenuOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 overflow-hidden animate-fade-in-up">
-                                        <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-red-600 flex items-center gap-3 transition-colors border-b border-gray-50 text-sm font-medium">
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                            พิมพ์ / PDF
-                                        </button>
-                                        <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50 text-sm font-medium">
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                            Word (.doc)
-                                        </button>
-                                        <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors text-sm font-medium">
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                            Excel (.xls)
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                                    <option value="">ทุกสถานที่ (รวม)</option>
+                                    {serviceLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                                </select>
 
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-xl shadow-lg text-white">
-                            <p className="text-blue-100 text-sm mb-1">ยอดเข้าใช้บริการ (ครั้ง)</p>
-                            <p className="text-4xl font-bold">{stats.totalRequests}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-xl shadow-lg text-white">
-                            <p className="text-purple-100 text-sm mb-1">จำนวนนักเรียนที่ใช้ (คน)</p>
-                            <p className="text-4xl font-bold">{stats.totalStudentsServed}</p>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                            <p className="text-gray-500 text-sm mb-2">สถานที่ยอดนิยม</p>
-                            <div className="space-y-2">
-                                {stats.topLocations.slice(0, 2).map((loc, idx) => (
-                                    <div key={idx} className="flex justify-between items-center">
-                                        <span className="font-bold text-navy text-sm truncate">{idx+1}. {loc.name}</span>
-                                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">{loc.value} ครั้ง</span>
-                                    </div>
-                                ))}
-                                {stats.topLocations.length === 0 && <p className="text-sm text-gray-400">ไม่มีข้อมูล</p>}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Charts */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Daily Usage Chart */}
-                        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow border border-gray-100">
-                            <h3 className="text-lg font-bold text-navy mb-4">สถิติการใช้งานรายวัน</h3>
-                            <div className="h-72">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                        <XAxis dataKey="day" tick={{fontSize: 12}} />
-                                        <YAxis tick={{fontSize: 12}} allowDecimals={false} />
-                                        <Tooltip 
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                            cursor={{ fill: '#F3F4F6' }}
-                                        />
-                                        <Bar dataKey="count" name="จำนวนครั้ง" fill="#8884d8" radius={[4, 4, 0, 0]}>
-                                            {stats.dailyData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.count > 0 ? '#3B82F6' : '#E5E7EB'} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                <select 
+                                    value={statsMonth} 
+                                    onChange={(e) => setStatsMonth(Number(e.target.value))}
+                                    className="border border-gray-200/50 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 bg-white/80 shadow-sm font-medium text-gray-700"
+                                >
+                                    {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                                        <option key={m} value={m}>เดือน {new Date(0, m - 1).toLocaleString('th-TH', { month: 'long' })}</option>
+                                    ))}
+                                </select>
+                                <select 
+                                    value={statsYear} 
+                                    onChange={(e) => setStatsYear(Number(e.target.value))}
+                                    className="border border-gray-200/50 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 bg-white/80 shadow-sm font-medium text-gray-700"
+                                >
+                                    {Array.from({length: 5}, (_, i) => currentYear - 2 + i).map(y => (
+                                        <option key={y} value={y}>ปี {y}</option>
+                                    ))}
+                                </select>
+                                
+                                <div className="relative">
+                                    <button 
+                                        onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                                        className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg shadow-green-200 flex items-center gap-2 transition-all transform active:scale-95"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                        Export
+                                    </button>
+                                    {isExportMenuOpen && (
+                                        <div className="absolute right-0 mt-2 w-56 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl z-20 border border-white/50 overflow-hidden animate-fade-in-up">
+                                            <div className="px-4 py-2 bg-gray-50/50 text-xs font-bold text-gray-400 uppercase">เลือกรูปแบบไฟล์</div>
+                                            <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-3 transition-colors text-sm font-medium border-b border-gray-100">
+                                                <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                PDF / Print
+                                            </button>
+                                            <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-3 transition-colors text-sm font-medium border-b border-gray-100">
+                                                <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                Word (.doc)
+                                            </button>
+                                            <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center gap-3 transition-colors text-sm font-medium">
+                                                <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                Excel (.xls)
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Location Pie Chart */}
-                        <div className="bg-white p-6 rounded-xl shadow border border-gray-100">
-                            <h3 className="text-lg font-bold text-navy mb-4">สัดส่วนตามสถานที่</h3>
-                            <div className="h-72">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={stats.locationData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {stats.locationData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend verticalAlign="bottom" height={36}/>
-                                    </PieChart>
-                                </ResponsiveContainer>
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-2xl shadow-xl shadow-blue-200 text-white relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+                                <p className="text-blue-100 text-sm mb-1 font-medium">ยอดเข้าใช้บริการ (ครั้ง)</p>
+                                <p className="text-4xl font-bold tracking-tight">{stats.totalRequests}</p>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* LIST TAB */}
-            {activeTab === 'list' && (
-                <div className="bg-white p-6 rounded-xl shadow animate-fade-in no-print">
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                        <h2 className="text-xl font-bold text-navy flex items-center gap-2">
-                            <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                            รายการการรายงานทั้งหมด
-                        </h2>
-                        <button onClick={() => handleOpenModal()} className="bg-primary-blue text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-blue-700 flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                            บันทึกการใช้บริการ
-                        </button>
-                    </div>
-
-                    <div className="flex gap-4 mb-4 items-center bg-gray-50 p-3 rounded-lg">
-                        <input 
-                            type="text" 
-                            placeholder="ค้นหาชื่อ, สถานที่, ครู..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="border rounded-lg px-4 py-2 flex-grow focus:ring-2 focus:ring-primary-blue"
-                        />
-                        {selectedIds.size > 0 && (
-                            <button onClick={handleDeleteSelected} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700">
-                                ลบ {selectedIds.size} รายการ
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="overflow-x-auto border rounded-lg">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-navy text-white">
-                                <tr>
-                                    <th className="p-3 w-10 text-center"><input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredRecords.map(r => r.id)) : new Set())} /></th>
-                                    <th className="p-3 whitespace-nowrap">วันที่ / เวลา</th>
-                                    <th className="p-3 text-center">จำนวนนักเรียน</th>
-                                    <th className="p-3">สถานที่</th>
-                                    <th className="p-3">วัตถุประสงค์</th>
-                                    <th className="p-3">ครูผู้ดูแล</th>
-                                    <th className="p-3 text-center">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {filteredRecords.map(r => (
-                                    <tr key={r.id} className="hover:bg-blue-50 transition-colors">
-                                        <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => handleSelect(r.id)} /></td>
-                                        <td className="p-3 whitespace-nowrap">
-                                            <div className="font-bold text-navy">{r.date}</div>
-                                            <div className="text-xs text-gray-500">{r.time} น.</div>
-                                        </td>
-                                        <td className="p-3 text-center font-bold text-green-600">
-                                            {r.students ? r.students.length : 1} คน
-                                        </td>
-                                        <td className="p-3 font-medium text-blue-600">{r.location}</td>
-                                        <td className="p-3 max-w-xs truncate">{r.purpose}</td>
-                                        <td className="p-3 text-gray-600">{r.teacherName}</td>
-                                        <td className="p-3 text-center">
-                                            <div className="flex justify-center gap-1">
-                                                <button onClick={() => { setViewRecord(r); setIsViewModalOpen(true); }} className="p-1.5 bg-sky-100 text-sky-700 rounded hover:bg-sky-200" title="ดู"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
-                                                <button onClick={() => handleOpenModal(r)} className="p-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200" title="แก้ไข"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
-                                                <button onClick={() => { if(window.confirm('ลบ?')) onDeleteRecord([r.id]) }} className="p-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200" title="ลบ"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                            <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-6 rounded-2xl shadow-xl shadow-purple-200 text-white relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+                                <p className="text-purple-100 text-sm mb-1 font-medium">จำนวนนักเรียนที่ใช้ (คน)</p>
+                                <p className="text-4xl font-bold tracking-tight">{stats.totalStudentsServed}</p>
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-xl border border-white/50 relative overflow-hidden">
+                                <p className="text-gray-500 text-sm mb-3 font-bold uppercase tracking-wider">สถานที่ยอดนิยม</p>
+                                <div className="space-y-3">
+                                    {stats.topLocations.slice(0, 2).map((loc, idx) => (
+                                        <div key={idx} className="flex justify-between items-center">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${idx === 0 ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-600'}`}>{idx+1}</span>
+                                                <span className="font-bold text-navy text-sm truncate max-w-[120px]">{loc.name}</span>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filteredRecords.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-gray-500">ไม่พบข้อมูล</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="mt-4 text-xs text-gray-400 text-right">แสดง {filteredRecords.length} รายการ</div>
-                </div>
-            )}
+                                            <span className="text-xs bg-indigo-50 px-2 py-1 rounded-lg text-indigo-600 font-bold">{loc.value} ครั้ง</span>
+                                        </div>
+                                    ))}
+                                    {stats.topLocations.length === 0 && <p className="text-sm text-gray-400 italic">ไม่มีข้อมูล</p>}
+                                </div>
+                            </div>
+                        </div>
 
-            {/* SETTINGS TAB */}
-            {activeTab === 'settings' && (
-                <div className="bg-white p-6 rounded-xl shadow max-w-2xl mx-auto animate-fade-in no-print">
-                    <h2 className="text-xl font-bold text-navy mb-4">ตั้งค่าสถานที่ให้บริการ</h2>
-                    <div className="flex gap-2 mb-4">
-                        <input 
-                            type="text" 
-                            value={newLocation} 
-                            onChange={e => setNewLocation(e.target.value)} 
-                            placeholder="ระบุชื่อสถานที่ใหม่..." 
-                            className="border rounded-lg px-4 py-2 flex-grow focus:ring-2 focus:ring-primary-blue"
-                        />
-                        <button onClick={handleAddLocation} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700">เพิ่ม</button>
+                        {/* Charts */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Daily Usage Chart */}
+                            <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-white/50">
+                                <h3 className="text-lg font-bold text-navy mb-6">สถิติการใช้งานรายวัน</h3>
+                                <div className="h-80">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={stats.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                            <XAxis dataKey="day" tick={{fontSize: 12, fill: '#64748B'}} />
+                                            <YAxis tick={{fontSize: 12, fill: '#64748B'}} allowDecimals={false} />
+                                            <Tooltip 
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.9)' }}
+                                                cursor={{ fill: '#F1F5F9' }}
+                                            />
+                                            <Bar dataKey="count" name="จำนวนครั้ง" fill="#8884d8" radius={[6, 6, 0, 0]} barSize={20}>
+                                                {stats.dailyData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.count > 0 ? 'url(#colorUv)' : '#E2E8F0'} />
+                                                ))}
+                                            </Bar>
+                                            <defs>
+                                                <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
+                                                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={1}/>
+                                                </linearGradient>
+                                            </defs>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Location Pie Chart */}
+                            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-white/50">
+                                <h3 className="text-lg font-bold text-navy mb-6">สัดส่วนตามสถานที่</h3>
+                                <div className="h-80">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={stats.locationData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                {stats.locationData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
+                                            <Legend verticalAlign="bottom" height={36} iconType="circle"/>
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        {serviceLocations.map((loc, idx) => (
-                            <span key={idx} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm flex items-center gap-2 border border-gray-200">
-                                {loc}
-                                <button onClick={() => handleRemoveLocation(loc)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                            </span>
-                        ))}
+                )}
+
+                {/* LIST TAB */}
+                {activeTab === 'list' && (
+                    <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-white/50 animate-fade-in no-print">
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                            <h2 className="text-xl font-bold text-navy flex items-center gap-2">
+                                <span className="bg-green-100 p-2 rounded-xl text-green-600">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                </span>
+                                รายการการรายงานทั้งหมด
+                            </h2>
+                            <button onClick={() => handleOpenModal()} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-200 hover:shadow-blue-300 flex items-center gap-2 transition-all transform active:scale-95">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                บันทึกการใช้บริการ
+                            </button>
+                        </div>
+
+                        <div className="flex gap-4 mb-4 items-center bg-white/50 p-3 rounded-xl border border-white/60">
+                            <input 
+                                type="text" 
+                                placeholder="ค้นหาชื่อ, สถานที่, ครู..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="border border-gray-200 rounded-xl px-4 py-2.5 flex-grow focus:ring-2 focus:ring-indigo-500 bg-white/80"
+                            />
+                            {selectedIds.size > 0 && (
+                                <button onClick={handleDeleteSelected} className="bg-red-500 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-red-600 shadow-md">
+                                    ลบ {selectedIds.size} รายการ
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="overflow-x-auto border border-gray-200 rounded-xl bg-white/60">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-gray-50/80 text-gray-700 font-bold">
+                                    <tr>
+                                        <th className="p-4 w-10 text-center"><input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredRecords.map(r => r.id)) : new Set())} className="rounded text-indigo-600 focus:ring-indigo-500" /></th>
+                                        <th className="p-4 whitespace-nowrap">วันที่ / เวลา</th>
+                                        <th className="p-4 text-center">จำนวนนักเรียน</th>
+                                        <th className="p-4">สถานที่</th>
+                                        <th className="p-4">วัตถุประสงค์</th>
+                                        <th className="p-4">ครูผู้ดูแล</th>
+                                        <th className="p-4 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredRecords.map(r => (
+                                        <tr key={r.id} className="hover:bg-indigo-50/50 transition-colors">
+                                            <td className="p-4 text-center"><input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => handleSelect(r.id)} className="rounded text-indigo-600 focus:ring-indigo-500" /></td>
+                                            <td className="p-4 whitespace-nowrap">
+                                                <div className="font-bold text-navy">{r.date}</div>
+                                                <div className="text-xs text-gray-500">{r.time} น.</div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <span className="bg-green-100 text-green-700 font-bold px-2 py-1 rounded-lg text-xs">
+                                                    {r.students ? r.students.length : 1} คน
+                                                </span>
+                                            </td>
+                                            <td className="p-4 font-medium text-indigo-600">{r.location}</td>
+                                            <td className="p-4 max-w-xs truncate text-gray-600">{r.purpose}</td>
+                                            <td className="p-4 text-gray-600">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500 font-bold">
+                                                        {r.teacherName.charAt(0)}
+                                                    </div>
+                                                    {r.teacherName}
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <div className="flex justify-center gap-2">
+                                                    <button onClick={() => { setViewRecord(r); setIsViewModalOpen(true); }} className="p-2 bg-sky-100 text-sky-600 rounded-lg hover:bg-sky-200 transition-colors" title="ดู"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
+                                                    <button onClick={() => handleOpenModal(r)} className="p-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors" title="แก้ไข"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                                                    <button onClick={() => { if(window.confirm('ลบ?')) onDeleteRecord([r.id]) }} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors" title="ลบ"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredRecords.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-gray-500 italic">ไม่พบข้อมูล</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="mt-4 text-xs text-gray-500 text-right font-medium">แสดง {filteredRecords.length} รายการ</div>
                     </div>
-                </div>
-            )}
+                )}
+
+                {/* SETTINGS TAB */}
+                {activeTab === 'settings' && (
+                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-2xl shadow-lg border border-white/50 max-w-2xl mx-auto animate-fade-in no-print">
+                        <h2 className="text-xl font-bold text-navy mb-6 text-center">ตั้งค่าสถานที่ให้บริการ</h2>
+                        <div className="flex gap-2 mb-6">
+                            <input 
+                                type="text" 
+                                value={newLocation} 
+                                onChange={e => setNewLocation(e.target.value)} 
+                                placeholder="ระบุชื่อสถานที่ใหม่..." 
+                                className="border border-gray-300 rounded-xl px-4 py-3 flex-grow focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                            />
+                            <button onClick={handleAddLocation} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200">เพิ่ม</button>
+                        </div>
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            {serviceLocations.map((loc, idx) => (
+                                <span key={idx} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm flex items-center gap-2 border border-gray-200 shadow-sm transition-transform hover:scale-105">
+                                    {loc}
+                                    <button onClick={() => handleRemoveLocation(loc)} className="text-red-400 hover:text-red-600 font-bold ml-1 bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm">&times;</button>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* ================== VIEW MODAL ================== */}
             {isViewModalOpen && viewRecord && (
@@ -818,7 +879,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-up">
-                        <div className="p-5 border-b bg-primary-blue text-white rounded-t-xl flex justify-between items-center">
+                        <div className="p-5 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-xl flex justify-between items-center">
                             <h3 className="text-xl font-bold">{currentRecord.id ? 'แก้ไขข้อมูล' : 'บันทึกการใช้บริการ'}</h3>
                             <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 rounded-full p-1"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>

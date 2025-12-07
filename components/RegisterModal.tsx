@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Personnel } from '../types';
 
@@ -145,8 +144,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
                         />
                     </div>
 
-                    <div className="pt-2 text-xs text-gray-500 text-center space-y-1">
-                        <p>* เมื่อลงทะเบียนแล้ว รหัสผ่านเริ่มต้นคือเลขบัตรประชาชน</p>
+                    <div className="pt-2 text-xs text-center space-y-1">
                         <p className="text-red-500 font-bold">** ท่านต้องรอให้ Admin อนุมัติสิทธิ์การใช้งานก่อน จึงจะสามารถ Login เข้าระบบได้</p>
                     </div>
 

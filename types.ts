@@ -69,8 +69,9 @@ export interface Personnel {
   advisoryClasses?: string[];
   password?: string;
   role?: 'user' | 'pro' | 'admin';
-  status?: 'pending' | 'approved' | 'blocked'; // New field for approval system
-  isProjectManager?: boolean; // Deprecated in favor of Settings.projectManagerIds, kept for backward compat if needed
+  status?: 'pending' | 'approved' | 'blocked';
+  isProjectManager?: boolean; 
+  token?: string; // Authentication token
 }
 
 
