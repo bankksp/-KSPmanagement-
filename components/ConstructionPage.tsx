@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ConstructionRecord, Personnel, ConstructionStatus } from '../types';
-import { getDirectDriveImageSrc, safeParseArray, getFirstImageSource, getCurrentThaiDate, buddhistToISO, isoToBuddhist } from '../utils';
+import { getDirectDriveImageSrc, safeParseArray, getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate, parseThaiDateForSort } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface ConstructionPageProps {
@@ -78,7 +78,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                                   r.contractor.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = !filterStatus || r.status === filterStatus;
             return matchesSearch && matchesStatus;
-        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }).sort((a, b) => parseThaiDateForSort(b.date) - parseThaiDateForSort(a.date));
     }, [records, searchTerm, filterStatus]);
 
     // --- Slideshow Auto-play ---
@@ -272,7 +272,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                     <tbody>
                         <tr>
                             <td align="center">
-                                ${viewRecord.date}<br/><br/>
+                                ${formatThaiDate(viewRecord.date)}<br/><br/>
                                 <div style="text-align: left; font-size: 12pt;">
                                 ทุกวัน......................<br/>
                                 ตั้งแต่......................<br/>
@@ -473,7 +473,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                                 {filteredRecords.map(r => (
                                     <tr key={r.id} className="hover:bg-blue-50 transition-colors">
                                         <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => handleSelect(r.id)} /></td>
-                                        <td className="p-3 whitespace-nowrap">{r.date}</td>
+                                        <td className="p-3 whitespace-nowrap">{formatThaiDate(r.date)}</td>
                                         <td className="p-3 font-medium text-navy">{r.projectName}</td>
                                         <td className="p-3 text-gray-600 truncate max-w-[200px]">{r.contractorWork || r.description}</td>
                                         <td className="p-3">
@@ -716,7 +716,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
                                     <span className="text-xs text-gray-500 font-bold uppercase block mb-1">วันที่บันทึก</span>
-                                    <span className="text-lg font-bold text-navy">{viewRecord.date}</span>
+                                    <span className="text-lg font-bold text-navy">{formatThaiDate(viewRecord.date)}</span>
                                 </div>
                                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
                                     <span className="text-xs text-gray-500 font-bold uppercase block mb-1">โครงการ</span>

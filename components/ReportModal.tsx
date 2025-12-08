@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Report, Personnel, Student } from '../types';
+import { buddhistToISO, isoToBuddhist, getCurrentThaiDate } from '../utils';
 
 interface ReportModalProps {
     onClose: () => void;
@@ -37,6 +38,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
     students
  }) => {
     const [formData, setFormData] = useState<{
+        id?: number;
+        reportDate: string;
+        reportTime: string;
         reporterName: string;
         position: string;
         academicYear: string;
@@ -46,6 +50,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
         homeCount: number | string;
         log: string;
     }>({
+        reportDate: getCurrentThaiDate(),
+        reportTime: getCurrentTime(),
         reporterName: '',
         position: '',
         academicYear: (new Date().getFullYear() + 543).toString(),
@@ -68,6 +74,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
     useEffect(() => {
         if (reportToEdit) {
             setFormData({
+                id: reportToEdit.id,
+                reportDate: reportToEdit.reportDate,
+                reportTime: reportToEdit.reportTime || getCurrentTime(),
                 reporterName: reportToEdit.reporterName,
                 position: reportToEdit.position,
                 academicYear: reportToEdit.academicYear,
@@ -83,12 +92,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
             if (reportToEdit.studentDetails) {
                 try {
                     let details: any = reportToEdit.studentDetails;
-                    
-                    // Handle string or object input safely
                     if (typeof details === 'string') {
                         details = JSON.parse(details);
                     }
-                    
                     if (Array.isArray(details)) {
                          const statusMap: Record<number, StudentStatus> = {};
                          details.forEach((d: any) => {
@@ -120,6 +126,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
             const defaultDorm = dormitories.filter(d => d !== 'เรือนพยาบาล')[0] || '';
 
             setFormData({
+                reportDate: getCurrentThaiDate(),
+                reportTime: getCurrentTime(),
                 reporterName: defaultReporterName,
                 position: defaultPosition,
                 academicYear: (new Date().getFullYear() + 543).toString(),
@@ -138,7 +146,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
         if (!formData.dormitory) return [];
 
         if (isInfirmary) {
-            // For Infirmary, show ALL students, filtered by search term
             if (!searchTerm) return students;
             const lowerSearch = searchTerm.toLowerCase();
             return students.filter(s => 
@@ -147,15 +154,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
                 (s.studentClass?.toLowerCase().includes(lowerSearch))
             );
         } else {
-            // For General Dorms, filter by that dorm
             return students.filter(s => s.dormitory === formData.dormitory);
         }
     }, [students, formData.dormitory, isInfirmary, searchTerm]);
     
-    // Auto-calculate counts and update log based on statuses
     useEffect(() => {
-        // For new records, always calculate. For edits, only calculate if studentStatuses changed (handled by React re-render)
-        
         let pCount = 0;
         let sCount = 0;
         let hCount = 0;
@@ -163,10 +166,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
         const recoveredNames: string[] = [];
         const homeNames: string[] = [];
 
-        // Only iterate over relevant students to calculate counts for THIS dorm context
         relevantStudents.forEach(student => {
-            // Default to 'home' for general dorms if undefined, unless user explicitly picks others
-            // Actually for better UX, default is 'home' (not checked in)
             const status = studentStatuses[student.id] || (isInfirmary ? undefined : 'home');
             
             if (status === 'present') pCount++;
@@ -188,13 +188,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
             homeCount: hCount
         }));
 
-        // Generate Log Text
         let logText = '';
         if (isInfirmary) {
              if (sickNames.length > 0) logText += `ป่วย: ${sickNames.join(', ')}\n`;
              if (recoveredNames.length > 0) logText += `หายป่วย: ${recoveredNames.join(', ')}`;
         } else {
-            // General Dorm
              if (sickNames.length > 0) logText += `ป่วย: ${sickNames.join(', ')}\n`;
              if (homeNames.length > 0) logText += `อยู่บ้าน: ${homeNames.join(', ')}`;
         }
@@ -202,12 +200,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
         setFormData(prev => ({ ...prev, log: logText.trim() }));
 
     }, [studentStatuses, relevantStudents, isInfirmary]);
-
-
-    const getBuddhistDate = () => {
-        const date = new Date();
-        return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear() + 543}`;
-    };
 
     useEffect(() => {
         const newImageUrls = images.map(file => URL.createObjectURL(file));
@@ -232,19 +224,20 @@ const ReportModal: React.FC<ReportModalProps> = ({
             setFormData(prev => ({
                 ...prev,
                 dormitory: value,
-                // Reset counts and statuses when dorm changes
                 presentCount: 0,
                 sickCount: 0,
                 homeCount: 0,
                 log: ''
             }));
-            setStudentStatuses({}); // Clear selections
+            setStudentStatuses({}); 
             setSearchTerm('');
-        } else if (name === 'presentCount' || name === 'sickCount' || name === 'homeCount') {
-            setFormData(prev => ({ ...prev, [name]: value }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
+    };
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData(prev => ({ ...prev, reportDate: isoToBuddhist(e.target.value) }));
     };
 
     const handleStatusChange = (studentId: number, status: StudentStatus) => {
@@ -271,7 +264,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Construct detailed student data for JSON storage
         const studentDetailsArray = relevantStudents.map(student => ({
             id: student.id,
             name: `${student.studentTitle}${student.studentName}`,
@@ -284,10 +276,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
            presentCount: Number(formData.presentCount),
            sickCount: Number(formData.sickCount),
            homeCount: Number(formData.homeCount),
-           id: isEditing ? reportToEdit.id : Date.now(),
-           reportDate: isEditing ? reportToEdit.reportDate : getBuddhistDate(),
-           reportTime: isEditing ? reportToEdit.reportTime : getCurrentTime(),
-           studentDetails: JSON.stringify(studentDetailsArray), // Save details!
+           id: isEditing && reportToEdit ? reportToEdit.id : Date.now(),
+           studentDetails: JSON.stringify(studentDetailsArray), 
            images,
         };
         onSave(savedReport);
@@ -298,16 +288,32 @@ const ReportModal: React.FC<ReportModalProps> = ({
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
                 <div className="p-6 border-b flex-shrink-0">
                     <h2 className="text-2xl font-bold text-navy">{isEditing ? 'แก้ไขข้อมูลรายงาน' : 'บันทึกข้อมูลรายงาน'}</h2>
-                    <p className="text-secondary-gray">
-                        วันที่รายงาน: {isEditing ? reportToEdit?.reportDate : getBuddhistDate()} 
-                        {isEditing 
-                            ? (reportToEdit?.reportTime ? ` เวลา ${reportToEdit.reportTime} น.` : '')
-                            : ` เวลา ${getCurrentTime()} น.`}
-                    </p>
                 </div>
                 <form id="report-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-6 space-y-4">
                     {/* Header Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">วันที่รายงาน</label>
+                            <input 
+                                type="date"
+                                name="reportDate"
+                                value={buddhistToISO(formData.reportDate)}
+                                onChange={handleDateChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">เวลา</label>
+                            <input 
+                                type="time"
+                                name="reportTime"
+                                value={formData.reportTime}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue"
+                                required
+                            />
+                        </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้รายงาน (ชื่อ-นามสกุล)</label>
                              <select 

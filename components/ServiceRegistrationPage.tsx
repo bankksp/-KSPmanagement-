@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ServiceRecord, Personnel, Student } from '../types';
-import { getDirectDriveImageSrc, safeParseArray, getFirstImageSource, buddhistToISO, isoToBuddhist, getCurrentThaiDate } from '../utils';
+import { getDirectDriveImageSrc, safeParseArray, getFirstImageSource, buddhistToISO, isoToBuddhist, getCurrentThaiDate, formatThaiDate, parseThaiDateForSort } from '../utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface ServiceRegistrationPageProps {
@@ -61,19 +61,18 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
             const parts = normalized.split('/');
             
             if (parts.length === 3) {
-                // Check if first part is year (4 digits) - shouldn't happen with strict Buddhist date, but fallback
-                if (parts[0].length === 4) {
+                if (parts[0].length === 4) { // YYYY/MM/DD
                     y = parseInt(parts[0]);
                     m = parseInt(parts[1]);
                     d = parseInt(parts[2]);
-                } else {
+                } else { // DD/MM/YYYY
                     d = parseInt(parts[0]);
                     m = parseInt(parts[1]);
                     y = parseInt(parts[2]);
                 }
             }
             
-            // Adjust Gregorian to Buddhist if necessary (e.g. 2024 -> 2567)
+            // Adjust Gregorian to Buddhist if necessary
             if (y > 1900 && y < 2400) {
                 y += 543;
             }
@@ -131,15 +130,10 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                    r.teacherName.toLowerCase().includes(searchLower) ||
                    r.location.toLowerCase().includes(searchLower);
         }).sort((a, b) => {
-            // Sort by date desc, time desc
-            // Need robust sort for DD/MM/YYYY
-            const partsA = a.date.split('/');
-            const partsB = b.date.split('/');
-            if(partsA.length === 3 && partsB.length === 3) {
-                const dateA = new Date(Number(partsA[2]) - 543, Number(partsA[1]) - 1, Number(partsA[0]));
-                const dateB = new Date(Number(partsB[2]) - 543, Number(partsB[1]) - 1, Number(partsB[0]));
-                if (dateA.getTime() !== dateB.getTime()) return dateB.getTime() - dateA.getTime();
-            }
+            // Sort by date desc using robust parser
+            const dateA = parseThaiDateForSort(a.date);
+            const dateB = parseThaiDateForSort(b.date);
+            if (dateA !== dateB) return dateB - dateA;
             return b.time.localeCompare(a.time);
         });
     }, [records, searchTerm]);
@@ -345,7 +339,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
             </head>
             <body>
                 <div class="header">บันทึกการขอใช้บริการแหล่งเรียนรู้</div>
-                <div class="content"><span class="label">วันที่:</span> ${viewRecord.date} <span class="label">เวลา:</span> ${viewRecord.time} น.</div>
+                <div class="content"><span class="label">วันที่:</span> ${formatThaiDate(viewRecord.date)} <span class="label">เวลา:</span> ${viewRecord.time} น.</div>
                 <div class="content"><span class="label">สถานที่:</span> ${viewRecord.location}</div>
                 <div class="content"><span class="label">วัตถุประสงค์:</span> ${viewRecord.purpose}</div>
                 <div class="content"><span class="label">ครูผู้ดูแล:</span> ${viewRecord.teacherName}</div>
@@ -422,7 +416,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
             </head>
             <body onload="window.print(); window.close();">
                 <div class="header">บันทึกการขอใช้บริการแหล่งเรียนรู้</div>
-                <div class="content-row"><span class="label">วันที่:</span> ${viewRecord.date} &nbsp;&nbsp; <span class="label">เวลา:</span> ${viewRecord.time} น.</div>
+                <div class="content-row"><span class="label">วันที่:</span> ${formatThaiDate(viewRecord.date)} &nbsp;&nbsp; <span class="label">เวลา:</span> ${viewRecord.time} น.</div>
                 <div class="content-row"><span class="label">สถานที่:</span> ${viewRecord.location}</div>
                 <div class="content-row"><span class="label">วัตถุประสงค์:</span> ${viewRecord.purpose}</div>
                 <div class="content-row"><span class="label">ครูผู้ดูแล:</span> ${viewRecord.teacherName}</div>
@@ -515,7 +509,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                 </div>
                                 <span className="text-[10px] text-gray-500 font-bold">วันที่</span>
-                                <span className="text-xs font-bold text-navy">{viewRecord.date}</span>
+                                <span className="text-xs font-bold text-navy">{formatThaiDate(viewRecord.date)}</span>
                             </div>
                             
                             {/* Time */}
@@ -657,7 +651,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                     onClick={() => setActiveTab('settings')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'settings' ? 'bg-gray-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-1.066 2.573c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     ตั้งค่า
                 </button>
             </div>
@@ -828,7 +822,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                                     <tr key={record.id} className="hover:bg-blue-50 transition-colors">
                                         <td className="p-4 text-center"><input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => handleSelect(record.id)} /></td>
                                         <td className="p-4 whitespace-nowrap">
-                                            <div className="font-bold text-navy">{record.date}</div>
+                                            <div className="font-bold text-navy">{formatThaiDate(record.date)}</div>
                                             <div className="text-xs text-gray-500">{record.time} น.</div>
                                         </td>
                                         <td className="p-4 font-medium">{record.location}</td>
@@ -1003,7 +997,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                         {stats.filteredByDate.map((r, i) => (
                             <tr key={i}>
                                 <td className="border border-black p-2 text-center">{i + 1}</td>
-                                <td className="border border-black p-2">{r.date}</td>
+                                <td className="border border-black p-2">{formatThaiDate(r.date)}</td>
                                 <td className="border border-black p-2">{r.time}</td>
                                 <td className="border border-black p-2">{r.location}</td>
                                 <td className="border border-black p-2">{r.teacherName}</td>

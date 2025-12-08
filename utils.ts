@@ -1,6 +1,11 @@
 
 import { GOOGLE_SCRIPT_URL } from './constants';
 
+export const THAI_MONTHS = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+];
+
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) {
@@ -11,11 +16,9 @@ export const getDirectDriveImageSrc = (url: string | File | undefined | null): s
     let cleanUrl = url.trim();
 
     // 1. Recursive unwrap of JSON/Quotes
-    // This handles cases like: '["https://..."]' or '"https://..."' or even nested JSON
     let attempts = 0;
     while ((cleanUrl.startsWith('[') || cleanUrl.startsWith('"') || cleanUrl.startsWith("'")) && attempts < 5) {
         try {
-             // Normalize single quotes to double for JSON if it looks like an array or object
             if (cleanUrl.startsWith("'") || (cleanUrl.startsWith("[") && cleanUrl.includes("'"))) {
                  cleanUrl = cleanUrl.replace(/'/g, '"');
             }
@@ -24,86 +27,65 @@ export const getDirectDriveImageSrc = (url: string | File | undefined | null): s
             
             if (Array.isArray(parsed)) {
                 if (parsed.length > 0) cleanUrl = parsed[0];
-                else return ''; // Empty array
+                else return ''; 
             } else if (typeof parsed === 'string') {
                 cleanUrl = parsed;
             } else {
-                // Parsed to something else, convert back to string
                 cleanUrl = String(parsed);
             }
         } catch (e) {
-            // If JSON parse fails, try manual strip of outer quotes/brackets
              cleanUrl = cleanUrl.replace(/^["'\[]+|["'\]]+$/g, '');
              break; 
         }
         attempts++;
     }
 
-    // 2. Final cleanup of any lingering characters
     cleanUrl = cleanUrl.replace(/[\[\]"']/g, '').trim();
 
     if (cleanUrl.startsWith('data:')) return cleanUrl;
 
-    // 3. Extract Drive ID and use Thumbnail Endpoint
-    // Matches: /file/d/ID, id=ID, open?id=ID
     const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
                   cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
     
     if (match && match[1]) {
-        // Use the thumbnail endpoint. It is generally more permissible for embedding than 'uc?export=view'
-        // sz=w1000 requests a high-resolution version (width 1000px)
         return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
     }
 
     return cleanUrl;
 };
 
-// Helper to safely extract the first image source from any type (Array, String, JSON String)
 export const getFirstImageSource = (source: any): string | null => {
     if (!source) return null;
-
-    // If it's a real array
     if (Array.isArray(source)) {
         if (source.length === 0) return null;
         return getDirectDriveImageSrc(source[0]);
     }
-
-    // If it's a string (could be a URL or a JSON stringified array)
     if (typeof source === 'string') {
         return getDirectDriveImageSrc(source);
     }
-
     return null;
 };
 
-// Helper to safe parse any input into an array
 export const safeParseArray = (input: any): any[] => {
     if (input === undefined || input === null) return [];
     if (Array.isArray(input)) return input;
     
     if (typeof input === 'string') {
         let clean = input.trim();
-        // Check if it looks like a JSON array
         if (clean.startsWith('[') && clean.endsWith(']')) {
             try {
-               // Simple attempt to fix common single-quote JSON issues from Python/Apps Script
                if (clean.includes("'")) {
                    clean = clean.replace(/'/g, '"');
                }
                const parsed = JSON.parse(clean);
                if (Array.isArray(parsed)) return parsed;
-            } catch(e) {
-                // Parsing failed, treat as single string
-            }
+            } catch(e) {}
         }
-        // Return as single element array if it's just a string URL
         return [input];
     }
-    
     return [];
 };
 
-// Helper: Resize and Compress Image
 export const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: number, quality: number): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -116,7 +98,6 @@ export const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: 
                 let width = img.width;
                 let height = img.height;
 
-                // Calculate new dimensions while maintaining aspect ratio
                 if (width > height) {
                     if (width > maxWidth) {
                         height *= maxWidth / width;
@@ -134,7 +115,6 @@ export const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: 
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, width, height);
-                    // Compress to JPEG
                     const dataUrl = canvas.toDataURL('image/jpeg', quality);
                     resolve(dataUrl);
                 } else {
@@ -147,24 +127,20 @@ export const resizeAndCompressImage = (file: File, maxWidth: number, maxHeight: 
     });
 };
 
-// Helper to convert a File to a Base64 string object for Google Script
 export const fileToObject = async (file: File): Promise<{ filename: string, mimeType: string, data: string }> => {
-    // If it's an image, try to compress it
     if (file.type.startsWith('image/')) {
         try {
-            // Resize to max 1024px, 0.7 quality (High compression, decent quality)
             const compressedDataUrl = await resizeAndCompressImage(file, 1024, 1024, 0.7);
             return {
-                filename: file.name.replace(/\.[^/.]+$/, "") + ".jpg", // Force extension to jpg
+                filename: file.name.replace(/\.[^/.]+$/, "") + ".jpg", 
                 mimeType: 'image/jpeg',
-                data: compressedDataUrl.split(',')[1] // Remove "data:image/jpeg;base64," header
+                data: compressedDataUrl.split(',')[1] 
             };
         } catch (error) {
             console.warn("Image compression failed, falling back to original file", error);
         }
     }
 
-    // Fallback for non-images (PDFs etc) or failed compression
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -173,14 +149,13 @@ export const fileToObject = async (file: File): Promise<{ filename: string, mime
             resolve({
                 filename: file.name,
                 mimeType: file.type,
-                data: result.split(',')[1] // remove data:mime/type;base64, part
+                data: result.split(',')[1] 
             });
         };
         reader.onerror = error => reject(error);
     });
 };
 
-// Helper to prepare data for API submission, converting all File objects
 export const prepareDataForApi = async (data: any) => {
     const apiData: any = { ...data }; 
 
@@ -190,12 +165,10 @@ export const prepareDataForApi = async (data: any) => {
         if (value instanceof File) {
             apiData[key] = await fileToObject(value);
         } else if (Array.isArray(value)) {
-             // Support mixed array of Files and Strings (e.g. existing URLs + new Files)
              apiData[key] = await Promise.all(value.map(async (item) => {
                  if (item instanceof File) {
                      return await fileToObject(item);
                  }
-                 // Keep existing strings/objects as is
                  return item;
              }));
         } else if (key === 'schoolLogo' && typeof value === 'string' && value.startsWith('data:image')) {
@@ -211,50 +184,39 @@ export const prepareDataForApi = async (data: any) => {
     return apiData;
 };
 
-// Generic function to post data to Google Script with Retry Logic and Timeout
 export const postToGoogleScript = async (payload: any, retries = 3) => {
     const scriptUrl = GOOGLE_SCRIPT_URL;
     const urlWithCacheBuster = `${scriptUrl}?t=${new Date().getTime()}`;
     let lastError: any;
 
-    // Inject Auth Token if available in localStorage
     try {
         const storedUser = localStorage.getItem('ksp_user');
         if (storedUser) {
             const user = JSON.parse(storedUser);
-            // Inject auth info into payload
-            // This allows the backend to verify the request
             payload.auth = {
                 id: user.id,
-                token: user.token || user.password, // Fallback to password if no token
+                token: user.token || user.password, 
                 idCard: user.idCard
             };
         }
-    } catch(e) {
-        // Ignore parsing errors, just don't attach auth
-    }
+    } catch(e) {}
 
     for (let i = 0; i < retries; i++) {
         try {
-            // Create a controller to abort the fetch if it takes too long (e.g., 180 seconds - 3 minutes)
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 180000);
 
             const response = await fetch(urlWithCacheBuster, {
                 method: 'POST',
                 redirect: 'follow',
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8',
-                },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload),
                 signal: controller.signal
             });
             
             clearTimeout(timeoutId);
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const text = await response.text();
             if (!text) throw new Error("Server returned empty response");
@@ -263,10 +225,7 @@ export const postToGoogleScript = async (payload: any, retries = 3) => {
             try {
                 result = JSON.parse(text);
             } catch (e) {
-                // If parsing fails, try to extract error from HTML if possible
-                const msg = text.includes('<title>') ? 
-                    text.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown HTML Error' : 
-                    text.substring(0, 100);
+                const msg = text.includes('<title>') ? text.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown HTML Error' : text.substring(0, 100);
                 throw new Error(`Invalid JSON response: ${msg}`);
             }
 
@@ -281,9 +240,7 @@ export const postToGoogleScript = async (payload: any, retries = 3) => {
             return result;
 
         } catch (error: any) {
-            // Better timeout detection
-            const isTimeout = error.name === 'AbortError' || 
-                              (error.message && (error.message.includes('aborted') || error.message.includes('signal is aborted')));
+            const isTimeout = error.name === 'AbortError' || (error.message && (error.message.includes('aborted') || error.message.includes('signal is aborted')));
 
             if (isTimeout) {
                 const timeoutError = new Error("การเชื่อมต่อหมดเวลา (Timeout) กรุณาลองใหม่อีกครั้ง หรือตรวจสอบสัญญาณอินเทอร์เน็ต");
@@ -294,15 +251,9 @@ export const postToGoogleScript = async (payload: any, retries = 3) => {
             lastError = error;
             console.warn(`Attempt ${i + 1} failed: ${error.message}`);
             
-            // If it's a specific logic error from script, don't retry
-            if (error.message && error.message.includes("Google Script")) {
-                throw error;
-            }
+            if (error.message && error.message.includes("Google Script")) throw error;
 
-            // If retries left, wait before retrying (Exponential Backoff)
-            if (i < retries - 1) {
-                await new Promise(res => setTimeout(res, 2000 * (i + 1))); 
-            }
+            if (i < retries - 1) await new Promise(res => setTimeout(res, 2000 * (i + 1))); 
         }
     }
     throw lastError;
@@ -323,26 +274,24 @@ export const getCurrentThaiDate = (): string => {
 export const buddhistToISO = (buddhistDate: string | undefined): string => {
     if (!buddhistDate || typeof buddhistDate !== 'string') return '';
     const parts = buddhistDate.split('/');
-    if (parts.length !== 3) return '';
-    
-    // Check if format is YYYY-MM-DD already (backward compatibility)
-    if (buddhistDate.includes('-') && parts[0].length === 4) return buddhistDate;
-
-    let day = 0, month = 0, year = 0;
-
-    // Handle standard DD/MM/YYYY
-    if (parts[0].length <= 2 && parts[2].length === 4) {
-        day = parseInt(parts[0]);
-        month = parseInt(parts[1]);
-        year = parseInt(parts[2]);
-    } else {
-        // Fallback or other formats
+    if (parts.length !== 3) {
+        // If it's potentially already an ISO string with Buddhist year (e.g. 2568-12-07), handle it
+        if (buddhistDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+             const [y, m, d] = buddhistDate.split('-').map(Number);
+             // If year > 2400, convert to Gregorian for input
+             const gregYear = y > 2400 ? y - 543 : y;
+             return `${gregYear}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+        }
         return '';
     }
+    
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const year = parseInt(parts[2]);
 
     if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
     
-    // If year is Buddhist (e.g. > 2400), convert to Gregorian
+    // Convert Buddhist to Gregorian for Input Value
     const gregorianYear = year > 2400 ? year - 543 : year;
     
     return `${gregorianYear.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
@@ -354,10 +303,73 @@ export const isoToBuddhist = (isoDate: string | undefined): string => {
     const parts = isoDate.split('-');
     if (parts.length !== 3) return '';
     
-    const [year, month, day] = parts.map(Number);
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const day = parseInt(parts[2]);
+
     if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
     
     // Convert Gregorian to Buddhist
     const buddhistYear = year + 543;
     return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${buddhistYear}`;
+};
+
+// Format Date for Display (Thai Full Date)
+export const formatThaiDate = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
+    
+    // Handle ISO string or "YYYY-MM-DD" or weird "2568-12-07..."
+    if (dateString.includes('-') || dateString.includes('T')) {
+        let d = new Date(dateString);
+        
+        // Handling the "2568-..." case manually since Date() might not parse it correctly or might treat year as 2568 AD
+        const isoMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        let day, month, year;
+
+        if (isoMatch) {
+             year = parseInt(isoMatch[1]);
+             month = parseInt(isoMatch[2]) - 1;
+             day = parseInt(isoMatch[3]);
+        } else if (!isNaN(d.getTime())) {
+             day = d.getDate();
+             month = d.getMonth();
+             year = d.getFullYear();
+        } else {
+            return dateString;
+        }
+
+        // Auto-detect if year is already Buddhist (unlikely for Date object unless manually set or weird string)
+        const buddhistYear = year < 2400 ? year + 543 : year;
+        return `${day} ${THAI_MONTHS[month]} ${buddhistYear}`;
+    }
+
+    // Handle DD/MM/YYYY
+    const parts = dateString.split('/');
+    if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1;
+        const year = parseInt(parts[2]);
+        if (month >= 0 && month <= 11) {
+            return `${day} ${THAI_MONTHS[month]} ${year}`;
+        }
+    }
+    return dateString;
+};
+
+// For sorting dates
+export const parseThaiDateForSort = (dateString: string): number => {
+    if (!dateString) return 0;
+    
+    // Try DD/MM/YYYY
+    const parts = dateString.split('/');
+    if (parts.length === 3) {
+        // YYYYMMDD
+        return parseInt(parts[2]) * 10000 + parseInt(parts[1]) * 100 + parseInt(parts[0]);
+    }
+    
+    // Try ISO
+    const d = new Date(dateString);
+    if (!isNaN(d.getTime())) return d.getTime();
+    
+    return 0;
 };

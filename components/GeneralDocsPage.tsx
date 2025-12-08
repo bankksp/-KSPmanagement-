@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Document, Personnel, DocumentType, DocumentStatus } from '../types';
-import { getDirectDriveImageSrc } from '../utils';
+import { getDirectDriveImageSrc, getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface GeneralDocsPageProps {
@@ -18,7 +18,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 }) => {
     // Access Level: Admin or 'Pro' (e.g. Saraban) can manage docs.
     const isStaff = currentUser.role === 'admin' || currentUser.role === 'pro'; 
-    const isDirector = currentUser.role === 'admin'; // Simplifying: Only Admin can "Sign" in this demo
+    const isDirector = currentUser.role === 'admin'; 
 
     const [activeTab, setActiveTab] = useState<'incoming' | 'orders' | 'director_sign' | 'inbox'>('incoming');
     const [searchTerm, setSearchTerm] = useState('');
@@ -68,7 +68,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             setCurrentDoc({
                 type: type,
                 number: '',
-                date: new Date().toLocaleDateString('th-TH'),
+                date: getCurrentThaiDate(),
                 title: '',
                 from: '',
                 to: type === 'order' ? 'บุคลากรทุกคน' : 'ผู้อำนวยการโรงเรียน',
@@ -82,12 +82,10 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
     const handleSaveDoc = (e: React.FormEvent) => {
         e.preventDefault();
-        // Ensure type is correctly set from currentDoc state or fallback
         const docToSave: Document = {
             ...currentDoc as Document,
             id: currentDoc.id || Date.now(),
             createdDate: currentDoc.createdDate || new Date().toISOString(),
-            // Ensure array fields are initialized
             recipients: currentDoc.recipients || [], 
             file: currentDoc.file || []
         } as Document; 
@@ -105,9 +103,9 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     // 2. Signing Handler (Canvas)
     const handleOpenSign = (doc: Document) => {
         setSelectedDocId(doc.id);
-        setEndorseComment('ทราบ / มอบงานสารบัญ'); // Default text
+        setEndorseComment('ทราบ / มอบงานสารบัญ'); 
         setIsSignModalOpen(true);
-        setTimeout(clearCanvas, 100); // Clear canvas after render
+        setTimeout(clearCanvas, 100); 
     };
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
@@ -178,7 +176,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             endorsement: {
                 signature: signatureImage,
                 comment: endorseComment,
-                date: new Date().toLocaleDateString('th-TH'),
+                date: getCurrentThaiDate(),
                 signerName: `${currentUser.personnelTitle}${currentUser.personnelName}`
             }
         };
@@ -263,7 +261,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                         <tr key={doc.id} className="hover:bg-blue-50 transition-colors">
                             <td className="p-3 whitespace-nowrap">
                                 <div className="font-bold text-navy">{doc.number}</div>
-                                <div className="text-xs text-gray-500">{doc.date}</div>
+                                <div className="text-xs text-gray-500">{formatThaiDate(doc.date)}</div>
                             </td>
                             <td className="p-3 min-w-[200px]">{doc.title}</td>
                             <td className="p-3 whitespace-nowrap text-xs">
@@ -408,7 +406,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                     <tr key={doc.id} className="hover:bg-orange-50/30">
                                         <td className="p-3 whitespace-nowrap">
                                             <div className="font-bold">{doc.number}</div>
-                                            <div className="text-xs text-gray-500">{doc.date}</div>
+                                            <div className="text-xs text-gray-500">{formatThaiDate(doc.date)}</div>
                                         </td>
                                         <td className="p-3 font-medium">{doc.title}</td>
                                         <td className="p-3">{doc.from}</td>
@@ -449,7 +447,13 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">ลงวันที่</label>
-                                    <input type="text" required value={currentDoc.date || ''} onChange={e => setCurrentDoc({...currentDoc, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="วว/ดด/ปปปป" />
+                                    <input 
+                                        type="date" 
+                                        required 
+                                        value={buddhistToISO(currentDoc.date)} 
+                                        onChange={e => setCurrentDoc({...currentDoc, date: isoToBuddhist(e.target.value)})} 
+                                        className="w-full px-3 py-2 border rounded-lg" 
+                                    />
                                 </div>
                             </div>
                             <div>
@@ -496,54 +500,40 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                             <div className="bg-gray-50 p-4 rounded-lg mb-4 border border-gray-200 text-sm">
                                 <p><strong>เรื่อง:</strong> {documents.find(d => d.id === selectedDocId)?.title}</p>
                                 <p><strong>จาก:</strong> {documents.find(d => d.id === selectedDocId)?.from} <strong>ถึง:</strong> {documents.find(d => d.id === selectedDocId)?.to}</p>
-                                <div className="mt-2">
-                                    <FileLink file={documents.find(d => d.id === selectedDocId)?.file} />
+                                <div>
+                                    <label className="block text-gray-500 mt-2 mb-1">ความเห็นการเกษียนหนังสือ:</label>
+                                    <textarea 
+                                        className="w-full border rounded p-2" 
+                                        rows={2} 
+                                        value={endorseComment} 
+                                        onChange={(e) => setEndorseComment(e.target.value)}
+                                    />
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">ความเห็น / ข้อสั่งการ (เกษียนหนังสือ)</label>
-                                    <textarea 
-                                        value={endorseComment} 
-                                        onChange={(e) => setEndorseComment(e.target.value)} 
-                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500" 
-                                        rows={3}
-                                    ></textarea>
+                            <div className="border rounded-lg p-4 flex flex-col items-center bg-gray-50">
+                                <p className="text-sm font-bold mb-2 text-gray-600">เซ็นชื่อ (Signature)</p>
+                                <div className="border-2 border-dashed border-gray-300 bg-white rounded-lg cursor-crosshair touch-none overflow-hidden">
+                                    <canvas
+                                        ref={canvasRef}
+                                        width={300}
+                                        height={150}
+                                        onMouseDown={startDrawing}
+                                        onMouseMove={draw}
+                                        onMouseUp={stopDrawing}
+                                        onMouseLeave={stopDrawing}
+                                        onTouchStart={startDrawing}
+                                        onTouchMove={draw}
+                                        onTouchEnd={stopDrawing}
+                                        className="w-full max-w-[300px] h-[150px]"
+                                    />
                                 </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">ลายมือชื่อ (วาดในช่องสี่เหลี่ยม)</label>
-                                    <div className="border-2 border-dashed border-gray-300 rounded-lg bg-white relative cursor-crosshair h-48 w-full">
-                                        <canvas
-                                            ref={canvasRef}
-                                            className="w-full h-full block"
-                                            width={600}
-                                            height={200}
-                                            onMouseDown={startDrawing}
-                                            onMouseUp={stopDrawing}
-                                            onMouseMove={draw}
-                                            onMouseLeave={stopDrawing}
-                                            onTouchStart={startDrawing}
-                                            onTouchEnd={stopDrawing}
-                                            onTouchMove={draw}
-                                        />
-                                        <button 
-                                            type="button" 
-                                            onClick={clearCanvas} 
-                                            className="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 text-xs px-2 py-1 rounded"
-                                        >
-                                            ล้างลายเซ็น
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">ใช้นิ้ว หรือ เมาส์ วาดลายเซ็นลงในกรอบ</p>
-                                </div>
+                                <button onClick={clearCanvas} className="text-xs text-red-500 underline mt-2 hover:text-red-700">ล้างลายเซ็น</button>
                             </div>
                         </div>
-
-                        <div className="p-5 border-t bg-gray-50 flex justify-end gap-3 rounded-b-xl">
-                            <button onClick={() => setIsSignModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">ยกเลิก</button>
-                            <button onClick={handleSaveSignature} className="px-6 py-2 bg-orange-500 text-white rounded-lg font-bold hover:bg-orange-600 shadow">ยืนยันการลงนาม</button>
+                        <div className="p-4 border-t flex justify-end gap-3">
+                            <button onClick={() => setIsSignModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
+                            <button onClick={handleSaveSignature} className="px-6 py-2 bg-orange-500 text-white rounded-lg font-bold hover:bg-orange-600 shadow">ยืนยันการเกษียน</button>
                         </div>
                     </div>
                 </div>
@@ -552,35 +542,45 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             {/* 3. Distribute Modal */}
             {isDistributeModalOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-                        <div className="p-5 border-b bg-blue-600 text-white rounded-t-xl">
-                            <h3 className="text-xl font-bold">ส่งหนังสือ / แจ้งเวียน</h3>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b bg-blue-600 text-white rounded-t-xl flex justify-between items-center">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                                ส่ง/แจ้งเวียนหนังสือ
+                            </h3>
+                            <button onClick={() => setIsDistributeModalOpen(false)} className="hover:bg-white/20 rounded-full p-1"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
-                        <div className="p-4 flex-grow overflow-y-auto">
-                            <div className="mb-3 flex justify-between items-center">
-                                <span className="font-bold text-gray-700">เลือกผู้รับ:</span>
-                                <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer">
-                                    <input type="checkbox" onChange={toggleAllRecipients} checked={selectedRecipients.size === personnel.length} />
+                        
+                        <div className="p-6 overflow-y-auto flex-grow">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="font-bold text-gray-700">เลือกผู้รับ ({selectedRecipients.size} คน)</h4>
+                                <label className="flex items-center gap-2 text-sm text-blue-600 font-bold cursor-pointer bg-blue-50 px-3 py-1 rounded-full border border-blue-100 hover:bg-blue-100">
+                                    <input type="checkbox" onChange={toggleAllRecipients} checked={personnel.length > 0 && selectedRecipients.size === personnel.length} />
                                     เลือกทั้งหมด
                                 </label>
                             </div>
-                            <div className="space-y-1 max-h-64 overflow-y-auto border rounded p-2">
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {personnel.map(p => (
-                                    <div key={p.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer" onClick={() => toggleRecipient(p.id)}>
+                                    <label key={p.id} className={`flex items-center p-2 rounded border cursor-pointer transition-colors ${selectedRecipients.has(p.id) ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300' : 'hover:bg-gray-50 border-gray-200'}`}>
                                         <input 
                                             type="checkbox" 
                                             checked={selectedRecipients.has(p.id)} 
-                                            onChange={() => {}} // handled by div click
-                                            className="rounded text-blue-600 pointer-events-none"
+                                            onChange={() => toggleRecipient(p.id)}
+                                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 mr-3"
                                         />
-                                        <span className="text-sm text-gray-700">{p.personnelTitle}{p.personnelName} ({p.position})</span>
-                                    </div>
+                                        <div>
+                                            <div className="text-sm font-bold text-gray-800">{p.personnelTitle}{p.personnelName}</div>
+                                            <div className="text-xs text-gray-500">{p.position}</div>
+                                        </div>
+                                    </label>
                                 ))}
                             </div>
                         </div>
+                        
                         <div className="p-4 border-t flex justify-end gap-3">
                             <button onClick={() => setIsDistributeModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
-                            <button onClick={handleSaveDistribution} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow hover:bg-blue-700">ส่งหนังสือ</button>
+                            <button onClick={handleSaveDistribution} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow">บันทึกและส่ง</button>
                         </div>
                     </div>
                 </div>

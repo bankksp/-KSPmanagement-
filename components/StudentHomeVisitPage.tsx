@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, HomeVisit, Personnel } from '../types';
-import { getFirstImageSource, getDirectDriveImageSrc } from '../utils';
+import { getFirstImageSource, getDirectDriveImageSrc, getCurrentThaiDate, buddhistToISO, isoToBuddhist } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface StudentHomeVisitPageProps {
@@ -31,7 +31,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
     const [visitForm, setVisitForm] = useState<Partial<HomeVisit>>({
-        date: new Date().toLocaleDateString('th-TH'),
+        date: getCurrentThaiDate(),
         notes: '',
         image: [],
         locationName: '',
@@ -198,7 +198,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
             });
         } else {
             setVisitForm({
-                date: new Date().toLocaleDateString('th-TH'),
+                date: getCurrentThaiDate(),
                 notes: '',
                 image: [],
                 locationName: student.studentAddress || '',
@@ -265,7 +265,7 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
             academicYear: filterYear,
             term: filterTerm,
             status: 'visited',
-            date: visitForm.date || new Date().toLocaleDateString('th-TH'),
+            date: visitForm.date || getCurrentThaiDate(),
             notes: visitForm.notes || '',
             locationName: visitForm.locationName || '',
             image: visitForm.image,
@@ -484,12 +484,11 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">วันที่เยี่ยมบ้าน</label>
                                     <input 
-                                        type="text" 
+                                        type="date" 
                                         required 
-                                        value={visitForm.date} 
-                                        onChange={e => setVisitForm({...visitForm, date: e.target.value})}
+                                        value={buddhistToISO(visitForm.date)} 
+                                        onChange={e => setVisitForm({...visitForm, date: isoToBuddhist(e.target.value)})}
                                         className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue"
-                                        placeholder="วว/ดด/ปปปป"
                                     />
                                 </div>
                                 <div>

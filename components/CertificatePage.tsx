@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CertificateRequest, Personnel } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate } from '../utils';
 
 interface CertificatePageProps {
     currentUser: Personnel;
@@ -20,7 +21,7 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
     // Form State
     const [formData, setFormData] = useState<Partial<CertificateRequest>>({
         requesterName: '',
-        date: new Date().toLocaleDateString('th-TH'),
+        date: getCurrentThaiDate(),
         activityName: '',
         peopleCount: 1,
         academicYear: (new Date().getFullYear() + 543).toString(),
@@ -76,7 +77,7 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
             const title = currentUser.personnelTitle === 'อื่นๆ' ? currentUser.personnelTitleOther : currentUser.personnelTitle;
             setFormData({
                 requesterName: `${title}${currentUser.personnelName}`,
-                date: new Date().toLocaleDateString('th-TH'),
+                date: getCurrentThaiDate(),
                 activityName: '',
                 peopleCount: 1,
                 academicYear: (new Date().getFullYear() + 543).toString(),
@@ -90,7 +91,6 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
 
     const generateCertNumber = (prefix: string, count: number, activityNo: string, year: string) => {
         if (!activityNo || !year) return '-';
-        // Logic: กส.ปญ 1-[count]/[activityNo]/[year]
         
         let range = '1';
         if (count > 1) {
@@ -264,7 +264,7 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
                                 {filteredRequests.map((req) => (
                                     <tr key={req.id} className="hover:bg-blue-50">
                                         <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.has(req.id)} onChange={() => handleSelect(req.id)} /></td>
-                                        <td className="p-3 whitespace-nowrap">{req.date}</td>
+                                        <td className="p-3 whitespace-nowrap">{formatThaiDate(req.date)}</td>
                                         <td className="p-3 font-medium">{req.requesterName}</td>
                                         <td className="p-3">{req.activityName}</td>
                                         <td className="p-3 text-center">{req.peopleCount}</td>
@@ -305,7 +305,13 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">วันที่</label>
-                                    <input type="text" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue" placeholder="วว/ดด/ปปปป" />
+                                    <input 
+                                        type="date" 
+                                        required 
+                                        value={buddhistToISO(formData.date)} 
+                                        onChange={e => setFormData({...formData, date: isoToBuddhist(e.target.value)})} 
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue" 
+                                    />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-bold text-gray-700 mb-1">ชื่อกิจกรรม</label>

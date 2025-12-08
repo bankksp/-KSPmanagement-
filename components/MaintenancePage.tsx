@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { MaintenanceRequest, MaintenanceStatus, Personnel } from '../types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { getDirectDriveImageSrc } from '../utils';
+import { getDirectDriveImageSrc, getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate } from '../utils';
 
 interface MaintenancePageProps {
     currentUser: Personnel;
@@ -58,7 +58,7 @@ const MaintenancePage: React.FC<MaintenancePageProps> = ({ currentUser, requests
         } else {
             const title = currentUser.personnelTitle === 'อื่นๆ' ? currentUser.personnelTitleOther : currentUser.personnelTitle;
             setCurrentItem({
-                date: new Date().toLocaleDateString('th-TH'),
+                date: getCurrentThaiDate(),
                 requesterName: `${title}${currentUser.personnelName}`,
                 status: 'pending',
                 itemName: '',
@@ -87,7 +87,7 @@ const MaintenancePage: React.FC<MaintenancePageProps> = ({ currentUser, requests
         // If completing, set completion date
         let updates: Partial<MaintenanceRequest> = { status: newStatus };
         if (newStatus === 'completed' && !request.completionDate) {
-            updates.completionDate = new Date().toLocaleDateString('th-TH');
+            updates.completionDate = getCurrentThaiDate();
         }
         onSave({ ...request, ...updates });
     };
@@ -246,13 +246,13 @@ const MaintenancePage: React.FC<MaintenancePageProps> = ({ currentUser, requests
                             <tbody className="text-sm">
                                 {filteredRequests.map(req => (
                                     <tr key={req.id} className="border-b hover:bg-gray-50">
-                                        <td className="p-4 whitespace-nowrap">{req.date}</td>
+                                        <td className="p-4 whitespace-nowrap">{formatThaiDate(req.date)}</td>
                                         <td className="p-4">
                                             <div className="font-bold text-navy">{req.itemName}</div>
                                             <div className="text-xs text-gray-500">{req.description}</div>
                                             {req.image && req.image.length > 0 && (
                                                 <a href={getDirectDriveImageSrc(req.image[0])} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1">
-                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 00-2-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                     ดูรูปภาพ
                                                 </a>
                                             )}
@@ -307,7 +307,12 @@ const MaintenancePage: React.FC<MaintenancePageProps> = ({ currentUser, requests
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">วันที่แจ้ง</label>
-                                    <input type="text" value={currentItem.date} disabled className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-500" />
+                                    <input 
+                                        type="date" 
+                                        value={buddhistToISO(currentItem.date)} 
+                                        onChange={e => setCurrentItem({...currentItem, date: isoToBuddhist(e.target.value)})} 
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-blue" 
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">ผู้แจ้ง</label>
