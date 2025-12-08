@@ -4,7 +4,7 @@ import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance, Dor
 import ReportChart from './ReportChart';
 import InfirmaryChart from './InfirmaryChart';
 import AttendanceStats from './AttendanceStats';
-import { getDirectDriveImageSrc } from '../utils';
+import { getDirectDriveImageSrc, buddhistToISO, isoToBuddhist } from '../utils';
 
 interface DashboardProps {
     reports: Report[];
@@ -31,20 +31,24 @@ const Dashboard: React.FC<DashboardProps> = ({
 }) => {
     const [selectedDate, setSelectedDate] = useState(() => {
         const now = new Date();
-        const year = now.getFullYear();
+        const year = now.getFullYear() + 543;
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        return `${day}/${month}/${year}`;
     });
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
     // --- Data Processing ---
 
     const { dormitoryData, totalStudentsReport, totalSick, totalHome, displayDate, buddhistDate } = useMemo(() => {
-        const [yearStr, monthStr, dayStr] = selectedDate.split('-');
-        const targetDay = parseInt(dayStr);
-        const targetMonth = parseInt(monthStr) - 1; 
-        const targetYear = parseInt(yearStr);
+        const parts = selectedDate.split('/');
+        let targetDay = 0, targetMonth = 0, targetYear = 0;
+        
+        if (parts.length === 3) {
+            targetDay = parseInt(parts[0]);
+            targetMonth = parseInt(parts[1]) - 1; 
+            targetYear = parseInt(parts[2]) - 543;
+        }
 
         const buddhistYear = targetYear + 543;
         const displayDateString = `${targetDay}/${targetMonth + 1}/${buddhistYear}`;
@@ -121,7 +125,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     
     const historyData = useMemo(() => {
         const history = [];
-        const current = new Date(selectedDate); 
+        const parts = selectedDate.split('/');
+        if (parts.length !== 3) return [];
+        
+        const current = new Date(parseInt(parts[2]) - 543, parseInt(parts[1]) - 1, parseInt(parts[0]));
         
         for (let i = 6; i >= 0; i--) {
             const d = new Date(current);
@@ -195,18 +202,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         return { studentStats, personnelStats };
     }, [studentAttendance, personnelAttendance, students.length, personnel.length, buddhistDate]);
 
-    const personnelMorningStats = useMemo(() => {
-        const morningRecords = personnelAttendance.filter(p => p.date === buddhistDate && p.period === 'morning');
-        const present = morningRecords.filter(p => p.status === 'present' || p.status === 'activity').length;
-        const leave = morningRecords.filter(p => p.status === 'leave').length;
-        const sick = morningRecords.filter(p => p.status === 'sick').length;
-        const absent = morningRecords.filter(p => p.status === 'absent').length;
-        const total = personnel.length;
-        const notChecked = total - morningRecords.length; // Approximate
-        
-        return { present, leave, sick, absent, total, notChecked };
-    }, [personnelAttendance, personnel.length, buddhistDate]);
-
     // Demographics
     const schoolDemographics = useMemo(() => {
         const studentMale = students.filter(s => ['เด็กชาย', 'นาย'].includes(s.studentTitle)).length;
@@ -249,7 +244,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `report_stats_${selectedDate}.xls`;
+        link.download = `report_stats_${selectedDate.replace(/\//g, '-')}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -306,7 +301,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `report_stats_${selectedDate}.doc`;
+        link.download = `report_stats_${selectedDate.replace(/\//g, '-')}.doc`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -510,8 +505,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                             <input 
                                 type="date" 
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
+                                value={buddhistToISO(selectedDate)}
+                                onChange={(e) => {
+                                    const newDate = isoToBuddhist(e.target.value);
+                                    if(newDate) setSelectedDate(newDate);
+                                }}
                                 className="pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-transparent outline-none transition-all shadow-inner font-medium"
                             />
                         </div>

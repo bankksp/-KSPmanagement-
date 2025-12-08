@@ -1,3 +1,4 @@
+
 import { GOOGLE_SCRIPT_URL } from './constants';
 
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
@@ -305,4 +306,58 @@ export const postToGoogleScript = async (payload: any, retries = 3) => {
         }
     }
     throw lastError;
+};
+
+// --- Date Utils for Thai Buddhist Calendar ---
+
+// Get current date in DD/MM/YYYY (Buddhist Year)
+export const getCurrentThaiDate = (): string => {
+    const date = new Date();
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = (date.getFullYear() + 543).toString();
+    return `${day}/${month}/${year}`;
+};
+
+// Convert "DD/MM/YYYY" (Buddhist) to "YYYY-MM-DD" (ISO/Gregorian) for input[type="date"] value
+export const buddhistToISO = (buddhistDate: string | undefined): string => {
+    if (!buddhistDate || typeof buddhistDate !== 'string') return '';
+    const parts = buddhistDate.split('/');
+    if (parts.length !== 3) return '';
+    
+    // Check if format is YYYY-MM-DD already (backward compatibility)
+    if (buddhistDate.includes('-') && parts[0].length === 4) return buddhistDate;
+
+    let day = 0, month = 0, year = 0;
+
+    // Handle standard DD/MM/YYYY
+    if (parts[0].length <= 2 && parts[2].length === 4) {
+        day = parseInt(parts[0]);
+        month = parseInt(parts[1]);
+        year = parseInt(parts[2]);
+    } else {
+        // Fallback or other formats
+        return '';
+    }
+
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
+    
+    // If year is Buddhist (e.g. > 2400), convert to Gregorian
+    const gregorianYear = year > 2400 ? year - 543 : year;
+    
+    return `${gregorianYear.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+};
+
+// Convert "YYYY-MM-DD" (ISO/Gregorian) from input[type="date"] to "DD/MM/YYYY" (Buddhist) for storage
+export const isoToBuddhist = (isoDate: string | undefined): string => {
+    if (!isoDate || typeof isoDate !== 'string') return '';
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) return '';
+    
+    const [year, month, day] = parts.map(Number);
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
+    
+    // Convert Gregorian to Buddhist
+    const buddhistYear = year + 543;
+    return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${buddhistYear}`;
 };

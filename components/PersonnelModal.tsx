@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Personnel, Student } from '../types';
-import { getFirstImageSource } from '../utils';
+import { getFirstImageSource, buddhistToISO, isoToBuddhist } from '../utils';
 
 interface PersonnelModalProps {
     onClose: () => void;
@@ -30,29 +29,6 @@ const initialFormData: Omit<Personnel, 'id'> = {
     role: 'user',
     status: 'approved'
 };
-
-// Helper function to convert Buddhist date string (DD/MM/BBBB) to ISO string (YYYY-MM-DD)
-const buddhistToISO = (buddhistDate: string): string => {
-    if (!buddhistDate || typeof buddhistDate !== 'string') return '';
-    const parts = buddhistDate.split('/');
-    if (parts.length !== 3) return '';
-    const [day, month, year] = parts.map(Number);
-    if (isNaN(day) || isNaN(month) || isNaN(year) || year < 543) return '';
-    const gregorianYear = year - 543;
-    return `${gregorianYear.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-};
-
-// Helper function to convert ISO string (YYYY-MM-DD) to Buddhist date string (DD/MM/BBBB)
-const isoToBuddhist = (isoDate: string): string => {
-    if (!isoDate || typeof isoDate !== 'string') return '';
-    const parts = isoDate.split('-');
-    if (parts.length !== 3) return '';
-    const [year, month, day] = parts.map(Number);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
-    const buddhistYear = year + 543;
-    return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${buddhistYear}`;
-};
-
 
 // Define props for the new standalone InputField component
 interface InputFieldProps {

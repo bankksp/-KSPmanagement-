@@ -329,7 +329,7 @@ export interface ConstructionRecord {
   status: ConstructionStatus;
   
   // Detailed Report Fields
-  contractorWork: string; // รายการปฏิบัติงานของผู้รับจ้าง
+  contractorWork: string; // รายการปฏิบัติงานของผู้รับจ้าง (ช่างไม้, เหล็ก, ปูน ฯลฯ)
   materials: string; // วัสดุที่นำเข้าในการก่อสร้าง
   workers: string; // คนงาน (จำนวน หรือ รายละเอียด)
   description: string; // งานที่ดำเนินการก่อสร้างประจำวัน (Detailed Description)

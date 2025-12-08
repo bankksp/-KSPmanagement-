@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, Personnel, StudentAttendance, PersonnelAttendance, TimePeriod, AttendanceStatus } from '../types';
 import { STUDENT_CLASSES, STUDENT_CLASSROOMS } from '../constants';
-import { getFirstImageSource } from '../utils';
+import { getFirstImageSource, buddhistToISO, isoToBuddhist, getCurrentThaiDate } from '../utils';
 
 interface AttendancePageProps {
     mode: 'student' | 'personnel';
@@ -17,32 +17,6 @@ interface AttendancePageProps {
     currentUser: Personnel | null;
 }
 
-// Helper for current Buddhist date
-const getTodayBuddhist = () => {
-    const date = new Date();
-    return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear() + 543}`;
-};
-
-// Convert Buddhist Date (DD/MM/YYYY) to ISO Date (YYYY-MM-DD) for input[type="date"]
-const buddhistToISO = (buddhistDate: string) => {
-    if (!buddhistDate) return '';
-    const parts = buddhistDate.split('/');
-    if (parts.length !== 3) return '';
-    const [day, month, year] = parts.map(Number);
-    const isoYear = year - 543;
-    return `${isoYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-};
-
-// Convert ISO Date (YYYY-MM-DD) to Buddhist Date (DD/MM/YYYY) for system storage
-const isoToBuddhist = (isoDate: string) => {
-    if (!isoDate) return '';
-    const parts = isoDate.split('-');
-    if (parts.length !== 3) return '';
-    const [year, month, day] = parts.map(Number);
-    const buddhistYear = year + 543;
-    return `${day}/${month}/${buddhistYear}`;
-};
-
 const AttendancePage: React.FC<AttendancePageProps> = ({
     mode,
     students, personnel, dormitories, 
@@ -50,7 +24,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     onSaveStudentAttendance, onSavePersonnelAttendance, isSaving,
     currentUser
 }) => {
-    const [selectedDate, setSelectedDate] = useState(getTodayBuddhist());
+    const [selectedDate, setSelectedDate] = useState(getCurrentThaiDate());
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('morning');
 
     // Filters for Students

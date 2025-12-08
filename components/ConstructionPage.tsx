@@ -1,9 +1,7 @@
 
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { ConstructionRecord, Personnel, ConstructionStatus } from '../types';
-import { getDirectDriveImageSrc, safeParseArray, getFirstImageSource } from '../utils';
+import { getDirectDriveImageSrc, safeParseArray, getFirstImageSource, getCurrentThaiDate, buddhistToISO, isoToBuddhist } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface ConstructionPageProps {
@@ -12,7 +10,6 @@ interface ConstructionPageProps {
     onSave: (record: ConstructionRecord) => void;
     onDelete: (ids: number[]) => void;
     isSaving: boolean;
-    // We need personnel list for supervisor selection
     personnel?: Personnel[]; 
 }
 
@@ -30,6 +27,8 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
     // View/Export State
     const [viewRecord, setViewRecord] = useState<ConstructionRecord | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
     
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
@@ -82,29 +81,48 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
         }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [records, searchTerm, filterStatus]);
 
+    // --- Slideshow Auto-play ---
+    useEffect(() => {
+        let interval: any;
+        if (isViewModalOpen && viewRecord?.media && viewRecord.media.length > 1) {
+            interval = setInterval(() => {
+                setCurrentSlide((prev) => (prev + 1) % viewRecord.media!.length);
+            }, 5000);
+        }
+        return () => clearInterval(interval);
+    }, [isViewModalOpen, viewRecord]);
+
+    // Reset slide on open
+    useEffect(() => {
+        if (isViewModalOpen) {
+            setCurrentSlide(0);
+            setIsExportMenuOpen(false);
+        }
+    }, [isViewModalOpen]);
+
     // --- Handlers ---
     const handleOpenModal = (record?: ConstructionRecord) => {
         if (record) {
             setCurrentRecord({ ...record });
         } else {
             setCurrentRecord({
-                date: new Date().toLocaleDateString('th-TH'),
+                date: getCurrentThaiDate(),
                 projectName: '',
                 contractor: '',
                 location: '',
                 progress: 0,
                 status: 'not_started',
-                contractorWork: '', // New
-                materials: '', // New
-                workers: '', // New
-                description: '', // This is "Daily Work"
-                problems: '', // New
+                contractorWork: '', 
+                materials: '',
+                workers: '', 
+                description: '', // Remarks
+                problems: '', 
                 startDate: '',
                 endDate: '',
                 budget: 0,
                 media: [],
                 reporter: `${currentUser.personnelTitle}${currentUser.personnelName}`,
-                supervisors: [currentUser.id] // Default to current user as one supervisor
+                supervisors: [currentUser.id] 
             });
         }
         setIsModalOpen(true);
@@ -117,7 +135,6 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
             id: currentRecord.id || Date.now(),
             progress: Number(currentRecord.progress),
             budget: Number(currentRecord.budget),
-            // Ensure fields are initialized
             contractorWork: currentRecord.contractorWork || '',
             materials: currentRecord.materials || '',
             workers: currentRecord.workers || '',
@@ -189,7 +206,6 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
         return <span className={`px-2 py-1 rounded-full text-xs font-bold ${conf.class}`}>{conf.label}</span>;
     };
 
-    // Helper to check if file is video
     const isVideo = (file: File | string) => {
         if (file instanceof File) return file.type.startsWith('video/');
         const url = String(file).toLowerCase();
@@ -198,23 +214,20 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
 
     // --- Export Functions ---
     const handlePrint = () => {
+        setIsExportMenuOpen(false);
         window.print();
     };
 
     const exportToWord = () => {
+        setIsExportMenuOpen(false);
         if (!viewRecord) return;
         
         const supervisorsList = (viewRecord.supervisors || [])
-            .map(id => personnel.find(p => p.id === id))
-            .filter(Boolean);
-
-        const signaturesHtml = supervisorsList.map(p => `
-            <div style="text-align: center; margin-top: 30px; display: inline-block; width: 45%; vertical-align: top;">
-                <p>ลงชื่อ ........................................................... ผู้ควบคุมงาน</p>
-                <p>(${p?.personnelTitle}${p?.personnelName})</p>
-                <p>ตำแหน่ง ${p?.position}</p>
-            </div>
-        `).join('');
+            .map(id => {
+                const p = personnel.find(p => p.id === id);
+                return p ? `${p.personnelTitle}${p.personnelName}` : '';
+            })
+            .filter((s): s is string => !!s);
 
         const imagesHtml = safeParseArray(viewRecord.media).map(m => {
              const src = getDirectDriveImageSrc(m);
@@ -225,67 +238,90 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head>
                 <meta charset='utf-8'>
-                <title>Construction Report</title>
+                <title>Construction Daily Report</title>
                 <style>
-                    @page { size: A4; margin: 2cm; }
-                    body { font-family: 'TH Sarabun PSK', sans-serif; font-size: 16pt; line-height: 1.4; }
-                    h1 { font-size: 29pt; font-weight: bold; text-align: center; margin-bottom: 0; }
-                    .header-info { margin-bottom: 20px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                    td, th { border: 1px solid black; padding: 5px; vertical-align: top; }
-                    .label { font-weight: bold; }
+                    @page { size: A4 landscape; margin: 1cm; }
+                    body { font-family: 'TH Sarabun PSK', sans-serif; font-size: 14pt; line-height: 1.2; }
+                    h1 { font-size: 18pt; font-weight: bold; text-align: center; margin-bottom: 5px; }
+                    h2 { font-size: 16pt; font-weight: normal; text-align: center; margin-top: 0; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+                    td, th { border: 1px solid black; padding: 5px; vertical-align: top; font-size: 14pt; }
+                    .header-cell { font-weight: bold; text-align: center; background-color: #f0f0f0; }
+                    .no-border { border: none; }
+                    .text-center { text-align: center; }
                 </style>
             </head>
             <body>
-                <div style="text-align: center;">
-                    <img src="https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png" width="60" />
-                    <h1>บันทึกข้อความ</h1>
-                </div>
-                <div class="header-info">
-                    <p><strong>ส่วนราชการ:</strong> โรงเรียนกาฬสินธุ์ปัญญานุกูล จังหวัดกาฬสินธุ์</p>
-                    <p><strong>ที่:</strong> ................................................... <strong>วันที่:</strong> ${viewRecord.date}</p>
-                    <p><strong>เรื่อง:</strong> รายงานผลการปฏิบัติงานก่อสร้างประจำวัน</p>
-                    <p><strong>เรียน:</strong> ผู้อำนวยการโรงเรียนกาฬสินธุ์ปัญญานุกูล</p>
-                </div>
-                
-                <p>ขอรายงานผลการปฏิบัติงานก่อสร้าง โครงการ <strong>${viewRecord.projectName}</strong> ดังนี้:</p>
-                
-                <table>
+                <h1>แบบฟอร์มบันทึกการควบคุมงานก่อสร้างประจำวัน</h1>
+                <table style="border: none; width: 100%; margin-bottom: 5px;">
                     <tr>
-                        <td width="30%" class="label">ผู้รับจ้าง</td>
-                        <td>${viewRecord.contractor}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">รายการปฏิบัติงานของผู้รับจ้าง</td>
-                        <td>${viewRecord.contractorWork || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">งานที่ดำเนินการก่อสร้างประจำวัน</td>
-                        <td>${viewRecord.description || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">วัสดุที่นำเข้าในการก่อสร้าง</td>
-                        <td>${viewRecord.materials || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">คนงาน</td>
-                        <td>${viewRecord.workers || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">ปัญหา/อุปสรรค</td>
-                        <td>${viewRecord.problems || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">ความคืบหน้า</td>
-                        <td>${viewRecord.progress}%</td>
+                        <td class="no-border" width="50%"><b>โครงการ:</b> ${viewRecord.projectName}</td>
+                        <td class="no-border" width="50%"><b>ผู้รับจ้าง:</b> ${viewRecord.contractor}</td>
                     </tr>
                 </table>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="header-cell" style="width: 10%;">วัน เดือน ปี</th>
+                            <th class="header-cell" style="width: 50%;">รายการปฏิบัติงานของผู้รับจ้าง</th>
+                            <th class="header-cell" style="width: 20%;">ลงชื่อ</th>
+                            <th class="header-cell" style="width: 20%;">หมายเหตุ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td align="center">
+                                ${viewRecord.date}<br/><br/>
+                                <div style="text-align: left; font-size: 12pt;">
+                                ทุกวัน......................<br/>
+                                ตั้งแต่......................<br/>
+                                วันเริ่มต้น................<br/>
+                                สัญญา....................<br/>
+                                จนถึง......................<br/>
+                                วันทำงาน.................<br/>
+                                แล้วเสร็จ.................
+                                </div>
+                            </td>
+                            <td>
+                                <b>- ช่างไม้/เหล็ก/ปูน/อื่นๆ:</b><br/>
+                                ${(viewRecord.contractorWork || '-').replace(/\n/g, '<br/>')}<br/>
+                                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;"/>
+                                <b>- คนงานทั่วไป:</b><br/>
+                                ${(viewRecord.workers || '-').replace(/\n/g, '<br/>')}<br/>
+                                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;"/>
+                                <b>- วัสดุที่นำเข้ามาในบริเวณก่อสร้าง:</b><br/>
+                                ${(viewRecord.materials || '-').replace(/\n/g, '<br/>')}<br/>
+                                <b>- อุปกรณ์ต่างๆ:</b> (รวมในรายการวัสดุ)<br/>
+                                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 5px 0;"/>
+                                <b>- ความถูกต้อง/ปัญหา/งานแก้ไข:</b><br/>
+                                ${(viewRecord.problems || '-').replace(/\n/g, '<br/>')}
+                            </td>
+                            <td align="center" style="vertical-align: bottom;">
+                                <div style="min-height: 150px;"></div>
+                                ${supervisorsList.length > 0 ? supervisorsList[0] : '...................................'}
+                                <br/>(ผู้ควบคุมงาน/ผู้บันทึก)<br/><br/>
+                                ${supervisorsList.length > 1 ? supervisorsList[1] : '...................................'}
+                                <br/>(ผู้ร่วมงาน)<br/><br/>
+                                ...................................<br/>(ผู้รับจ้าง)
+                            </td>
+                            <td>
+                                (ปัญหาจำเป็นที่ต้องบันทึก)<br/>
+                                - การหยุดงานเทศกาล<br/>
+                                - เนื่องจากปัญหาดินฟ้าอากาศ<br/>
+                                - อุปสรรคต่างๆ ที่ต้องหยุดงาน<br/>
+                                - การสั่งหยุดงาน<br/>
+                                - การขอเปลี่ยนแปลงต่างๆ<br/>
+                                - การรอคำชี้แจงสำคัญๆ<br/>
+                                <br/>
+                                <b>บันทึกเพิ่มเติม:</b><br/>
+                                ${(viewRecord.description || '-').replace(/\n/g, '<br/>')}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
 
-                <div style="margin-top: 20px; text-align: center;">
-                    ${signaturesHtml}
-                </div>
-
-                ${imagesHtml ? `<div style="margin-top: 40px; page-break-before: always;"><h3>ภาคผนวก (รูปภาพประกอบ)</h3>${imagesHtml}</div>` : ''}
+                ${imagesHtml ? `<div style="margin-top: 20px; page-break-before: always; text-align: center;"><h3>ภาคผนวก (รูปภาพประกอบ)</h3>${imagesHtml}</div>` : ''}
             </body>
             </html>
         `;
@@ -294,40 +330,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `รายงานการก่อสร้าง_${viewRecord.date.replace(/\//g, '-')}.doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const exportToExcel = () => {
-        if (!viewRecord) return;
-        const supervisorsList = (viewRecord.supervisors || [])
-            .map(id => personnel.find(p => p.id === id)?.personnelName)
-            .join(', ');
-
-        const data = [
-            ['วันที่', viewRecord.date],
-            ['โครงการ', viewRecord.projectName],
-            ['ผู้รับจ้าง', viewRecord.contractor],
-            ['รายการปฏิบัติงาน', viewRecord.contractorWork],
-            ['งานที่ทำวันนี้', viewRecord.description],
-            ['วัสดุเข้า', viewRecord.materials],
-            ['คนงาน', viewRecord.workers],
-            ['ปัญหา/อุปสรรค', viewRecord.problems],
-            ['ความคืบหน้า', `${viewRecord.progress}%`],
-            ['ผู้คุมงาน', supervisorsList]
-        ];
-
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        data.forEach(row => {
-            csvContent += row.map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(",") + "\r\n";
-        });
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `construction_report_${viewRecord.date.replace(/\//g,'-')}.csv`);
+        link.download = `แบบฟอร์มคุมงาน_${viewRecord.date.replace(/\//g, '-')}.doc`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -337,10 +340,10 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
         <div className="space-y-6">
             <style>{`
                 @media print {
-                    @page { size: A4; margin: 2cm; }
+                    @page { size: A4 landscape; margin: 1cm; }
                     body * { visibility: hidden; }
                     #print-construction-doc, #print-construction-doc * { visibility: visible; }
-                    #print-construction-doc { position: absolute; left: 0; top: 0; width: 100%; }
+                    #print-construction-doc { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; background: white; }
                     .no-print { display: none !important; }
                 }
             `}</style>
@@ -460,7 +463,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                                     <th className="p-3 w-10 text-center"><input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredRecords.map(r => r.id)) : new Set())} /></th>
                                     <th className="p-3">วันที่บันทึก</th>
                                     <th className="p-3">ชื่อโครงการ</th>
-                                    <th className="p-3">งานประจำวัน</th>
+                                    <th className="p-3">รายการปฏิบัติงาน</th>
                                     <th className="p-3" style={{width: '150px'}}>ความคืบหน้า</th>
                                     <th className="p-3 text-center">สถานะ</th>
                                     <th className="p-3 text-center">จัดการ</th>
@@ -472,7 +475,7 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                                         <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => handleSelect(r.id)} /></td>
                                         <td className="p-3 whitespace-nowrap">{r.date}</td>
                                         <td className="p-3 font-medium text-navy">{r.projectName}</td>
-                                        <td className="p-3 text-gray-600 truncate max-w-[200px]">{r.description}</td>
+                                        <td className="p-3 text-gray-600 truncate max-w-[200px]">{r.contractorWork || r.description}</td>
                                         <td className="p-3">
                                             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-300">
                                                 <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${r.progress}%` }}></div>
@@ -507,8 +510,14 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                             {/* Row 1: Dates & Project */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">วันที่บันทึก (วว/ดด/ปปปป)</label>
-                                    <input type="text" value={currentRecord.date} onChange={e => setCurrentRecord({...currentRecord, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">วันที่บันทึก</label>
+                                    <input 
+                                        type="date" 
+                                        value={buddhistToISO(currentRecord.date)} 
+                                        onChange={e => setCurrentRecord({...currentRecord, date: isoToBuddhist(e.target.value)})} 
+                                        className="w-full px-3 py-2 border rounded-lg" 
+                                        required 
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">ชื่อโครงการ</label>
@@ -537,31 +546,31 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                                 </div>
                             </div>
 
-                            {/* Detailed Text Areas */}
+                            {/* Detailed Text Areas matching the form */}
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">รายการปฏิบัติงานของผู้รับจ้าง (Contractor Work)</label>
-                                <textarea rows={2} value={currentRecord.contractorWork} onChange={e => setCurrentRecord({...currentRecord, contractorWork: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="ระบุรายการที่ผู้รับเหมาแจ้งทำ..."></textarea>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">รายการปฏิบัติงาน (ระบุช่างไม้, เหล็ก, ปูน...)</label>
+                                <textarea rows={3} value={currentRecord.contractorWork} onChange={e => setCurrentRecord({...currentRecord, contractorWork: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="ระบุรายการที่ทำ (เช่น ช่างไม้, ช่างเหล็ก, ช่างปูน)..."></textarea>
                             </div>
                             
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">งานที่ดำเนินการก่อสร้างประจำวัน (Daily Work)</label>
-                                <textarea rows={3} value={currentRecord.description} onChange={e => setCurrentRecord({...currentRecord, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="รายละเอียดเนื้องานที่เกิดขึ้นจริง..."></textarea>
-                            </div>
-
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">วัสดุที่นำเข้า (Materials)</label>
-                                    <textarea rows={2} value={currentRecord.materials} onChange={e => setCurrentRecord({...currentRecord, materials: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="ปูน, ทราย, เหล็ก..."></textarea>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">คนงานทั่วไป</label>
+                                    <textarea rows={2} value={currentRecord.workers} onChange={e => setCurrentRecord({...currentRecord, workers: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="จำนวนคน, รายละเอียด..."></textarea>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">คนงาน (Workers)</label>
-                                    <textarea rows={2} value={currentRecord.workers} onChange={e => setCurrentRecord({...currentRecord, workers: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="จำนวนคน, ประเภทช่าง..."></textarea>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">วัสดุ/อุปกรณ์ที่นำเข้า</label>
+                                    <textarea rows={2} value={currentRecord.materials} onChange={e => setCurrentRecord({...currentRecord, materials: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="ปูน, ทราย, เหล็ก..."></textarea>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">ปัญหา/อุปสรรค (Problems)</label>
-                                <textarea rows={2} value={currentRecord.problems} onChange={e => setCurrentRecord({...currentRecord, problems: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="ฝนตก, ของขาด..."></textarea>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">ปัญหา/งานแก้ไข/ตรวจสอบความถูกต้อง</label>
+                                <textarea rows={2} value={currentRecord.problems} onChange={e => setCurrentRecord({...currentRecord, problems: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="ฝนตก, ของขาด, งานที่ต้องแก้ไข..."></textarea>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">หมายเหตุ (ฝนตก, หยุดงาน, ฯลฯ)</label>
+                                <textarea rows={2} value={currentRecord.description} onChange={e => setCurrentRecord({...currentRecord, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
                             </div>
 
                             {/* Supervisor Selector */}
@@ -644,123 +653,185 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
                 </div>
             )}
 
-            {/* VIEW MODAL & EXPORT */}
+            {/* VIEW MODAL - Modern Style like ServiceRegistration */}
             {isViewModalOpen && viewRecord && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden animate-fade-in-up">
-                        {/* Header */}
-                        <div className="p-4 border-b flex justify-between items-center bg-white no-print">
-                            <h2 className="text-xl font-bold text-navy">{viewRecord.projectName} - {viewRecord.date}</h2>
-                            <div className="flex gap-2">
-                                <button onClick={exportToWord} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">Word</button>
-                                <button onClick={exportToExcel} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700">Excel</button>
-                                <button onClick={handlePrint} className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800">Print</button>
-                                <button onClick={() => setIsViewModalOpen(false)} className="bg-gray-200 px-3 py-1.5 rounded text-sm hover:bg-gray-300">ปิด</button>
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setIsViewModalOpen(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-fade-in-up relative" onClick={e => e.stopPropagation()}>
+                        
+                        {/* 1. Header & Slideshow Section */}
+                        <div className="relative bg-gray-900 flex-shrink-0 h-64 md:h-80 no-print group">
+                            {safeParseArray(viewRecord.media).length > 0 ? (
+                                <>
+                                    {isVideo(safeParseArray(viewRecord.media)[currentSlide]) ? (
+                                        <video 
+                                            src={getDirectDriveImageSrc(safeParseArray(viewRecord.media)[currentSlide])} 
+                                            className="w-full h-full object-contain bg-black" 
+                                            controls
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={getDirectDriveImageSrc(safeParseArray(viewRecord.media)[currentSlide])} 
+                                            className="w-full h-full object-contain bg-black" 
+                                            alt="Construction Site" 
+                                        />
+                                    )}
+                                    
+                                    {safeParseArray(viewRecord.media).length > 1 && (
+                                        <>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setCurrentSlide((prev) => (prev - 1 + safeParseArray(viewRecord.media).length) % safeParseArray(viewRecord.media).length); }}
+                                                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                                            >
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setCurrentSlide((prev) => (prev + 1) % safeParseArray(viewRecord.media).length); }}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                                            >
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                            </button>
+                                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                                {safeParseArray(viewRecord.media).map((_, idx) => (
+                                                    <div key={idx} className={`h-1.5 rounded-full transition-all shadow-sm ${idx === currentSlide ? 'bg-white w-6' : 'bg-white/50 w-1.5'}`}/>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                    <svg className="w-16 h-16 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 00-2-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <span className="text-sm">ไม่มีรูปภาพประกอบ</span>
+                                </div>
+                            )}
+                            
+                            <button onClick={() => setIsViewModalOpen(false)} className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full transition-all backdrop-blur-md z-30">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        {/* 2. Content Body */}
+                        <div className="flex-grow overflow-y-auto bg-gray-50 p-6 no-print">
+                            {/* Info Cards Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
+                                    <span className="text-xs text-gray-500 font-bold uppercase block mb-1">วันที่บันทึก</span>
+                                    <span className="text-lg font-bold text-navy">{viewRecord.date}</span>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
+                                    <span className="text-xs text-gray-500 font-bold uppercase block mb-1">โครงการ</span>
+                                    <span className="text-lg font-bold text-navy">{viewRecord.projectName}</span>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
+                                    <span className="text-xs text-gray-500 font-bold uppercase block mb-1">ผู้รับจ้าง</span>
+                                    <span className="text-lg font-bold text-navy">{viewRecord.contractor}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Left Column: Details */}
+                                <div className="lg:col-span-2 space-y-4">
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                        <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                            <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                            รายการปฏิบัติงาน
+                                        </h4>
+                                        <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{viewRecord.contractorWork || '-'}</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                            <h4 className="font-bold text-gray-800 mb-2 text-sm text-gray-500 uppercase">คนงานทั่วไป</h4>
+                                            <p className="text-gray-700 whitespace-pre-wrap text-sm">{viewRecord.workers || '-'}</p>
+                                        </div>
+                                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                            <h4 className="font-bold text-gray-800 mb-2 text-sm text-gray-500 uppercase">วัสดุอุปกรณ์</h4>
+                                            <p className="text-gray-700 whitespace-pre-wrap text-sm">{viewRecord.materials || '-'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                        <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-red-600">
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                            ปัญหา/งานแก้ไข
+                                        </h4>
+                                        <p className="text-gray-700 whitespace-pre-wrap">{viewRecord.problems || '-'}</p>
+                                    </div>
+                                    
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                        <h4 className="font-bold text-gray-800 mb-2 text-sm text-gray-500 uppercase">หมายเหตุเพิ่มเติม</h4>
+                                        <p className="text-gray-700 whitespace-pre-wrap">{viewRecord.description || '-'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Status & People */}
+                                <div className="space-y-4">
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                        <h4 className="font-bold text-gray-500 text-xs uppercase mb-3">สถานะและความคืบหน้า</h4>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-gray-700 font-medium">ความคืบหน้า</span>
+                                            <span className="text-blue-600 font-bold">{viewRecord.progress}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                                            <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${viewRecord.progress}%` }}></div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-700 font-medium">สถานะ</span>
+                                            {getStatusBadge(viewRecord.status)}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                        <h4 className="font-bold text-gray-500 text-xs uppercase mb-3">ผู้ควบคุมงาน</h4>
+                                        <ul className="space-y-2">
+                                            {(viewRecord.supervisors || []).map((id, idx) => {
+                                                const p = personnel.find(per => per.id === id);
+                                                return (
+                                                    <li key={idx} className="flex items-center gap-2 text-sm text-navy font-medium">
+                                                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600 font-bold">
+                                                            {idx + 1}
+                                                        </div>
+                                                        {p ? `${p.personnelTitle}${p.personnelName}` : 'Unknown'}
+                                                    </li>
+                                                );
+                                            })}
+                                            {(viewRecord.supervisors || []).length === 0 && <li className="text-sm text-gray-400">ไม่ได้ระบุ</li>}
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Report Content (Scrollable for preview) */}
-                        <div className="flex-grow overflow-y-auto p-8 bg-gray-100 flex justify-center">
-                            {/* PAPER PREVIEW */}
-                            <div id="print-construction-doc" className="bg-white w-[210mm] min-h-[297mm] p-[2cm] shadow-lg text-black font-sarabun text-base leading-normal">
-                                <div className="text-center mb-6">
-                                    <img src="https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png" width="60" className="mx-auto mb-2" />
-                                    <h1 className="text-2xl font-bold m-0">บันทึกข้อความ</h1>
-                                </div>
-                                
-                                <div className="mb-4">
-                                    <div className="flex">
-                                        <span className="font-bold w-24">ส่วนราชการ</span>
-                                        <span>โรงเรียนกาฬสินธุ์ปัญญานุกูล จังหวัดกาฬสินธุ์</span>
-                                    </div>
-                                    <div className="flex">
-                                        <div className="w-1/2 flex"><span className="font-bold w-24">ที่</span><span>........................................</span></div>
-                                        <div className="w-1/2 flex"><span className="font-bold w-12">วันที่</span><span>{viewRecord.date}</span></div>
-                                    </div>
-                                    <div className="flex">
-                                        <span className="font-bold w-24">เรื่อง</span>
-                                        <span>รายงานผลการปฏิบัติงานก่อสร้างประจำวัน</span>
-                                    </div>
-                                    <div className="flex mt-2">
-                                        <span className="font-bold w-24">เรียน</span>
-                                        <span>ผู้อำนวยการโรงเรียนกาฬสินธุ์ปัญญานุกูล</span>
-                                    </div>
-                                </div>
-
-                                <p className="indent-8 mb-4">
-                                    ขอรายงานผลการปฏิบัติงานก่อสร้าง โครงการ <strong>{viewRecord.projectName}</strong> ประจำวันที่ {viewRecord.date} มีรายละเอียดดังนี้
-                                </p>
-
-                                <table className="w-full border-collapse border border-black mb-6">
-                                    <tbody>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50 w-1/3">1. ผู้รับจ้าง</td>
-                                            <td className="border border-black p-2">{viewRecord.contractor}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50">2. รายการปฏิบัติงานของผู้รับจ้าง</td>
-                                            <td className="border border-black p-2">{viewRecord.contractorWork || '-'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50">3. วัสดุที่นำเข้า</td>
-                                            <td className="border border-black p-2">{viewRecord.materials || '-'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50">4. คนงาน</td>
-                                            <td className="border border-black p-2">{viewRecord.workers || '-'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50">5. งานที่ดำเนินการก่อสร้าง</td>
-                                            <td className="border border-black p-2">{viewRecord.description || '-'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50">6. ปัญหา/อุปสรรค</td>
-                                            <td className="border border-black p-2">{viewRecord.problems || '-'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-black p-2 font-bold bg-gray-50">7. ความคืบหน้า (%)</td>
-                                            <td className="border border-black p-2">{viewRecord.progress} %</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-
-                                <p className="indent-8 mb-8">จึงเรียนมาเพื่อโปรดทราบ</p>
-
-                                {/* Signatures */}
-                                <div className="flex flex-wrap justify-around gap-y-8 mt-8 avoid-break">
-                                    {(viewRecord.supervisors || []).map(id => {
-                                        const p = personnel.find(per => per.id === id);
-                                        return p ? (
-                                            <div key={id} className="text-center w-1/2 px-2">
-                                                <p className="mb-4">ลงชื่อ ........................................................... ผู้ควบคุมงาน</p>
-                                                <p>({p.personnelTitle}{p.personnelName})</p>
-                                                <p>ตำแหน่ง {p.position}</p>
-                                            </div>
-                                        ) : null;
-                                    })}
-                                </div>
-
-                                {/* Appendix: Images */}
-                                {safeParseArray(viewRecord.media).length > 0 && (
-                                    <div className="mt-8 page-break-before-always">
-                                        <h3 className="font-bold text-lg mb-4 text-center">ภาพประกอบการดำเนินงาน</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            {safeParseArray(viewRecord.media).map((m, i) => {
-                                                const src = getDirectDriveImageSrc(m);
-                                                return (
-                                                    <div key={i} className="border p-2">
-                                                        {isVideo(m) ? (
-                                                            <div className="bg-gray-100 h-48 flex items-center justify-center text-gray-500">[Video Attached]</div>
-                                                        ) : (
-                                                            <img src={src} className="w-full h-auto object-cover max-h-60" />
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                        {/* 3. Footer Actions */}
+                        <div className="p-4 bg-white border-t flex items-center justify-between gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 no-print">
+                            <div className="relative">
+                                <button 
+                                    onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                                    className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-xl transition-all active:scale-95 text-sm"
+                                >
+                                    <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    <span>ดาวน์โหลด</span>
+                                </button>
+                                {isExportMenuOpen && (
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30 animate-fade-in-up">
+                                        <button onClick={exportToWord} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 border-b border-gray-100">
+                                            <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                                            ไฟล์ Word (.doc)
+                                        </button>
+                                        <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                            พิมพ์ / PDF
+                                        </button>
                                     </div>
                                 )}
                             </div>
+
+                            <button 
+                                onClick={() => setIsViewModalOpen(false)}
+                                className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-6 rounded-xl transition-all active:scale-95 text-sm"
+                            >
+                                ปิด
+                            </button>
                         </div>
                     </div>
                 </div>
