@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Student } from '../types';
 import StudentTable from './StudentTable';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { THAI_PROVINCES } from '../constants';
 
 interface StudentPageProps {
     students: Student[];
@@ -82,7 +83,22 @@ const StudentPage: React.FC<StudentPageProps> = ({
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
-        return { total, male, female, classData: sortedClassData, dormData };
+        // Province Distribution
+        const provinceCounts: Record<string, number> = {};
+        students.forEach(s => {
+            const addr = s.studentAddress || '';
+            // Find which province is in the address string
+            const foundProvince = THAI_PROVINCES.find(p => addr.includes(p));
+            const key = foundProvince || 'ไม่ระบุ';
+            provinceCounts[key] = (provinceCounts[key] || 0) + 1;
+        });
+        
+        const provinceData = Object.entries(provinceCounts)
+            .map(([name, value]) => ({ name, value }))
+            .filter(d => d.value > 0)
+            .sort((a, b) => b.value - a.value); // Sort max to min
+
+        return { total, male, female, classData: sortedClassData, dormData, provinceData };
     }, [students, studentClasses]);
 
     const filteredStudents = useMemo(() => {
@@ -180,7 +196,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'stats' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                    สถิติ (จำนวน/ชาย-หญิง/ระดับชั้น)
+                    สถิติ (จำนวน/ชาย-หญิง/ภูมิลำเนา)
                 </button>
                 <button
                     onClick={() => setActiveTab('list')}
@@ -252,6 +268,26 @@ const StudentPage: React.FC<StudentPageProps> = ({
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Province Stats Chart */}
+                    <div className="bg-white p-6 rounded-xl shadow">
+                        <h3 className="text-lg font-bold text-navy mb-4">จำนวนนักเรียนแยกตามจังหวัด (ตามที่อยู่)</h3>
+                        <div className="h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats.provinceData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB"/>
+                                    <XAxis type="number" tick={{fontSize: 12}} />
+                                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
+                                    <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
+                                    <Bar dataKey="value" name="จำนวน" fill="#82ca9d" radius={[0, 4, 4, 0]} barSize={20}>
+                                        {stats.provinceData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
                 </div>

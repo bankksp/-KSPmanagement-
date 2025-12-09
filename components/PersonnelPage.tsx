@@ -1,9 +1,9 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { Personnel } from '../types';
 import PersonnelTable from './PersonnelTable';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { THAI_PROVINCES } from '../constants';
 
 interface PersonnelPageProps {
     personnel: Personnel[];
@@ -40,7 +40,22 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
-        return { total, male, female, posData };
+        // Province Distribution
+        const provinceCounts: Record<string, number> = {};
+        personnel.forEach(p => {
+            // Note: Use 'any' cast if address prop is optional in Personnel type, though it should be added now.
+            const addr = (p as any).address || '';
+            const foundProvince = THAI_PROVINCES.find(prov => addr.includes(prov));
+            const key = foundProvince || 'ไม่ระบุ';
+            provinceCounts[key] = (provinceCounts[key] || 0) + 1;
+        });
+
+        const provinceData = Object.entries(provinceCounts)
+            .map(([name, value]) => ({ name, value }))
+            .filter(d => d.value > 0)
+            .sort((a, b) => b.value - a.value);
+
+        return { total, male, female, posData, provinceData };
     }, [personnel]);
 
     const filteredPersonnel = useMemo(() => {
@@ -169,22 +184,44 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-xl shadow">
-                        <h3 className="text-lg font-bold text-navy mb-4">จำนวนบุคลากรแยกตามตำแหน่ง</h3>
-                        <div className="h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.posData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB"/>
-                                    <XAxis type="number" tick={{fontSize: 12}} />
-                                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
-                                    <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
-                                    <Bar dataKey="value" name="จำนวน" fill="#8884d8" radius={[0, 4, 4, 0]} barSize={25}>
-                                        {stats.posData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-xl shadow">
+                            <h3 className="text-lg font-bold text-navy mb-4">จำนวนบุคลากรแยกตามตำแหน่ง</h3>
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stats.posData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB"/>
+                                        <XAxis type="number" tick={{fontSize: 12}} />
+                                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
+                                        <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
+                                        <Bar dataKey="value" name="จำนวน" fill="#8884d8" radius={[0, 4, 4, 0]} barSize={25}>
+                                            {stats.posData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Province Stats Chart */}
+                        <div className="bg-white p-6 rounded-xl shadow">
+                            <h3 className="text-lg font-bold text-navy mb-4">จำนวนบุคลากรแยกตามจังหวัด (ตามที่อยู่)</h3>
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stats.provinceData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB"/>
+                                        <XAxis type="number" tick={{fontSize: 12}} />
+                                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
+                                        <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
+                                        <Bar dataKey="value" name="จำนวน" fill="#82ca9d" radius={[0, 4, 4, 0]} barSize={20}>
+                                            {stats.provinceData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
                 </div>
