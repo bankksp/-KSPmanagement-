@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, safeParseArray, buddhistToISO, isoToBuddhist } from '../utils';
+import AddressSelector from './AddressSelector';
 
 interface StudentModalProps {
     onClose: () => void;
@@ -57,26 +58,6 @@ const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, r
             onChange={onChange} 
             className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
             required={required} 
-        />
-    </div>
-);
-
-interface AddressFieldProps {
-    name: string;
-    label: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-}
-
-const AddressField: React.FC<AddressFieldProps> = ({ name, label, value, onChange }) => (
-    <div className="md:col-span-2 lg:col-span-3">
-        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-        <textarea 
-            name={name} 
-            value={value} 
-            onChange={onChange} 
-            rows={2} 
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
         />
     </div>
 );
@@ -168,6 +149,11 @@ const StudentModal: React.FC<StudentModalProps> = ({
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // Handler specifically for AddressSelector
+    const handleAddressChange = (fieldName: keyof Student, value: string) => {
+        setFormData(prev => ({ ...prev, [fieldName]: value }));
     };
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -329,7 +315,7 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                                 ? `เลือกแล้ว ${selectedTeachers.length} ท่าน` 
                                                 : 'เลือกครู...'}
                                         </span>
-                                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path></svg>
                                     </button>
                                     {isTeacherDropdownOpen && (
                                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
@@ -377,12 +363,13 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                         ))}
                                     </div>
                                 </div>
-                                <AddressField 
-                                    name="studentAddress" 
-                                    label="ที่อยู่" 
-                                    value={String(formData.studentAddress || '')} 
-                                    onChange={handleChange} 
-                                />
+                                <div className="md:col-span-2 lg:col-span-3">
+                                    <AddressSelector 
+                                        label="ที่อยู่" 
+                                        value={String(formData.studentAddress || '')} 
+                                        onChange={(val) => handleAddressChange('studentAddress', val)} 
+                                    />
+                                </div>
                             </div>
                         </div>
                     </fieldset>
@@ -391,21 +378,27 @@ const StudentModal: React.FC<StudentModalProps> = ({
                         <InputField name="fatherName" label="ชื่อ-นามสกุลบิดา" value={String(formData.fatherName || '')} onChange={handleChange} />
                         <InputField name="fatherIdCard" label="เลขบัตรประชาชนบิดา" value={String(formData.fatherIdCard || '')} onChange={handleChange} />
                         <InputField name="fatherPhone" label="เบอร์โทรบิดา" value={String(formData.fatherPhone || '')} onChange={handleChange} />
-                        <AddressField name="fatherAddress" label="ที่อยู่บิดา" value={String(formData.fatherAddress || '')} onChange={handleChange} />
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <AddressSelector label="ที่อยู่บิดา" value={String(formData.fatherAddress || '')} onChange={(val) => handleAddressChange('fatherAddress', val)} />
+                        </div>
                     </FormSection>
                     
                     <FormSection title="ข้อมูลมารดา">
                         <InputField name="motherName" label="ชื่อ-นามสกุลมารดา" value={String(formData.motherName || '')} onChange={handleChange} />
                         <InputField name="motherIdCard" label="เลขบัตรประชาชนมารดา" value={String(formData.motherIdCard || '')} onChange={handleChange} />
                         <InputField name="motherPhone" label="เบอร์โทรมารดา" value={String(formData.motherPhone || '')} onChange={handleChange} />
-                        <AddressField name="motherAddress" label="ที่อยู่มารดา" value={String(formData.motherAddress || '')} onChange={handleChange} />
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <AddressSelector label="ที่อยู่มารดา" value={String(formData.motherAddress || '')} onChange={(val) => handleAddressChange('motherAddress', val)} />
+                        </div>
                     </FormSection>
 
                     <FormSection title="ข้อมูลผู้ปกครอง">
                         <InputField name="guardianName" label="ชื่อ-นามสกุลผู้ปกครอง" value={String(formData.guardianName || '')} onChange={handleChange} />
                         <InputField name="guardianIdCard" label="เลขบัตรประชาชนผู้ปกครอง" value={String(formData.guardianIdCard || '')} onChange={handleChange} />
                         <InputField name="guardianPhone" label="เบอร์โทรผู้ปกครอง" value={String(formData.guardianPhone || '')} onChange={handleChange} />
-                        <AddressField name="guardianAddress" label="ที่อยู่ผู้ปกครอง" value={String(formData.guardianAddress || '')} onChange={handleChange} />
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <AddressSelector label="ที่อยู่ผู้ปกครอง" value={String(formData.guardianAddress || '')} onChange={(val) => handleAddressChange('guardianAddress', val)} />
+                        </div>
                     </FormSection>
 
                     <FormSection title="เอกสาร">

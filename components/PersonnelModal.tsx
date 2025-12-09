@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Personnel, Student } from '../types';
 import { getFirstImageSource, buddhistToISO, isoToBuddhist } from '../utils';
+import AddressSelector from './AddressSelector'; // New import
 
 interface PersonnelModalProps {
     onClose: () => void;
@@ -24,6 +25,7 @@ const initialFormData: Omit<Personnel, 'id'> = {
     appointmentDate: '',
     positionNumber: '',
     phone: '',
+    address: '',
     profileImage: [],
     advisoryClasses: [],
     role: 'user',
@@ -58,7 +60,7 @@ const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, r
 
 
 const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole, currentUser }) => {
-    const [formData, setFormData] = useState(initialFormData);
+    const [formData, setFormData] = useState<any>(initialFormData); // cast as any to handle potential dynamic address field
     const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
     const isEditing = !!personnelToEdit;
@@ -76,7 +78,8 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                 role: personnelToEdit.role || 'user',
                 status: personnelToEdit.status || 'approved',
                 // Ensure password is preserved even if not shown/edited directly here
-                password: personnelToEdit.password 
+                password: personnelToEdit.password,
+                address: (personnelToEdit as any).address || '' // Ensure address exists
             });
         } else {
             setFormData({ ...initialFormData, position: positions[0] || '' });
@@ -85,7 +88,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => {
+        setFormData((prev: any) => {
             const newState = { ...prev, [name]: value };
             if (name === 'personnelTitle' && value !== 'อื่นๆ') {
                 newState.personnelTitleOther = '';
@@ -96,24 +99,29 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: isoToBuddhist(value) }));
+        setFormData((prev: any) => ({ ...prev, [name]: isoToBuddhist(value) }));
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, files } = e.target;
         if (files && files.length > 0) {
-            setFormData(prev => ({ ...prev, [name]: [files[0]] }));
+            setFormData((prev: any) => ({ ...prev, [name]: [files[0]] }));
         } else {
-            setFormData(prev => ({...prev, [name]: []}));
+            setFormData((prev: any) => ({...prev, [name]: []}));
         }
     };
     
     const handleAdvisoryClassChange = (className: string) => {
         const currentClasses = formData.advisoryClasses || [];
         const newClasses = currentClasses.includes(className)
-            ? currentClasses.filter(c => c !== className)
+            ? currentClasses.filter((c: string) => c !== className)
             : [...currentClasses, className];
-        setFormData(prev => ({ ...prev, advisoryClasses: newClasses }));
+        setFormData((prev: any) => ({ ...prev, advisoryClasses: newClasses }));
+    };
+
+    // New handler for address
+    const handleAddressChange = (val: string) => {
+        setFormData((prev: any) => ({ ...prev, address: val }));
     };
 
 
@@ -121,7 +129,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
         e.preventDefault();
         const personnelData: Personnel = {
             ...formData,
-            id: isEditing ? personnelToEdit.id : Date.now(),
+            id: isEditing ? personnelToEdit!.id : Date.now(),
             // If new user, default password is ID Card (if password field was empty/not shown)
             password: formData.password || formData.idCard,
         };
@@ -158,7 +166,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                     {profileImageUrl ? (
                                         <img src={profileImageUrl} alt="Profile Preview" className="w-full h-full object-cover" />
                                     ) : (
-                                        <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                        <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 01-8 0 4 4 0 018 0z" /></svg>
                                     )}
                                 </div>
                                 <label htmlFor="profileImage-upload" className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100">
@@ -284,13 +292,17 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                     </div>
                                 )}
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {(formData.advisoryClasses || []).map(c => (
+                                    {(formData.advisoryClasses || []).map((c: string) => (
                                         <div key={c} className="flex items-center bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">
                                             <span>{c}</span>
                                             <button type="button" onClick={() => handleAdvisoryClassChange(c)} className="ml-2 text-green-600 hover:text-green-800 font-bold">&times;</button>
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+
+                            <div className="md:col-span-2 lg:col-span-3">
+                                <AddressSelector label="ที่อยู่" value={String(formData.address || '')} onChange={handleAddressChange} />
                             </div>
 
                         </div>

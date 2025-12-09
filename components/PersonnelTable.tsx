@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Personnel } from '../types';
 import { getFirstImageSource } from '../utils';
+import { THAI_PROVINCES } from '../constants'; // Import
 
 interface PersonnelTableProps {
     personnel: Personnel[];
@@ -36,7 +37,21 @@ const calculateAge = (dobString: string): number => {
 const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPersonnel, onEditPersonnel, onDeletePersonnel, currentUser }) => {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [filterProvince, setFilterProvince] = useState(''); // New filter state
     
+    // Filtered logic here needs to be aware of parent search, but parent search is in Page component.
+    // The previous implementation relied on the parent filtering by text.
+    // However, PersonnelTable receives the *already filtered* list based on text search from PersonnelPage.
+    // To implement Province filter properly inside Table component (like StudentTable), we might need to apply it locally to the received list.
+    
+    const displayPersonnel = useMemo(() => {
+        if (!filterProvince) return personnel;
+        return personnel.filter(p => {
+            const addr = String((p as any).address || '').toLowerCase(); // Type assertion for safety if address not in all records
+            return addr.includes(`จ.${filterProvince}`) || addr.includes(filterProvince);
+        });
+    }, [personnel, filterProvince]);
+
     const handleSelect = (id: number) => {
         const newSelection = new Set(selectedIds);
         if (newSelection.has(id)) {
@@ -49,7 +64,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
-            setSelectedIds(new Set(personnel.map(p => p.id)));
+            setSelectedIds(new Set(displayPersonnel.map(p => p.id)));
         } else {
             setSelectedIds(new Set());
         }
@@ -70,9 +85,21 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
     return (
         <div className="w-full relative">
              <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
-                 <div className="text-sm text-gray-500 font-medium">
-                    {selectedIds.size > 0 ? `เลือก ${selectedIds.size} รายการ` : `ทั้งหมด ${personnel.length} รายการ`}
+                 <div className="flex items-center gap-4 w-full sm:w-auto">
+                     <div className="text-sm text-gray-500 font-medium whitespace-nowrap">
+                        {selectedIds.size > 0 ? `เลือก ${selectedIds.size} รายการ` : `ทั้งหมด ${displayPersonnel.length} รายการ`}
+                     </div>
+                     
+                     <select
+                        value={filterProvince}
+                        onChange={(e) => setFilterProvince(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue shadow-sm bg-white text-sm"
+                    >
+                        <option value="">ทุกจังหวัด</option>
+                        {THAI_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
                  </div>
+
                  {selectedIds.size > 0 && (
                      <button 
                         onClick={handleDeleteClick}
@@ -121,7 +148,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                 <table className="min-w-full bg-white">
                     <thead className="bg-navy text-white">
                         <tr>
-                            <th className="p-4 text-left w-10"><input type="checkbox" onChange={handleSelectAll} checked={personnel.length > 0 && selectedIds.size === personnel.length} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></th>
+                            <th className="p-4 text-left w-10"><input type="checkbox" onChange={handleSelectAll} checked={displayPersonnel.length > 0 && selectedIds.size === displayPersonnel.length} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></th>
                             <th className="p-4 text-left font-semibold">รูปโปรไฟล์</th>
                             <th className="p-4 text-left font-semibold">ชื่อ-นามสกุล</th>
                             <th className="p-4 text-left font-semibold">ตำแหน่ง</th>
@@ -132,7 +159,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {personnel.map((person) => {
+                        {displayPersonnel.map((person) => {
                             const profileImageUrl = getFirstImageSource(person.profileImage);
                             const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
                             const fullName = `${title} ${person.personnelName || ''}`;
@@ -187,12 +214,12 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                         })}
                     </tbody>
                 </table>
-                 {personnel.length === 0 && <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-b-xl border-t border-gray-100">ไม่พบข้อมูลบุคลากร</div>}
+                 {displayPersonnel.length === 0 && <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-b-xl border-t border-gray-100">ไม่พบข้อมูลบุคลากร</div>}
             </div>
 
             {/* Mobile Card View (Visible on Mobile) */}
             <div className="md:hidden space-y-4">
-                {personnel.map((person) => {
+                {displayPersonnel.map((person) => {
                     const profileImageUrl = getFirstImageSource(person.profileImage);
                     const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
                     const fullName = `${title} ${person.personnelName || ''}`;
@@ -267,7 +294,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                     );
                 })}
                 
-                {personnel.length === 0 && (
+                {displayPersonnel.length === 0 && (
                     <div className="text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-300">
                         <p className="text-gray-500">ไม่พบข้อมูลบุคลากร</p>
                     </div>

@@ -1,5 +1,6 @@
 
 
+
 export interface Report {
   id: number;
   reportDate: string;
@@ -65,6 +66,7 @@ export interface Personnel {
   appointmentDate: string;
   positionNumber: string;
   phone: string;
+  address?: string; // Address field
   profileImage?: (File | string)[];
   advisoryClasses?: string[];
   password?: string;

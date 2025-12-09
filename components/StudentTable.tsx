@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Student } from '../types';
 import { getFirstImageSource } from '../utils';
+import { THAI_PROVINCES } from '../constants'; // Import list
 
 interface StudentTableProps {
     students: Student[];
@@ -12,11 +13,11 @@ interface StudentTableProps {
 
 const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, onEditStudent, onDeleteStudents }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterProvince, setFilterProvince] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     
     const filteredStudents = useMemo(() => {
         const lowerTerm = searchTerm.toLowerCase().trim();
-        if (!lowerTerm) return students;
 
         return students.filter(student => {
             const title = (student.studentTitle || '').toLowerCase();
@@ -24,12 +25,13 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
             const nickname = (student.studentNickname || '').toLowerCase();
             const idCard = String(student.studentIdCard || '');
             const phone = String(student.studentPhone || '');
+            const address = String(student.studentAddress || '').toLowerCase();
             
             // Construct full names for matching
             const fullNameNoSpace = `${title}${name}`;
             const fullNameWithSpace = `${title} ${name}`;
 
-            return (
+            const searchMatch = !lowerTerm || (
                 name.includes(lowerTerm) ||
                 nickname.includes(lowerTerm) ||
                 idCard.includes(lowerTerm) ||
@@ -37,8 +39,12 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                 fullNameNoSpace.includes(lowerTerm) ||
                 fullNameWithSpace.includes(lowerTerm)
             );
+
+            const provinceMatch = !filterProvince || address.includes(`จ.${filterProvince}`) || address.includes(filterProvince);
+
+            return searchMatch && provinceMatch;
         });
-    }, [students, searchTerm]);
+    }, [students, searchTerm, filterProvince]);
 
     const handleSelect = (id: number) => {
         const newSelection = new Set(selectedIds);
@@ -70,13 +76,23 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
     return (
         <div className="w-full">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-                <input
-                    type="text"
-                    placeholder="ค้นหาชื่อ, ชื่อเล่น, เลขบัตร หรือเบอร์โทร..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-1/3 px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-blue shadow-sm"
-                />
+                <div className="flex-grow flex gap-2 w-full sm:w-auto">
+                    <input
+                        type="text"
+                        placeholder="ค้นหาชื่อ, ชื่อเล่น, เลขบัตร หรือเบอร์โทร..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-blue shadow-sm"
+                    />
+                    <select
+                        value={filterProvince}
+                        onChange={(e) => setFilterProvince(e.target.value)}
+                        className="px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-blue shadow-sm bg-white"
+                    >
+                        <option value="">ทุกจังหวัด</option>
+                        {THAI_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                </div>
                  {selectedIds.size > 0 && (
                      <button 
                         onClick={handleDelete}
