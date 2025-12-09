@@ -1,6 +1,7 @@
 
 
 
+
 export interface Report {
   id: number;
   reportDate: string;
@@ -53,6 +54,8 @@ export interface Student {
   studentIdCardImage?: (File | string)[];
   studentDisabilityCardImage?: (File | string)[];
   guardianIdCardImage?: (File | string)[];
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Personnel {

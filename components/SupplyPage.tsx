@@ -40,24 +40,37 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
         const pendingRequests = requests.filter(r => r.status === 'pending');
         const rejectedRequests = requests.filter(r => r.status === 'rejected');
         
-        // Admin specific
+        // Admin specific - Robust Calculation
         const totalValueRemaining = items.reduce((sum, item) => {
+            // Safe Number parsing
+            const initial = Number(item.initialStock) || 0;
+            const added = Number(item.addedStock) || 0;
+            const price = Number(item.unitPrice) || 0;
+
             // Calculate used stock for this item
             const used = approvedRequests.reduce((uSum, req) => {
-                const line = req.items.find(i => i.itemId === item.id);
-                return uSum + (line ? line.quantity : 0);
+                // Safe ID comparison
+                const line = req.items.find(i => String(i.itemId) === String(item.id));
+                return uSum + (line ? (Number(line.quantity) || 0) : 0);
             }, 0);
-            const remaining = item.initialStock + item.addedStock - used;
-            return sum + (remaining * item.unitPrice);
+            
+            const remaining = initial + added - used;
+            return sum + (remaining * price);
         }, 0);
 
-        const totalUsedItems = approvedRequests.reduce((sum, r) => sum + r.items.reduce((is, i) => is + i.quantity, 0), 0);
+        const totalUsedItems = approvedRequests.reduce((sum, r) => {
+            return sum + r.items.reduce((is, i) => is + (Number(i.quantity) || 0), 0);
+        }, 0);
+
         const lowStockItems = items.filter(item => {
+             const initial = Number(item.initialStock) || 0;
+             const added = Number(item.addedStock) || 0;
+
              const used = approvedRequests.reduce((uSum, req) => {
-                const line = req.items.find(i => i.itemId === item.id);
-                return uSum + (line ? line.quantity : 0);
+                const line = req.items.find(i => String(i.itemId) === String(item.id));
+                return uSum + (line ? (Number(line.quantity) || 0) : 0);
             }, 0);
-            const remaining = item.initialStock + item.addedStock - used;
+            const remaining = initial + added - used;
             return remaining <= 5;
         });
 
@@ -66,13 +79,14 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
             { name: 'อนุมัติ', value: approvedRequests.length, color: '#10B981' },
             { name: 'รออนุมัติ', value: pendingRequests.length, color: '#F59E0B' },
             { name: 'ปฏิเสธ', value: rejectedRequests.length, color: '#EF4444' },
-        ];
+        ]; // Keep all to show chart even if 0
 
         // Top Items (Admin)
         const itemUsage: Record<string, number> = {};
         approvedRequests.forEach(req => {
             req.items.forEach(i => {
-                itemUsage[i.itemName] = (itemUsage[i.itemName] || 0) + i.quantity;
+                const qty = Number(i.quantity) || 0;
+                itemUsage[i.itemName] = (itemUsage[i.itemName] || 0) + qty;
             });
         });
         const topItemsData = Object.entries(itemUsage)
@@ -140,15 +154,19 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
     };
     
     const calculateCurrentStock = (itemId: number) => {
-        const item = items.find(i => i.id === itemId);
+        const item = items.find(i => String(i.id) === String(itemId));
         if (!item) return 0;
+        
+        const initial = Number(item.initialStock) || 0;
+        const added = Number(item.addedStock) || 0;
+
         const used = requests
             .filter(r => r.status === 'approved')
             .reduce((sum, r) => {
-                const line = r.items.find(i => i.itemId === itemId);
-                return sum + (line ? line.quantity : 0);
+                const line = r.items.find(i => String(i.itemId) === String(itemId));
+                return sum + (line ? (Number(line.quantity) || 0) : 0);
             }, 0);
-        return item.initialStock + item.addedStock - used;
+        return initial + added - used;
     };
 
     const submitRequest = (e: React.FormEvent) => {
@@ -178,9 +196,9 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
                 return {
                     itemId: item.id,
                     itemName: item.name,
-                    quantity: line.quantity,
+                    quantity: Number(line.quantity),
                     unit: item.unit,
-                    price: item.unitPrice
+                    price: Number(item.unitPrice)
                 };
             })
         };
@@ -200,7 +218,9 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
         const newItem = { 
             ...itemForm, 
             id: itemForm.id || Date.now(), 
-            addedStock: itemForm.addedStock || 0 
+            unitPrice: Number(itemForm.unitPrice) || 0,
+            initialStock: Number(itemForm.initialStock) || 0,
+            addedStock: Number(itemForm.addedStock) || 0 
         } as SupplyItem;
 
         if (onSaveItem) {
@@ -231,7 +251,10 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
         if(restockForm.itemId === 0 || restockForm.quantity <= 0) return;
         const item = items.find(i => i.id === Number(restockForm.itemId));
         if (item) {
-            const updatedItem = { ...item, addedStock: item.addedStock + Number(restockForm.quantity) };
+            const updatedItem = { 
+                ...item, 
+                addedStock: (Number(item.addedStock) || 0) + Number(restockForm.quantity) 
+            };
             if (onSaveItem) {
                 onSaveItem(updatedItem);
             } else {
@@ -269,23 +292,31 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
         }
     };
 
-    // Ledger Calculation Logic (unchanged)
+    // Ledger Calculation Logic (Safeguarded)
     const ledgerData = useMemo(() => {
         return items.map(item => {
+            const initial = Number(item.initialStock) || 0;
+            const added = Number(item.addedStock) || 0;
+            const price = Number(item.unitPrice) || 0;
+
             const approvedLines = requests
                 .filter(r => r.status === 'approved')
-                .map(r => r.items.find(i => i.itemId === item.id))
+                .map(r => r.items.find(i => String(i.itemId) === String(item.id)))
                 .filter(Boolean) as SupplyRequestItem[];
             
-            const totalUsedQty = approvedLines.reduce((sum, l) => sum + l.quantity, 0);
-            const openingValue = item.initialStock * item.unitPrice;
-            const purchasedValue = item.addedStock * item.unitPrice;
-            const usedValue = totalUsedQty * item.unitPrice;
-            const remainingQty = item.initialStock + item.addedStock - totalUsedQty;
-            const remainingValue = remainingQty * item.unitPrice;
+            const totalUsedQty = approvedLines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+            
+            const openingValue = initial * price;
+            const purchasedValue = added * price;
+            const usedValue = totalUsedQty * price;
+            const remainingQty = initial + added - totalUsedQty;
+            const remainingValue = remainingQty * price;
 
             return {
                 ...item,
+                initialStock: initial,
+                addedStock: added,
+                unitPrice: price,
                 openingValue,
                 purchasedValue,
                 totalUsedQty,
@@ -296,7 +327,7 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
         });
     }, [items, requests]);
 
-    // Ledger Totals (unchanged)
+    // Ledger Totals
     const ledgerTotals = useMemo(() => {
         return ledgerData.reduce((acc, curr) => ({
             initialStock: acc.initialStock + curr.initialStock,
@@ -364,7 +395,7 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
                             บัญชีพัสดุ
                         </button>
                         <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${activeTab === 'settings' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                             ตั้งค่า
                         </button>
                     </>
@@ -429,7 +460,7 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
                                     <BarChart data={stats.topItemsData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" />
-                                        <YAxis dataKey="name" type="category" width={80} fontSize={12} />
+                                        <YAxis dataKey="name" type="category" width={100} fontSize={12} tick={{fontSize: 10}} />
                                         <Tooltip />
                                         <Bar dataKey="value" fill="#8884d8" radius={[0, 4, 4, 0]} />
                                     </BarChart>

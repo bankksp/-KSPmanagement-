@@ -53,18 +53,20 @@ const DurableGoodsPage: React.FC<DurableGoodsPageProps> = ({ currentUser, durabl
             { name: 'กำลังใช้งาน', value: inUse, color: '#3B82F6' }, // Blue
             { name: 'ซ่อมบำรุง', value: repair, color: '#F59E0B' }, // Orange
             { name: 'แทงจำหน่าย', value: writeOff, color: '#EF4444' }, // Red
-        ].filter(d => d.value > 0);
+        ]; // Keep all items for chart consistency
 
         // Category Data
         const categoryCount: Record<string, number> = {};
         durableGoods.forEach(item => {
-            categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+            const cat = item.category || 'ไม่ระบุ';
+            categoryCount[cat] = (categoryCount[cat] || 0) + 1;
         });
         
         // Category Value Data
         const categoryValue: Record<string, number> = {};
         durableGoods.forEach(item => {
-             categoryValue[item.category] = (categoryValue[item.category] || 0) + (Number(item.price) || 0);
+             const cat = item.category || 'ไม่ระบุ';
+             categoryValue[cat] = (categoryValue[cat] || 0) + (Number(item.price) || 0);
         });
 
         const categoryData = Object.entries(categoryCount).map(([name, count]) => ({
@@ -185,7 +187,7 @@ const DurableGoodsPage: React.FC<DurableGoodsPageProps> = ({ currentUser, durabl
                     onClick={() => setActiveTab('dashboard')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'dashboard' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                     หน้าหลัก
                 </button>
                 <button 
@@ -586,7 +588,7 @@ const DurableGoodsPage: React.FC<DurableGoodsPageProps> = ({ currentUser, durabl
                                     {viewItem.image && viewItem.image.length > 0 ? (
                                         <img src={getDirectDriveImageSrc(viewItem.image[0])} alt={viewItem.name} className="w-full h-full object-contain" />
                                     ) : (
-                                        <svg className="w-24 h-24 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        <svg className="w-24 h-24 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 00-2-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                     )}
                                 </div>
                             </div>

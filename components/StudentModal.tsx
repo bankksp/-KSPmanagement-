@@ -1,5 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, safeParseArray, buddhistToISO, isoToBuddhist } from '../utils';
 import AddressSelector from './AddressSelector';
@@ -24,7 +26,9 @@ const initialFormData: Omit<Student, 'id' | 'studentClass'> = {
     guardianPhone: '', guardianIdCard: '', guardianAddress: '',
     homeroomTeachers: [],
     studentProfileImage: [],
-    studentIdCardImage: [], studentDisabilityCardImage: [], guardianIdCardImage: []
+    studentIdCardImage: [], studentDisabilityCardImage: [], guardianIdCardImage: [],
+    latitude: undefined,
+    longitude: undefined
 };
 
 // --- Sub-components defined OUTSIDE to prevent re-mounts and focus loss ---
@@ -104,6 +108,11 @@ const StudentModal: React.FC<StudentModalProps> = ({
     const [currentRoom, setCurrentRoom] = useState(studentClassrooms[0] || '');
     const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false);
     const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
+    
+    // Map State
+    const [showMapPicker, setShowMapPicker] = useState(false);
+    const mapRef = useRef<any>(null);
+    const markerRef = useRef<any>(null);
 
     const isEditing = !!studentToEdit;
     const studentTitles = ['เด็กชาย', 'เด็กหญิง', 'นาย', 'นางสาว'];
@@ -128,6 +137,8 @@ const StudentModal: React.FC<StudentModalProps> = ({
                 studentIdCardImage: studentToEdit.studentIdCardImage || [],
                 studentDisabilityCardImage: studentToEdit.studentDisabilityCardImage || [],
                 guardianIdCardImage: studentToEdit.guardianIdCardImage || [],
+                latitude: studentToEdit.latitude,
+                longitude: studentToEdit.longitude
             });
             setCurrentClass(cls || studentClasses[0] || '');
             setCurrentRoom(room || studentClassrooms[0] || '');
@@ -145,6 +156,121 @@ const StudentModal: React.FC<StudentModalProps> = ({
             setTeacherSearchTerm('');
         }
     }, [isTeacherDropdownOpen]);
+
+    // --- MAP LOGIC ---
+    useEffect(() => {
+        if (showMapPicker && typeof window !== 'undefined') {
+            const L = (window as any).L;
+            if (!L) return;
+
+            const timer = setTimeout(() => {
+                const mapContainer = document.getElementById('picker-map');
+                if (mapContainer) {
+                    // Clean up existing map instance
+                    if (mapRef.current) {
+                        mapRef.current.remove();
+                        mapRef.current = null;
+                        markerRef.current = null;
+                    }
+
+                    // Initialize Map
+                    const initialLat = formData.latitude || 16.4322; // Default Kalasin
+                    const initialLng = formData.longitude || 103.5061;
+                    const zoom = formData.latitude ? 15 : 10;
+
+                    const map = L.map('picker-map').setView([initialLat, initialLng], zoom);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    
+                    // Create Red Pin Icon for Selection
+                    const redIcon = L.divIcon({
+                        className: 'custom-picker-marker',
+                        html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#EF4444" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); width: 100%; height: 100%;">
+                                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"></path>
+                                <circle cx="12" cy="10" r="3" fill="white"></circle>
+                               </svg>`,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 36], // Tip at bottom center
+                    });
+
+                    // Add existing marker if present
+                    if (formData.latitude && formData.longitude) {
+                        markerRef.current = L.marker([formData.latitude, formData.longitude], { icon: redIcon }).addTo(map);
+                    }
+
+                    // Click handler
+                    map.on('click', (e: any) => {
+                        const { lat, lng } = e.latlng;
+                        
+                        if (markerRef.current) {
+                            markerRef.current.setLatLng([lat, lng]);
+                        } else {
+                            markerRef.current = L.marker([lat, lng], { icon: redIcon }).addTo(map);
+                        }
+                        
+                        // Update Form Data immediately
+                        setFormData(prev => ({
+                            ...prev,
+                            latitude: lat,
+                            longitude: lng
+                        }));
+                    });
+
+                    mapRef.current = map;
+                }
+            }, 100);
+
+            return () => {
+                clearTimeout(timer);
+                if (mapRef.current) {
+                    mapRef.current.remove();
+                    mapRef.current = null;
+                    markerRef.current = null;
+                }
+            };
+        }
+    }, [showMapPicker]);
+
+    const handleUseCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                setFormData(prev => ({ ...prev, latitude, longitude }));
+                if (mapRef.current) {
+                    mapRef.current.setView([latitude, longitude], 15);
+                    const L = (window as any).L;
+                    
+                    const redIcon = L.divIcon({
+                        className: 'custom-picker-marker',
+                        html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#EF4444" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); width: 100%; height: 100%;">
+                                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"></path>
+                                <circle cx="12" cy="10" r="3" fill="white"></circle>
+                               </svg>`,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 36],
+                    });
+
+                    if (markerRef.current) {
+                        markerRef.current.setLatLng([latitude, longitude]);
+                    } else {
+                        markerRef.current = L.marker([latitude, longitude], { icon: redIcon }).addTo(mapRef.current);
+                    }
+                }
+            },
+            () => alert('Unable to retrieve your location')
+        );
+    };
+
+    const handleClearLocation = () => {
+        setFormData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
+        if (markerRef.current) {
+            markerRef.current.remove();
+            markerRef.current = null;
+        }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -369,6 +495,31 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                         value={String(formData.studentAddress || '')} 
                                         onChange={(val) => handleAddressChange('studentAddress', val)} 
                                     />
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowMapPicker(true)}
+                                            className="text-sm bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg flex items-center gap-2 hover:bg-blue-100 transition-colors font-medium"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            ระบุพิกัดแผนที่ (ปักหมุด)
+                                        </button>
+                                        {formData.latitude && (
+                                            <>
+                                                <span className="text-xs text-green-600 flex items-center gap-1 font-medium bg-green-50 px-2 py-1 rounded-md border border-green-100">
+                                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                                                    บันทึกพิกัดแล้ว ({formData.latitude.toFixed(6)}, {formData.longitude?.toFixed(6)})
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleClearLocation}
+                                                    className="text-xs text-red-500 hover:text-red-700 underline"
+                                                >
+                                                    ลบพิกัด
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -417,6 +568,42 @@ const StudentModal: React.FC<StudentModalProps> = ({
                     </button>
                 </div>
             </div>
+
+            {/* Map Picker Modal */}
+            {showMapPicker && (
+                <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col relative">
+                        <div className="p-4 border-b flex justify-between items-center bg-primary-blue text-white rounded-t-xl">
+                            <h3 className="text-lg font-bold">เลือกตำแหน่งที่อยู่ (คลิกบนแผนที่)</h3>
+                            <button onClick={() => setShowMapPicker(false)} className="hover:bg-white/20 rounded-full p-1"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        </div>
+                        <div className="flex-grow relative">
+                            <div id="picker-map" className="w-full h-full z-0"></div>
+                            
+                            <button 
+                                onClick={handleUseCurrentLocation}
+                                className="absolute bottom-4 right-4 bg-white text-gray-700 px-4 py-2 rounded-lg shadow-md font-bold text-sm z-10 hover:bg-gray-50 flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                ตำแหน่งปัจจุบัน
+                            </button>
+                        </div>
+                        <div className="p-4 border-t flex justify-between items-center bg-gray-50 rounded-b-xl">
+                            <div className="text-sm text-gray-600">
+                                {formData.latitude 
+                                    ? `พิกัดที่เลือก: ${formData.latitude.toFixed(6)}, ${formData.longitude?.toFixed(6)}`
+                                    : 'ยังไม่ได้เลือกพิกัด'}
+                            </div>
+                            <button 
+                                onClick={() => setShowMapPicker(false)} 
+                                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-md"
+                            >
+                                ยืนยันตำแหน่ง
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
