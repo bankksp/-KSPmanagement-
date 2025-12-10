@@ -42,7 +42,10 @@ const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
+    
+    // Sidebar States
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile
+    const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); // Desktop
 
     // Report states
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -270,7 +273,6 @@ const App: React.FC = () => {
 
 
     // ... [Previous Save/Delete Handlers kept as is - omitted for brevity but assumed present] ...
-    // Just ensuring we include the handlers needed for the components:
     
     const handleSaveAdminSettings = async (newSettings: Settings, redirect: boolean = true) => {
         setIsSaving(true);
@@ -281,7 +283,7 @@ const App: React.FC = () => {
             if (redirect) { setCurrentPage('stats'); alert('บันทึกการตั้งค่าเรียบร้อยแล้ว'); }
         } catch (error) { console.error(error); alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า'); } finally { setIsSaving(false); }
     };
-    // ... [Include all other handlers from previous App.tsx] ...
+    
     const handleUpdateServiceLocations = async (locations: string[]) => {
         setIsSaving(true);
         try {
@@ -318,7 +320,7 @@ const App: React.FC = () => {
     };
 
     // --- Entity Handlers (Shortened for context fit) ---
-    const handleSaveReport = async (report: Report) => { /*...*/ 
+    const handleSaveReport = async (report: Report) => { 
         setIsSaving(true);
         try {
             const isEditing = !!editingReport;
@@ -340,8 +342,8 @@ const App: React.FC = () => {
     const deleteReports = async (ids: number[]) => { 
         try { await postToGoogleScript({ action: 'deleteReports', ids }); setReports(prev => prev.filter(r => !ids.includes(r.id))); } catch(e) { console.error(e); alert('Error deleting'); }
     };
-    // ... [Other handlers for Student, Personnel, etc. assumed preserved] ...
-    const handleSaveStudent = async (student: Student) => { /* impl */ 
+    
+    const handleSaveStudent = async (student: Student) => { 
         setIsSaving(true);
         try {
             const isEditing = !!editingStudent;
@@ -357,7 +359,7 @@ const App: React.FC = () => {
     };
     const deleteStudents = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deleteStudents', ids }); setStudents(prev => prev.filter(s => !ids.includes(s.id))); } catch(e) { alert('Error'); } };
     
-    const handleSavePersonnel = async (person: Personnel) => { /* impl */ 
+    const handleSavePersonnel = async (person: Personnel) => { 
         setIsSaving(true);
         try {
             const isEditing = personnel.some(p => p.id === person.id);
@@ -382,8 +384,7 @@ const App: React.FC = () => {
     };
     const deletePersonnel = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deletePersonnel', ids }); setPersonnel(prev => prev.filter(p => !ids.includes(p.id))); } catch(e) { alert('Error'); } };
 
-    // Placeholder handlers to satisfy TS - replace with real ones from previous file
-    const handleSaveAttendance = async (t: any, d: any) => { /* impl */ 
+    const handleSaveAttendance = async (t: any, d: any) => { 
         setIsSaving(true);
         try {
             const action = t === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
@@ -409,7 +410,6 @@ const App: React.FC = () => {
         } catch(e) { alert('Error'); } finally { setIsSaving(false); }
     };
     
-    // ... [Handlers for Project, Service, Supply, Durable, Cert, Maint, Reports, Docs, Construction, HomeVisit - simplified]
     const handleGenericSave = async (action: string, data: any, setter: any, isArray: boolean = false) => {
         setIsSaving(true);
         try {
@@ -487,7 +487,7 @@ const App: React.FC = () => {
                             schoolLogo={settings.schoolLogo}
                             studentAttendance={studentAttendance}
                             personnelAttendance={personnelAttendance}
-                            homeVisits={homeVisits} // Pass this new prop
+                            homeVisits={homeVisits} 
                         />;
             case 'academic_plans':
                 return currentUser ? (
@@ -584,7 +584,7 @@ const App: React.FC = () => {
                         onSaveItem={(i) => handleGenericSave('saveSupplyItem', i, setSupplyItems)}
                         onDeleteItem={(id) => handleGenericDelete('deleteSupplyItems', [id], setSupplyItems)}
                         onSaveRequest={(r) => handleGenericSave('saveSupplyRequest', r, setSupplyRequests)}
-                        onUpdateRequestStatus={(r) => { /* custom logic for update status */ handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests); }}
+                        onUpdateRequestStatus={(r) => { handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests); }}
                     />
                 ) : null;
             case 'finance_projects': 
@@ -745,10 +745,11 @@ const App: React.FC = () => {
                 personnel={personnel}
                 isOpen={isSidebarOpen}
                 onCloseMobile={() => setIsSidebarOpen(false)}
+                isDesktopOpen={isDesktopSidebarOpen}
             />
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative lg:ml-72 transition-all duration-300">
+            <div className={`flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300 ${isDesktopSidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
                 <Header 
                     onReportClick={handleOpenReportModal} 
                     onNavigate={navigateTo}
@@ -760,6 +761,8 @@ const App: React.FC = () => {
                     onLogoutClick={handleLogout}
                     personnel={personnel} 
                     onToggleSidebar={() => setIsSidebarOpen(true)}
+                    isDesktopSidebarOpen={isDesktopSidebarOpen}
+                    onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
                 />
                 
                 <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">

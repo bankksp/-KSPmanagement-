@@ -12,11 +12,12 @@ interface SidebarProps {
     personnel: Personnel[];
     isOpen: boolean;
     onCloseMobile: () => void;
+    isDesktopOpen: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
     onNavigate, currentPage, schoolName, schoolLogo, 
-    currentUser, personnel, isOpen, onCloseMobile 
+    currentUser, personnel, isOpen, onCloseMobile, isDesktopOpen
 }) => {
     const [expandedMenu, setExpandedMenu] = useState<string | null>('studentAffairs');
 
@@ -94,7 +95,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Sidebar Container */}
             <div className={`
                 fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out
-                ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+                ${isDesktopOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'}
             `}>
                 {/* Logo Area */}
                 <div className="p-6 flex flex-col items-center justify-center border-b border-gray-100">
@@ -165,7 +167,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             onClick={() => { onNavigate('admin'); onCloseMobile(); }}
                             className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 mb-2 ${currentPage === 'admin' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                         >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                             ตั้งค่าระบบ
                         </button>
                     )}
