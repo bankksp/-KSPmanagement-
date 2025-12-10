@@ -1,12 +1,10 @@
 
-
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance, DormitoryStat, HomeVisit } from '../types';
 import ReportChart from './ReportChart';
 import InfirmaryChart from './InfirmaryChart';
 import AttendanceStats from './AttendanceStats';
-import { getDirectDriveImageSrc, buddhistToISO, isoToBuddhist, getFirstImageSource } from '../utils';
+import { getDirectDriveImageSrc, buddhistToISO, isoToBuddhist, getFirstImageSource, normalizeDate } from '../utils';
 
 interface DashboardProps {
     reports: Report[];
@@ -19,14 +17,6 @@ interface DashboardProps {
     personnelAttendance?: PersonnelAttendance[];
     homeVisits?: HomeVisit[];
 }
-
-const parseThaiDate = (dateString: string): Date => {
-    const parts = dateString.split('/');
-    if (parts.length !== 3) return new Date(0);
-    const [day, month, year] = parts.map(Number);
-    const gregorianYear = year - 543;
-    return new Date(gregorianYear, month - 1, day);
-};
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     reports, students, personnel, dormitories, schoolName, schoolLogo,
@@ -55,8 +45,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         const buddhistYear = targetYear + 543;
         const displayDateString = `${targetDay}/${targetMonth + 1}/${buddhistYear}`;
 
+        // Robust date filtering using normalizeDate
         const dayReports = reports.filter(r => {
-            const d = parseThaiDate(r.reportDate);
+            const d = normalizeDate(r.reportDate);
+            if (!d) return false;
             return d.getDate() === targetDay && d.getMonth() === targetMonth && d.getFullYear() === targetYear;
         });
 
@@ -211,7 +203,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             }, 500);
             return () => clearTimeout(timer);
         }
-    }, [students]); // Updated dependency to students
+    }, [students]);
+
+    // --- Export Functions ---
 
     const handlePrint = () => {
         setIsExportMenuOpen(false);
@@ -220,17 +214,171 @@ const Dashboard: React.FC<DashboardProps> = ({
         document.body.classList.remove('printing-dashboard');
     };
 
+    const handleExportExcel = () => {
+        setIsExportMenuOpen(false);
+        
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        
+        // Summary Section
+        csvContent += `รายงานภาพรวมสถานศึกษา,${schoolName}\n`;
+        csvContent += `วันที่,${buddhistDate}\n\n`;
+        
+        csvContent += `สถิติรวม\n`;
+        csvContent += `นักเรียนทั้งหมด,${students.length},คน\n`;
+        csvContent += `บุคลากรทั้งหมด,${personnel.length},คน\n`;
+        csvContent += `มาเรียน,${totalStudentsReport},คน\n`;
+        csvContent += `ป่วย,${totalSick},คน\n`;
+        csvContent += `ลา/ขาด/อยู่บ้าน,${totalHome},คน\n\n`;
+
+        // Dormitory Table Section
+        csvContent += `รายละเอียดตามเรือนนอน\n`;
+        csvContent += `เรือนนอน,มา (คน),ป่วย (คน),อยู่บ้าน (คน),รวม (คน)\n`;
+        
+        dormitoryData.forEach(row => {
+            csvContent += `"${row.name}",${row.present},${row.sick},${row.home},${row.total}\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `dashboard_report_${buddhistDate.replace(/\//g, '-')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleExportWord = () => {
+        setIsExportMenuOpen(false);
+        
+        const rows = dormitoryData.map(d => `
+            <tr>
+                <td style="text-align:left; padding:5px;">${d.name}</td>
+                <td style="text-align:center; padding:5px;">${d.present}</td>
+                <td style="text-align:center; padding:5px; color:red;">${d.sick}</td>
+                <td style="text-align:center; padding:5px;">${d.home}</td>
+                <td style="text-align:center; padding:5px;">${d.total}</td>
+            </tr>
+        `).join('');
+
+        const html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Dashboard Report</title>
+                <style>
+                    body { font-family: 'TH Sarabun PSK', sans-serif; font-size: 16pt; }
+                    .header { text-align: center; margin-bottom: 20px; }
+                    .header h1 { font-size: 20pt; margin: 0; }
+                    .header p { margin: 5px 0; }
+                    .stats-box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+                    .stat-item { margin-bottom: 5px; font-weight: bold; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { border: 1px solid black; padding: 8px; font-size: 14pt; }
+                    th { background-color: #f0f0f0; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <img src="${getDirectDriveImageSrc(schoolLogo)}" height="80" style="margin-bottom:10px;" />
+                    <h1>${schoolName}</h1>
+                    <p>รายงานภาพรวมสถานศึกษา</p>
+                    <p>ประจำวันที่ ${buddhistDate}</p>
+                </div>
+
+                <h3>1. ข้อมูลสถิติรวม</h3>
+                <div class="stats-box">
+                    <p class="stat-item">นักเรียนทั้งหมด: ${students.length} คน</p>
+                    <p class="stat-item">บุคลากรทั้งหมด: ${personnel.length} คน</p>
+                    <hr/>
+                    <p>มาเรียน: ${totalStudentsReport} คน</p>
+                    <p>ป่วย: ${totalSick} คน</p>
+                    <p>ลา/ขาด/อยู่บ้าน: ${totalHome} คน</p>
+                </div>
+
+                <h3>2. รายละเอียดตามเรือนนอน</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="40%">เรือนนอน</th>
+                            <th width="15%">มา</th>
+                            <th width="15%">ป่วย</th>
+                            <th width="15%">อยู่บ้าน</th>
+                            <th width="15%">รวม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+                
+                <br/><br/>
+                <div style="text-align: right; margin-top: 30px;">
+                    <p>ลงชื่อ ........................................................... ผู้รายงาน</p>
+                    <p>(...........................................................)</p>
+                    <p>วันที่ ${buddhistDate}</p>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `dashboard_report_${buddhistDate.replace(/\//g, '-')}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="space-y-6 md:space-y-8 font-sarabun">
-             {/* ---------------- PRINT LAYOUT (Preserved from original) ---------------- */}
+             {/* ---------------- PRINT LAYOUT ---------------- */}
              <div id="print-dashboard" className="hidden print:block print-visible font-sarabun text-black leading-relaxed">
-                {/* Print Content Omitted for Brevity - Assume same as before */}
-                <div className="text-center"><b>[รูปแบบการพิมพ์บันทึกข้อความ]</b></div>
+                <div className="text-center mb-6">
+                    <h1 className="text-2xl font-bold">{schoolName}</h1>
+                    <h2 className="text-xl">รายงานสถานภาพนักเรียนประจำวัน</h2>
+                    <p>วันที่ {buddhistDate}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mb-4 text-lg">
+                    <div><b>จำนวนนักเรียนทั้งหมด:</b> {students.length} คน</div>
+                    <div><b>จำนวนบุคลากร:</b> {personnel.length} คน</div>
+                </div>
+                <div className="border border-black p-4 mb-4">
+                    <h3 className="font-bold border-b border-black mb-2">สรุปยอดประจำวัน</h3>
+                    <div className="flex justify-between">
+                        <span>มาเรียน: {totalStudentsReport}</span>
+                        <span>ป่วย: {totalSick}</span>
+                        <span>ลา/ขาด: {totalHome}</span>
+                    </div>
+                </div>
+                <table className="w-full border-collapse border border-black">
+                    <thead>
+                        <tr className="bg-gray-200">
+                            <th className="border border-black p-2 text-left">เรือนนอน</th>
+                            <th className="border border-black p-2 text-center">มา</th>
+                            <th className="border border-black p-2 text-center">ป่วย</th>
+                            <th className="border border-black p-2 text-center">อยู่บ้าน</th>
+                            <th className="border border-black p-2 text-center">รวม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {dormitoryData.map((d, i) => (
+                            <tr key={i}>
+                                <td className="border border-black p-2">{d.name}</td>
+                                <td className="border border-black p-2 text-center">{d.present}</td>
+                                <td className="border border-black p-2 text-center">{d.sick}</td>
+                                <td className="border border-black p-2 text-center">{d.home}</td>
+                                <td className="border border-black p-2 text-center">{d.total}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
 
             {/* ---------------- SCREEN LAYOUT ---------------- */}
             <div className="print:hidden space-y-6">
-                {/* Top Section: Welcome & Date Picker */}
+                {/* Top Section: Welcome & Date Picker & Export */}
                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
                     <div>
                         <h2 className="text-3xl font-bold text-navy tracking-tight">ภาพรวมสถานศึกษา</h2>
@@ -246,9 +394,34 @@ const Dashboard: React.FC<DashboardProps> = ({
                             }}
                             className="pl-4 pr-4 py-2 bg-white/80 border border-white/50 backdrop-blur-sm rounded-full shadow-sm text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue"
                         />
-                        <button onClick={handlePrint} className="p-2 bg-white/80 rounded-full shadow-sm hover:shadow-md text-gray-600 hover:text-primary-blue transition-all">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        </button>
+                        
+                        {/* Export Dropdown */}
+                        <div className="relative">
+                            <button 
+                                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                                className="flex items-center gap-2 bg-white/80 hover:bg-white text-gray-700 font-bold py-2 px-4 rounded-full shadow-sm border border-white/50 transition-all text-sm"
+                            >
+                                <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                ดาวน์โหลด
+                            </button>
+                            
+                            {isExportMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+                                    <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 border-b border-gray-100 transition-colors">
+                                        <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                                        Word (.doc)
+                                    </button>
+                                    <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center gap-2 border-b border-gray-100 transition-colors">
+                                        <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M21.17 3.25Q21.5 3.25 21.76 3.5 22.04 3.73 22.04 4.13V19.87Q22.04 20.27 21.76 20.5 21.5 20.75 21.17 20.75H14.83Q14.5 20.75 14.26 20.5 14 20.27 14 19.87V4.13Q14 3.73 14.26 3.5 14.5 3.25 14.83 3.25H21.17M12 3.25Q12.33 3.25 12.59 3.5 12.87 3.73 12.87 4.13V19.87Q12.87 20.27 12.59 20.5 12.33 20.75 12 20.75H2.83Q2.5 20.75 2.26 20.5 2 20.27 2 19.87V4.13Q2 3.73 2.26 3.5 2.5 3.25 2.83 3.25H12M4 5V19H11V5H4M16 5V19H20V5H16Z" /></svg>
+                                        Excel (.csv)
+                                    </button>
+                                    <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 flex items-center gap-2 transition-colors">
+                                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                        พิมพ์ / PDF
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

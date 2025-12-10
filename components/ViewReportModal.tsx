@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Report, Student } from '../types';
-import { getDirectDriveImageSrc, safeParseArray } from '../utils';
+import { getDirectDriveImageSrc, safeParseArray, formatThaiDateTime } from '../utils';
 
 interface ViewReportModalProps {
     report: Report;
@@ -166,7 +166,7 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose, stud
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                          {/* Basic Info */}
                         <div className="space-y-4">
-                            <DetailItem label="วันที่/เวลา รายงาน" value={`${report.reportDate}${report.reportTime ? ` ${report.reportTime} น.` : ''}`} />
+                            <DetailItem label="วันที่/เวลา รายงาน" value={formatThaiDateTime(report.reportDate, report.reportTime)} />
                             <DetailItem label="ชื่อผู้รายงาน" value={report.reporterName} />
                             <DetailItem label="ตำแหน่ง" value={report.position} />
                             <DetailItem label="ปีการศึกษา" value={report.academicYear} />

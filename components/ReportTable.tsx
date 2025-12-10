@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Report } from '../types';
+import { formatThaiDateTime } from '../utils';
 
 interface ReportTableProps {
     reports: Report[];
@@ -97,7 +98,7 @@ const ReportTable: React.FC<ReportTableProps> = ({ reports, deleteReports, onVie
                     <thead className="bg-navy text-white">
                         <tr>
                             <th className="p-2 md:p-3 text-left no-print w-8"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size > 0 && selectedIds.size === filteredReports.length} /></th>
-                            <th className="p-2 md:p-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">วันที่</th>
+                            <th className="p-2 md:p-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">วัน เวลา</th>
                             <th className="p-2 md:p-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">เรือนนอน</th>
                             <th className="p-2 md:p-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">ผู้รายงาน</th>
                             <th className="p-2 md:p-3 text-center text-xs md:text-sm font-semibold whitespace-nowrap">มา/ป่วย</th>
@@ -109,8 +110,7 @@ const ReportTable: React.FC<ReportTableProps> = ({ reports, deleteReports, onVie
                             <tr key={report.id} className="border-b hover:bg-gray-50">
                                 <td className="p-2 md:p-3 no-print"><input type="checkbox" checked={selectedIds.has(report.id)} onChange={() => handleSelect(report.id)} /></td>
                                 <td className="p-2 md:p-3 text-xs md:text-sm whitespace-nowrap">
-                                    <div>{report.reportDate}</div>
-                                    <div className="text-gray-400 text-[10px]">{report.reportTime}</div>
+                                    {formatThaiDateTime(report.reportDate, report.reportTime)}
                                 </td>
                                 <td className="p-2 md:p-3 text-xs md:text-sm whitespace-nowrap">{report.dormitory}</td>
                                 <td className="p-2 md:p-3 text-xs md:text-sm whitespace-nowrap max-w-[100px] md:max-w-[200px] truncate">{report.reporterName}</td>

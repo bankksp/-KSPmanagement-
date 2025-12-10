@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Personnel } from '../types';
 import { postToGoogleScript, prepareDataForApi } from '../utils';
@@ -90,19 +91,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, schoolName, s
     };
 
     const backendCode = `/**
- * KSP Management System - Backend Script (Version 2025.6 ID Card Only)
- * 1. Copy this code to Code.gs
- * 2. Save
- * 3. Deploy > New Deployment > Web app
- *    - Execute as: Me
- *    - Who has access: Anyone
- * 4. Copy the Web App URL to your frontend constants
+ * KSP Management System - Backend Script (Version 2025.9 Updated)
+ * 1. Copy this code to Code.gs in your Google Apps Script project.
+ * 2. Save.
+ * 3. Deploy > New Deployment > Web app > Execute as: Me > Who has access: Anyone.
+ * 4. Copy the Web App URL to your frontend constants.
  */
 
-// --- CONFIGURATION ---
 const FOLDER_NAME = "KSP_Management_System_Uploads"; 
 
-// --- SHEET NAMES ---
 const SHEET_NAMES = {
   REPORTS: "Reports",
   STUDENTS: "Students",
@@ -122,12 +119,10 @@ const SHEET_NAMES = {
   DOCUMENTS: "GeneralDocuments",
   CONSTRUCTION_RECORDS: "ConstructionRecords",
   PROJECT_PROPOSALS: "ProjectProposals",
-  HOME_VISITS: "HomeVisits"
+  HOME_VISITS: "HomeVisits",
+  SDQ_RECORDS: "SDQRecords"
 };
 
-/**
- * Setup Function: Run this once manually to create missing sheets
- */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(SHEET_NAMES).forEach(key => {
@@ -138,9 +133,6 @@ function setup() {
   });
 }
 
-/**
- * Main Entry Point (POST Request)
- */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) {
@@ -154,7 +146,6 @@ function doPost(e) {
     const action = request.action;
     const data = request.data;
     
-    // 1. Handle Login (Public Action)
     if (action === 'login') {
       const user = handleLogin(request.idCard, request.password);
       if (user) {
@@ -167,59 +158,36 @@ function doPost(e) {
     let output = {};
     const uploadFolder = getUploadFolder();
 
-    // 2. Action Routing
     switch (action) {
       case 'getAllData': output = getAllData(); break;
       case 'updateSettings': output = saveSettings(data, uploadFolder); break;
 
-      // --- SAVE SINGLE RECORD HANDLERS ---
       case 'addReport':
-      case 'updateReport':
-        output = saveRecord(getSheet(SHEET_NAMES.REPORTS), data, uploadFolder); break;
+      case 'updateReport': output = saveRecord(getSheet(SHEET_NAMES.REPORTS), data, uploadFolder); break;
       case 'addStudent':
-      case 'updateStudent':
-        output = saveRecord(getSheet(SHEET_NAMES.STUDENTS), data, uploadFolder); break;
+      case 'updateStudent': output = saveRecord(getSheet(SHEET_NAMES.STUDENTS), data, uploadFolder); break;
       case 'addPersonnel':
-      case 'updatePersonnel':
-        output = saveRecord(getSheet(SHEET_NAMES.PERSONNEL), data, uploadFolder); break;
-      case 'saveAcademicPlan':
-        output = saveRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
-      case 'updateAcademicPlanStatus':
-        output = patchRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
-      case 'saveServiceRecord':
-        output = saveRecord(getSheet(SHEET_NAMES.SERVICE_RECORDS), data, uploadFolder); break;
-      case 'saveSupplyItem':
-        output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_ITEMS), data, uploadFolder); break;
-      case 'saveSupplyRequest':
-        output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
-      case 'updateSupplyRequestStatus':
-        output = patchRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
-      case 'saveDurableGood':
-        output = saveRecord(getSheet(SHEET_NAMES.DURABLE_GOODS), data, uploadFolder); break;
-      case 'saveCertificateRequest':
-        output = saveRecord(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS), data, uploadFolder); break;
-      case 'saveMaintenanceRequest':
-        output = saveRecord(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS), data, uploadFolder); break;
-      case 'savePerformanceReport':
-        output = saveRecord(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS), data, uploadFolder); break;
-      case 'saveSARReport':
-        output = saveRecord(getSheet(SHEET_NAMES.SAR_REPORTS), data, uploadFolder); break;
-      case 'saveDocument':
-        output = saveRecord(getSheet(SHEET_NAMES.DOCUMENTS), data, uploadFolder); break;
-      case 'saveConstructionRecord':
-        output = saveRecord(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), data, uploadFolder); break;
-      case 'saveProjectProposal':
-        output = saveRecord(getSheet(SHEET_NAMES.PROJECT_PROPOSALS), data, uploadFolder); break;
-      case 'saveHomeVisit':
-        output = saveRecord(getSheet(SHEET_NAMES.HOME_VISITS), data, uploadFolder); break;
+      case 'updatePersonnel': output = saveRecord(getSheet(SHEET_NAMES.PERSONNEL), data, uploadFolder); break;
+      case 'saveAcademicPlan': output = saveRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
+      case 'updateAcademicPlanStatus': output = patchRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
+      case 'saveServiceRecord': output = saveRecord(getSheet(SHEET_NAMES.SERVICE_RECORDS), data, uploadFolder); break;
+      case 'saveSupplyItem': output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_ITEMS), data, uploadFolder); break;
+      case 'saveSupplyRequest': output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
+      case 'updateSupplyRequestStatus': output = patchRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
+      case 'saveDurableGood': output = saveRecord(getSheet(SHEET_NAMES.DURABLE_GOODS), data, uploadFolder); break;
+      case 'saveCertificateRequest': output = saveRecord(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS), data, uploadFolder); break;
+      case 'saveMaintenanceRequest': output = saveRecord(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS), data, uploadFolder); break;
+      case 'savePerformanceReport': output = saveRecord(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS), data, uploadFolder); break;
+      case 'saveSARReport': output = saveRecord(getSheet(SHEET_NAMES.SAR_REPORTS), data, uploadFolder); break;
+      case 'saveDocument': output = saveRecord(getSheet(SHEET_NAMES.DOCUMENTS), data, uploadFolder); break;
+      case 'saveConstructionRecord': output = saveRecord(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), data, uploadFolder); break;
+      case 'saveProjectProposal': output = saveRecord(getSheet(SHEET_NAMES.PROJECT_PROPOSALS), data, uploadFolder); break;
+      case 'saveHomeVisit': output = saveRecord(getSheet(SHEET_NAMES.HOME_VISITS), data, uploadFolder); break;
+      case 'saveSDQRecord': output = saveRecord(getSheet(SHEET_NAMES.SDQ_RECORDS), data, uploadFolder); break;
 
-      // --- BATCH SAVE HANDLERS ---
-      case 'saveStudentAttendance':
-        output = batchUpdateAttendance(getSheet(SHEET_NAMES.STUDENT_ATTENDANCE), data); break;
-      case 'savePersonnelAttendance':
-        output = batchUpdateAttendance(getSheet(SHEET_NAMES.PERSONNEL_ATTENDANCE), data); break;
+      case 'saveStudentAttendance': output = batchUpdateAttendance(getSheet(SHEET_NAMES.STUDENT_ATTENDANCE), data); break;
+      case 'savePersonnelAttendance': output = batchUpdateAttendance(getSheet(SHEET_NAMES.PERSONNEL_ATTENDANCE), data); break;
 
-      // --- DELETE HANDLERS ---
       case 'deleteReports': output = deleteRecords(getSheet(SHEET_NAMES.REPORTS), request.ids); break;
       case 'deleteStudents': output = deleteRecords(getSheet(SHEET_NAMES.STUDENTS), request.ids); break;
       case 'deletePersonnel': output = deleteRecords(getSheet(SHEET_NAMES.PERSONNEL), request.ids); break;
@@ -234,6 +202,7 @@ function doPost(e) {
       case 'deleteConstructionRecords': output = deleteRecords(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), request.ids); break;
       case 'deleteProjectProposals': output = deleteRecords(getSheet(SHEET_NAMES.PROJECT_PROPOSALS), request.ids); break;
       case 'deleteHomeVisits': output = deleteRecords(getSheet(SHEET_NAMES.HOME_VISITS), request.ids); break;
+      case 'deleteSDQRecords': output = deleteRecords(getSheet(SHEET_NAMES.SDQ_RECORDS), request.ids); break;
 
       default: throw new Error("Invalid action: " + action);
     }
@@ -245,8 +214,6 @@ function doPost(e) {
     lock.releaseLock();
   }
 }
-
-// --- HELPERS ---
 
 function getSpreadsheet() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
@@ -290,7 +257,7 @@ function getFrontendKey(constKey) {
         MAINTENANCE_REQUESTS: 'maintenanceRequests', PERFORMANCE_REPORTS: 'performanceReports',
         SAR_REPORTS: 'sarReports', DOCUMENTS: 'documents',
         CONSTRUCTION_RECORDS: 'constructionRecords', PROJECT_PROPOSALS: 'projectProposals',
-        HOME_VISITS: 'homeVisits'
+        HOME_VISITS: 'homeVisits', SDQ_RECORDS: 'sdqRecords'
     };
     return map[constKey] || constKey.toLowerCase();
 }
@@ -318,8 +285,6 @@ function handleLogin(idCard, password) {
   }
   return null;
 }
-
-// ... (Rest of standard save/update functions remain the same) ...
 
 function saveSettings(settings, uploadFolder) {
   const ss = getSpreadsheet();
@@ -386,7 +351,6 @@ function patchRecord(sheet, partialData, uploadFolder) {
       });
       sheet.getRange(i + 1, 1, 1, headers.length).setValues([newRow]);
       
-      // Return full updated
       const fullRecord = {};
       headers.forEach((h, idx) => {
           let v = newRow[idx];
@@ -572,7 +536,7 @@ function responseJSON(data) {
                                 onClick={() => setIsCodeModalOpen(true)}
                                 className="self-end mt-1 text-xs underline hover:text-red-900 font-bold bg-white/50 px-2 py-1 rounded"
                             >
-                                คลิกเพื่อรับโค้ด Google Script ล่าสุด (v2025.6 - แก้ไขปัญหานี้)
+                                คลิกเพื่อรับโค้ด Google Script ล่าสุด (v2025.9 - รองรับทุกระบบ)
                             </button>
                         )}
                     </div>
@@ -680,9 +644,11 @@ function responseJSON(data) {
                                 className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                                คัดลอกโค้ด
+                                คัดลอกโค้ดทั้งหมด
                             </button>
-                            <button onClick={() => setIsCodeModalOpen(false)} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg font-bold hover:bg-gray-300">ปิด</button>
+                            <button onClick={() => setIsCodeModalOpen(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-300">
+                                ปิด
+                            </button>
                         </div>
                     </div>
                 </div>

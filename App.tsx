@@ -27,12 +27,13 @@ import PersonnelReportPage from './components/PersonnelReportPage';
 import PersonnelSARPage from './components/PersonnelSARPage';
 import GeneralDocsPage from './components/GeneralDocsPage'; 
 import StudentHomeVisitPage from './components/StudentHomeVisitPage'; 
+import SDQPage from './components/SDQPage'; 
 import ServiceRegistrationPage from './components/ServiceRegistrationPage'; 
 import ConstructionPage from './components/ConstructionPage';
 import BudgetPlanningPage from './components/BudgetPlanningPage';
 import LandingPage from './components/LandingPage';
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { prepareDataForApi, postToGoogleScript } from './utils';
 
@@ -96,6 +97,9 @@ const App: React.FC = () => {
 
     // Home Visit State
     const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
+
+    // SDQ State (New)
+    const [sdqRecords, setSdqRecords] = useState<SDQRecord[]>([]);
 
     // Service Registration State
     const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
@@ -217,6 +221,21 @@ const App: React.FC = () => {
                 return v;
             });
             setHomeVisits(normalizedHomeVisits);
+
+            // SDQ
+            if (data.sdqRecords) {
+                 const normSDQ = data.sdqRecords.map((r: any) => {
+                     // Parse scores if string
+                     if (typeof r.scores === 'string') {
+                         try { r.scores = JSON.parse(r.scores); } catch(e) { r.scores = {}; }
+                     }
+                     return r;
+                 });
+                 setSdqRecords(normSDQ);
+            } else {
+                setSdqRecords([]);
+            }
+
 
             if (data.settings) {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
@@ -495,7 +514,7 @@ const App: React.FC = () => {
                         currentUser={currentUser}
                         personnel={personnel}
                         plans={academicPlans}
-                        onSavePlan={handleSaveAcademicPlan}
+                        onSavePlan={handleSavePlan}
                         onUpdateStatus={handleUpdateAcademicPlanStatus}
                         isSaving={isSaving}
                     />
@@ -523,7 +542,7 @@ const App: React.FC = () => {
                             studentAttendance={studentAttendance}
                             personnelAttendance={personnelAttendance}
                             onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
-                            onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
+                            onSavePersonnelAttendance={(data) => handleSavePersonnel('personnel', data)}
                             isSaving={isSaving}
                             currentUser={currentUser}
                         />;
@@ -580,7 +599,7 @@ const App: React.FC = () => {
                         onUpdateRequests={(reqs) => setSupplyRequests(reqs)}
                         onUpdatePersonnel={handleSavePersonnel}
                         settings={settings}
-                        onSaveSettings={handleSaveAdminSettings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s)}
                         onSaveItem={(i) => handleGenericSave('saveSupplyItem', i, setSupplyItems)}
                         onDeleteItem={(id) => handleGenericDelete('deleteSupplyItems', [id], setSupplyItems)}
                         onSaveRequest={(r) => handleGenericSave('saveSupplyRequest', r, setSupplyRequests)}
@@ -664,6 +683,20 @@ const App: React.FC = () => {
                         studentClassrooms={settings.studentClassrooms}
                         academicYears={settings.academicYears}
                         isSaving={isSaving}
+                    />
+                ) : null;
+            case 'student_sdq':
+                return currentUser ? (
+                    <SDQPage
+                        currentUser={currentUser}
+                        students={students}
+                        records={sdqRecords}
+                        onSave={(r) => handleGenericSave('saveSDQRecord', r, setSdqRecords)}
+                        onDelete={(ids) => handleGenericDelete('deleteSDQRecords', ids, setSdqRecords)}
+                        academicYears={settings.academicYears}
+                        isSaving={isSaving}
+                        studentClasses={settings.studentClasses}
+                        studentClassrooms={settings.studentClassrooms}
                     />
                 ) : null;
             case 'personnel_report':

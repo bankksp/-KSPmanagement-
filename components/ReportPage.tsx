@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { Report } from '../types';
 import ReportTable from './ReportTable';
 import StatsCard from './StatsCard';
+import { normalizeDate } from '../utils';
 
 interface ReportPageProps {
     reports: Report[];
@@ -11,14 +12,6 @@ interface ReportPageProps {
     onEditReport: (report: Report) => void;
     onAddReport: () => void;
 }
-
-const parseThaiDate = (dateString: string): Date => {
-    const parts = dateString.split('/');
-    if (parts.length !== 3) return new Date(0); 
-    const [day, month, year] = parts.map(Number);
-    const gregorianYear = year - 543;
-    return new Date(gregorianYear, month - 1, day);
-};
 
 const ReportPage: React.FC<ReportPageProps> = ({ reports, deleteReports, onViewReport, onEditReport, onAddReport }) => {
 
@@ -31,7 +24,8 @@ const ReportPage: React.FC<ReportPageProps> = ({ reports, deleteReports, onViewR
 
         // Filter for today's reports
         const todaysReports = reports.filter(r => {
-            const d = parseThaiDate(r.reportDate);
+            const d = normalizeDate(r.reportDate);
+            if (!d) return false;
             return d.getDate() === currentDay && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
         });
 

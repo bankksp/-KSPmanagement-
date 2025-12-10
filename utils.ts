@@ -6,6 +6,11 @@ export const THAI_MONTHS = [
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
 ];
 
+export const THAI_SHORT_MONTHS = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+];
+
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) {
@@ -314,62 +319,112 @@ export const isoToBuddhist = (isoDate: string | undefined): string => {
     return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${buddhistYear}`;
 };
 
+/**
+ * Robustly parses a date string that could be "DD/MM/YYYY" (Buddhist) or ISO string
+ */
+export const normalizeDate = (input: any): Date | null => {
+    if (!input) return null;
+    if (input instanceof Date) return input;
+    
+    const str = String(input).trim();
+    
+    // Check ISO format (YYYY-MM-DD...) or similar variants
+    if (str.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+            // Adjust Buddhist year in ISO string if detected (unlikely standard, but possible from manual input)
+            const year = d.getFullYear();
+            if (year > 2400) {
+                d.setFullYear(year - 543);
+            }
+            return d;
+        }
+    }
+    
+    // Check Thai format (DD/MM/YYYY)
+    const parts = str.split('/');
+    if (parts.length === 3) {
+        const d = parseInt(parts[0]);
+        const m = parseInt(parts[1]) - 1;
+        let y = parseInt(parts[2]);
+        if (y > 2400) y -= 543; // Convert BE to AD
+        return new Date(y, m, d);
+    }
+    
+    return null;
+};
+
 // Format Date for Display (Thai Full Date)
 export const formatThaiDate = (dateString: string | undefined): string => {
-    if (!dateString) return '-';
+    const date = normalizeDate(dateString);
+    if (!date) return dateString || '-';
     
-    // Handle ISO string or "YYYY-MM-DD" or weird "2568-12-07..."
-    if (dateString.includes('-') || dateString.includes('T')) {
-        let d = new Date(dateString);
-        
-        // Handling the "2568-..." case manually since Date() might not parse it correctly or might treat year as 2568 AD
-        const isoMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        let day, month, year;
+    const d = date.getDate();
+    const m = date.getMonth();
+    const y = date.getFullYear() + 543;
+    return `${d} ${THAI_MONTHS[m]} ${y}`;
+};
 
-        if (isoMatch) {
-             year = parseInt(isoMatch[1]);
-             month = parseInt(isoMatch[2]) - 1;
-             day = parseInt(isoMatch[3]);
-        } else if (!isNaN(d.getTime())) {
-             day = d.getDate();
-             month = d.getMonth();
-             year = d.getFullYear();
+// Format Date and Time for Display (Thai Full Date + Time)
+export const formatThaiDateTime = (dateStr: string, timeStr?: string): string => {
+    const date = normalizeDate(dateStr);
+    if (!date) return dateStr || '-';
+    
+    const d = date.getDate();
+    const m = date.getMonth();
+    const y = date.getFullYear() + 543;
+    
+    let timePart = '';
+    
+    // Determine time from separate string OR from the date object itself if valid
+    let hourStr = '';
+    let minuteStr = '';
+
+    // If timeStr is provided and looks valid
+    if (timeStr && typeof timeStr === 'string' && timeStr.trim() !== '') {
+        // HH:mm or HH:mm:ss
+        const simpleTime = timeStr.match(/(\d{1,2}):(\d{2})/);
+        if (simpleTime) {
+            hourStr = simpleTime[1].padStart(2, '0');
+            minuteStr = simpleTime[2];
         } else {
-            return dateString;
+            // Try ISO date string for time (Google Sheets sometimes sends this)
+            // e.g. 1899-12-30T10:35:00.000Z
+            const timeDate = new Date(timeStr);
+            if (!isNaN(timeDate.getTime())) {
+                // Adjust for timezone offset if needed, but usually local time is desired.
+                // Assuming the string is UTC or local, we just want HH:mm
+                // If it came from Google Sheets as a Date object, it might be timezone dependent.
+                // However, simple .getHours() works for local browser time.
+                // If the input string is Z-terminated (UTC), we might need to adjust.
+                // Let's assume standard local parsing.
+                hourStr = timeDate.getHours().toString().padStart(2, '0');
+                minuteStr = timeDate.getMinutes().toString().padStart(2, '0');
+            }
         }
-
-        // Auto-detect if year is already Buddhist (unlikely for Date object unless manually set or weird string)
-        const buddhistYear = year < 2400 ? year + 543 : year;
-        return `${day} ${THAI_MONTHS[month]} ${buddhistYear}`;
+    } else if (dateStr.includes('T')) {
+        // If dateStr was ISO and had time info
+        const dateObj = new Date(dateStr);
+        if (!isNaN(dateObj.getTime())) {
+             hourStr = dateObj.getHours().toString().padStart(2, '0');
+             minuteStr = dateObj.getMinutes().toString().padStart(2, '0');
+             // If 00:00, assume no time was meant (common for date-only fields stored as ISO)
+             if (hourStr === '00' && minuteStr === '00') {
+                 hourStr = '';
+                 minuteStr = '';
+             }
+        }
     }
 
-    // Handle DD/MM/YYYY
-    const parts = dateString.split('/');
-    if (parts.length === 3) {
-        const day = parseInt(parts[0]);
-        const month = parseInt(parts[1]) - 1;
-        const year = parseInt(parts[2]);
-        if (month >= 0 && month <= 11) {
-            return `${day} ${THAI_MONTHS[month]} ${year}`;
-        }
+    if (hourStr && minuteStr) {
+        timePart = ` เวลา ${hourStr}:${minuteStr} น.`;
     }
-    return dateString;
+    
+    return `${d} ${THAI_MONTHS[m]} ${y}${timePart}`;
 };
 
 // For sorting dates
 export const parseThaiDateForSort = (dateString: string): number => {
-    if (!dateString) return 0;
-    
-    // Try DD/MM/YYYY
-    const parts = dateString.split('/');
-    if (parts.length === 3) {
-        // YYYYMMDD
-        return parseInt(parts[2]) * 10000 + parseInt(parts[1]) * 100 + parseInt(parts[0]);
-    }
-    
-    // Try ISO
-    const d = new Date(dateString);
-    if (!isNaN(d.getTime())) return d.getTime();
-    
-    return 0;
+    const d = normalizeDate(dateString);
+    return d ? d.getTime() : 0;
 };

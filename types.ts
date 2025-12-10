@@ -1,7 +1,4 @@
 
-
-
-
 export interface Report {
   id: number;
   reportDate: string;
@@ -391,6 +388,38 @@ export interface HomeVisit {
   longitude?: number;
 }
 
+// --- SDQ Assessment Types (New) ---
+
+export type SDQResultType = 'normal' | 'risk' | 'problem';
+
+export interface SDQRecord {
+    id: number;
+    studentId: number;
+    studentName: string; // Denormalized for easier export
+    academicYear: string;
+    term: string; // 1 or 2
+    evaluatorId: number;
+    evaluatorName: string;
+    date: string;
+    scores: Record<number, number>; // Question 1-25, value 0,1,2
+    
+    // Calculated Scores
+    scoreEmotional: number;
+    scoreConduct: number;
+    scoreHyper: number;
+    scorePeer: number;
+    scoreProsocial: number;
+    scoreTotalDifficulties: number; // Sum of first 4 scales
+    
+    // Interpretations
+    resultEmotional: SDQResultType;
+    resultConduct: SDQResultType;
+    resultHyper: SDQResultType;
+    resultPeer: SDQResultType;
+    resultProsocial: SDQResultType;
+    resultTotal: SDQResultType;
+}
+
 // Navigation Types
 export type Page = 
     | 'stats' 
@@ -413,4 +442,5 @@ export type Page =
     | 'general_repair'
     | 'general_certs' // ขอเลขเกียรติบัตร
     | 'general_construction' // บันทึกงานก่อสร้าง
-    | 'student_home_visit'; // เยี่ยมบ้านนักเรียน
+    | 'student_home_visit' // เยี่ยมบ้านนักเรียน
+    | 'student_sdq'; // ประเมิน SDQ
