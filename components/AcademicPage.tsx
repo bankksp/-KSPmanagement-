@@ -17,7 +17,8 @@ interface AcademicPageProps {
 const AcademicPage: React.FC<AcademicPageProps> = ({ 
     currentUser, personnel, plans, onSavePlan, onUpdateStatus, isSaving 
 }) => {
-    const [activeTab, setActiveTab] = useState<'submit' | 'stats' | 'approval'>('submit');
+    // Set 'stats' as default
+    const [activeTab, setActiveTab] = useState<'submit' | 'stats' | 'approval'>('stats');
     
     // Check roles
     const canApprove = currentUser.role === 'admin' || currentUser.role === 'pro';
@@ -164,7 +165,7 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
 
         return (
             <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary-blue hover:underline text-xs bg-blue-50 px-2 py-1.5 rounded border border-blue-100 mb-1 mr-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                 {label}
             </a>
         );
@@ -199,18 +200,18 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
             {/* Header Tabs */}
             <div className="flex flex-wrap justify-center gap-2 bg-white p-2 rounded-xl shadow-sm mb-6">
                 <button
-                    onClick={() => setActiveTab('submit')}
-                    className={`flex items-center gap-2 px-3 md:px-6 py-2 rounded-lg font-bold text-sm md:text-base transition-all ${activeTab === 'submit' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}
-                >
-                    <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    ส่งงาน
-                </button>
-                <button
                     onClick={() => setActiveTab('stats')}
                     className={`flex items-center gap-2 px-3 md:px-6 py-2 rounded-lg font-bold text-sm md:text-base transition-all ${activeTab === 'stats' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}
                 >
                     <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                     สถิติ
+                </button>
+                <button
+                    onClick={() => setActiveTab('submit')}
+                    className={`flex items-center gap-2 px-3 md:px-6 py-2 rounded-lg font-bold text-sm md:text-base transition-all ${activeTab === 'submit' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}
+                >
+                    <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    ส่งงาน
                 </button>
                 {canApprove && (
                     <button
@@ -222,6 +223,57 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
                     </button>
                 )}
             </div>
+
+            {/* --- TAB 2: STATS (DEFAULT) --- */}
+            {activeTab === 'stats' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-lg">
+                        <h2 className="text-xl font-bold text-navy mb-6 flex items-center gap-2">
+                             <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                            แดชบอร์ดภาพรวม
+                        </h2>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
+                                <p className="text-xs md:text-sm opacity-80">ครูส่งงาน</p>
+                                <p className="text-2xl md:text-3xl font-bold mt-1">{stats.teachersCount} <span className="text-sm font-normal">คน</span></p>
+                            </div>
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg">
+                                <p className="text-xs md:text-sm opacity-80">จำนวนแผนฯ</p>
+                                <p className="text-2xl md:text-3xl font-bold mt-1">{stats.totalPlans} <span className="text-sm font-normal">รายการ</span></p>
+                            </div>
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg col-span-2 md:col-span-1">
+                                <p className="text-xs md:text-sm opacity-80">อนุมัติแล้ว</p>
+                                <p className="text-2xl md:text-3xl font-bold mt-1">{stats.totalApproved} <span className="text-sm font-normal">รายการ</span></p>
+                            </div>
+                        </div>
+
+                        <div className="h-[300px] md:h-[400px] w-full bg-gray-50 rounded-xl p-2 md:p-4 flex flex-col items-center justify-center">
+                             <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={stats.chartData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={90}
+                                        fill="#8884d8"
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                        labelLine={false}
+                                    >
+                                        {stats.chartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* --- TAB 1: SUBMISSION FORM --- */}
             {activeTab === 'submit' && (
@@ -361,57 +413,6 @@ const AcademicPage: React.FC<AcademicPageProps> = ({
                                     </div>
                                 ))
                             )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- TAB 2: STATS --- */}
-            {activeTab === 'stats' && (
-                <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-xl shadow-lg">
-                        <h2 className="text-xl font-bold text-navy mb-6 flex items-center gap-2">
-                             <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
-                            แดชบอร์ดภาพรวม
-                        </h2>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-                            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
-                                <p className="text-xs md:text-sm opacity-80">ครูส่งงาน</p>
-                                <p className="text-2xl md:text-3xl font-bold mt-1">{stats.teachersCount} <span className="text-sm font-normal">คน</span></p>
-                            </div>
-                            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg">
-                                <p className="text-xs md:text-sm opacity-80">จำนวนแผนฯ</p>
-                                <p className="text-2xl md:text-3xl font-bold mt-1">{stats.totalPlans} <span className="text-sm font-normal">รายการ</span></p>
-                            </div>
-                            <div className="p-4 rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg col-span-2 md:col-span-1">
-                                <p className="text-xs md:text-sm opacity-80">อนุมัติแล้ว</p>
-                                <p className="text-2xl md:text-3xl font-bold mt-1">{stats.totalApproved} <span className="text-sm font-normal">รายการ</span></p>
-                            </div>
-                        </div>
-
-                        <div className="h-[300px] md:h-[400px] w-full bg-gray-50 rounded-xl p-2 md:p-4 flex flex-col items-center justify-center">
-                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={stats.chartData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={90}
-                                        fill="#8884d8"
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                        labelLine={false}
-                                    >
-                                        {stats.chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
-                            </ResponsiveContainer>
                         </div>
                     </div>
                 </div>

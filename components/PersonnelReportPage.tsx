@@ -19,7 +19,8 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
     currentUser, personnel, reports, onSave, onDelete, 
     academicYears, positions, isSaving 
 }) => {
-    const [activeTab, setActiveTab] = useState<'submit' | 'stats'>('submit');
+    // Set 'stats' as default
+    const [activeTab, setActiveTab] = useState<'submit' | 'stats'>('stats');
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewReport, setViewReport] = useState<PerformanceReport | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -155,123 +156,22 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
             {/* Tabs */}
             <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2">
                 <button 
-                    onClick={() => setActiveTab('submit')}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'submit' ? 'bg-primary-blue text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    ส่งรายงาน
-                </button>
-                <button 
                     onClick={() => setActiveTab('stats')}
                     className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'stats' ? 'bg-purple-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                     สถิติการส่ง
                 </button>
+                <button 
+                    onClick={() => setActiveTab('submit')}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'submit' ? 'bg-primary-blue text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    ส่งรายงาน
+                </button>
             </div>
 
-            {/* --- SUBMIT TAB --- */}
-            {activeTab === 'submit' && (
-                <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
-                    <h2 className="text-xl font-bold text-navy mb-6 flex items-center gap-2">
-                        <svg className="w-6 h-6 text-primary-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        แบบฟอร์มรายงานการปฏิบัติงาน
-                    </h2>
-                    
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
-                                <input 
-                                    type="text" 
-                                    value={formData.name} 
-                                    onChange={e => setFormData({...formData, name: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg bg-gray-50"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
-                                <select 
-                                    value={formData.position} 
-                                    onChange={e => setFormData({...formData, position: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                    required
-                                >
-                                    <option value="">-- เลือกตำแหน่ง --</option>
-                                    {positions.map(p => <option key={p} value={p}>{p}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">ปีการศึกษา</label>
-                                <select 
-                                    value={formData.academicYear} 
-                                    onChange={e => setFormData({...formData, academicYear: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                    required
-                                >
-                                    {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">ครั้งที่</label>
-                                <select 
-                                    value={formData.round} 
-                                    onChange={e => setFormData({...formData, round: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                    required
-                                >
-                                    <option value="1">ครั้งที่ 1 (ภาคเรียนที่ 1)</option>
-                                    <option value="2">ครั้งที่ 2 (ภาคเรียนที่ 2)</option>
-                                </select>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">แนบไฟล์งาน (PDF/รูปภาพ)</label>
-                                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:bg-gray-50 transition-colors">
-                                    <div className="space-y-1 text-center">
-                                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                        <div className="flex text-sm text-gray-600">
-                                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-primary-blue hover:text-blue-500 focus-within:outline-none">
-                                                <span>อัปโหลดไฟล์</span>
-                                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,image/*" />
-                                            </label>
-                                            <p className="pl-1">หรือลากไฟล์มาวาง</p>
-                                        </div>
-                                        <p className="text-xs text-gray-500">PDF, PNG, JPG up to 10MB</p>
-                                        {formData.file && formData.file.length > 0 && (
-                                            <p className="text-sm text-green-600 font-bold mt-2">
-                                                เลือกไฟล์แล้ว: {formData.file[0] instanceof File ? formData.file[0].name : 'ไฟล์เดิม'}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
-                                <textarea 
-                                    value={formData.note} 
-                                    onChange={e => setFormData({...formData, note: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                    rows={3}
-                                ></textarea>
-                            </div>
-                        </div>
-                        <div className="flex justify-end">
-                            <button 
-                                type="submit" 
-                                disabled={isSaving}
-                                className="bg-primary-blue text-white px-8 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50"
-                            >
-                                {isSaving ? 'กำลังบันทึก...' : 'บันทึกรายงาน'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {/* --- STATS TAB --- */}
+            {/* --- STATS TAB (DEFAULT) --- */}
             {activeTab === 'stats' && (
                 <div className="space-y-6 animate-fade-in">
                     
@@ -453,6 +353,107 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
                             </table>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* --- SUBMIT TAB --- */}
+            {activeTab === 'submit' && (
+                <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
+                    <h2 className="text-xl font-bold text-navy mb-6 flex items-center gap-2">
+                        <svg className="w-6 h-6 text-primary-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        แบบฟอร์มรายงานการปฏิบัติงาน
+                    </h2>
+                    
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.name} 
+                                    onChange={e => setFormData({...formData, name: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg bg-gray-50"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
+                                <select 
+                                    value={formData.position} 
+                                    onChange={e => setFormData({...formData, position: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    required
+                                >
+                                    <option value="">-- เลือกตำแหน่ง --</option>
+                                    {positions.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ปีการศึกษา</label>
+                                <select 
+                                    value={formData.academicYear} 
+                                    onChange={e => setFormData({...formData, academicYear: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    required
+                                >
+                                    {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ครั้งที่</label>
+                                <select 
+                                    value={formData.round} 
+                                    onChange={e => setFormData({...formData, round: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    required
+                                >
+                                    <option value="1">ครั้งที่ 1 (ภาคเรียนที่ 1)</option>
+                                    <option value="2">ครั้งที่ 2 (ภาคเรียนที่ 2)</option>
+                                </select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">แนบไฟล์งาน (PDF/รูปภาพ)</label>
+                                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="space-y-1 text-center">
+                                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                        <div className="flex text-sm text-gray-600">
+                                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-primary-blue hover:text-blue-500 focus-within:outline-none">
+                                                <span>อัปโหลดไฟล์</span>
+                                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,image/*" />
+                                            </label>
+                                            <p className="pl-1">หรือลากไฟล์มาวาง</p>
+                                        </div>
+                                        <p className="text-xs text-gray-500">PDF, PNG, JPG up to 10MB</p>
+                                        {formData.file && formData.file.length > 0 && (
+                                            <p className="text-sm text-green-600 font-bold mt-2">
+                                                เลือกไฟล์แล้ว: {formData.file[0] instanceof File ? formData.file[0].name : 'ไฟล์เดิม'}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+                                <textarea 
+                                    value={formData.note} 
+                                    onChange={e => setFormData({...formData, note: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    rows={3}
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <button 
+                                type="submit" 
+                                disabled={isSaving}
+                                className="bg-primary-blue text-white px-8 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+                            >
+                                {isSaving ? 'กำลังบันทึก...' : 'บันทึกรายงาน'}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
 

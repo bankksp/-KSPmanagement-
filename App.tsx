@@ -514,7 +514,7 @@ const App: React.FC = () => {
                         currentUser={currentUser}
                         personnel={personnel}
                         plans={academicPlans}
-                        onSavePlan={handleSavePlan}
+                        onSavePlan={handleSaveAcademicPlan}
                         onUpdateStatus={handleUpdateAcademicPlanStatus}
                         isSaving={isSaving}
                     />
@@ -542,7 +542,7 @@ const App: React.FC = () => {
                             studentAttendance={studentAttendance}
                             personnelAttendance={personnelAttendance}
                             onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
-                            onSavePersonnelAttendance={(data) => handleSavePersonnel('personnel', data)}
+                            onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
                             isSaving={isSaving}
                             currentUser={currentUser}
                         />;
