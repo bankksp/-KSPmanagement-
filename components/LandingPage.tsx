@@ -91,15 +91,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, schoolName, s
     };
 
     const backendCode = `/**
- * KSP Management System - Backend Script (Version 2025.9 Updated)
- * 1. Copy this code to Code.gs in your Google Apps Script project.
- * 2. Save.
- * 3. Deploy > New Deployment > Web app > Execute as: Me > Who has access: Anyone.
- * 4. Copy the Web App URL to your frontend constants.
+ * KSP Management System - Backend Script (Version 2025.11 - Full Features)
+ * รองรับ: ระบบเช็คชื่อ, เยี่ยมบ้าน (GPS), SDQ, โภชนาการ, แผนงาน, พัสดุ, ครุภัณฑ์ ฯลฯ
  */
 
 const FOLDER_NAME = "KSP_Management_System_Uploads"; 
 
+// รายชื่อ Sheet ทั้งหมดในระบบ
 const SHEET_NAMES = {
   REPORTS: "Reports",
   STUDENTS: "Students",
@@ -120,7 +118,9 @@ const SHEET_NAMES = {
   CONSTRUCTION_RECORDS: "ConstructionRecords",
   PROJECT_PROPOSALS: "ProjectProposals",
   HOME_VISITS: "HomeVisits",
-  SDQ_RECORDS: "SDQRecords"
+  SDQ_RECORDS: "SDQRecords",
+  MEAL_PLANS: "MealPlans",
+  INGREDIENTS: "Ingredients"
 };
 
 function setup() {
@@ -146,6 +146,7 @@ function doPost(e) {
     const action = request.action;
     const data = request.data;
     
+    // Login Handling
     if (action === 'login') {
       const user = handleLogin(request.idCard, request.password);
       if (user) {
@@ -158,50 +159,77 @@ function doPost(e) {
     let output = {};
     const uploadFolder = getUploadFolder();
 
+    // Action Routing
     switch (action) {
+      // --- Basic Data & Settings ---
       case 'getAllData': output = getAllData(); break;
       case 'updateSettings': output = saveSettings(data, uploadFolder); break;
 
+      // --- Core Data Management ---
       case 'addReport':
       case 'updateReport': output = saveRecord(getSheet(SHEET_NAMES.REPORTS), data, uploadFolder); break;
+      case 'deleteReports': output = deleteRecords(getSheet(SHEET_NAMES.REPORTS), request.ids); break;
+
       case 'addStudent':
       case 'updateStudent': output = saveRecord(getSheet(SHEET_NAMES.STUDENTS), data, uploadFolder); break;
+      case 'deleteStudents': output = deleteRecords(getSheet(SHEET_NAMES.STUDENTS), request.ids); break;
+
       case 'addPersonnel':
       case 'updatePersonnel': output = saveRecord(getSheet(SHEET_NAMES.PERSONNEL), data, uploadFolder); break;
-      case 'saveAcademicPlan': output = saveRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
-      case 'updateAcademicPlanStatus': output = patchRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
-      case 'saveServiceRecord': output = saveRecord(getSheet(SHEET_NAMES.SERVICE_RECORDS), data, uploadFolder); break;
-      case 'saveSupplyItem': output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_ITEMS), data, uploadFolder); break;
-      case 'saveSupplyRequest': output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
-      case 'updateSupplyRequestStatus': output = patchRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
-      case 'saveDurableGood': output = saveRecord(getSheet(SHEET_NAMES.DURABLE_GOODS), data, uploadFolder); break;
-      case 'saveCertificateRequest': output = saveRecord(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS), data, uploadFolder); break;
-      case 'saveMaintenanceRequest': output = saveRecord(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS), data, uploadFolder); break;
-      case 'savePerformanceReport': output = saveRecord(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS), data, uploadFolder); break;
-      case 'saveSARReport': output = saveRecord(getSheet(SHEET_NAMES.SAR_REPORTS), data, uploadFolder); break;
-      case 'saveDocument': output = saveRecord(getSheet(SHEET_NAMES.DOCUMENTS), data, uploadFolder); break;
-      case 'saveConstructionRecord': output = saveRecord(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), data, uploadFolder); break;
-      case 'saveProjectProposal': output = saveRecord(getSheet(SHEET_NAMES.PROJECT_PROPOSALS), data, uploadFolder); break;
-      case 'saveHomeVisit': output = saveRecord(getSheet(SHEET_NAMES.HOME_VISITS), data, uploadFolder); break;
-      case 'saveSDQRecord': output = saveRecord(getSheet(SHEET_NAMES.SDQ_RECORDS), data, uploadFolder); break;
+      case 'deletePersonnel': output = deleteRecords(getSheet(SHEET_NAMES.PERSONNEL), request.ids); break;
 
+      // --- Attendance ---
       case 'saveStudentAttendance': output = batchUpdateAttendance(getSheet(SHEET_NAMES.STUDENT_ATTENDANCE), data); break;
       case 'savePersonnelAttendance': output = batchUpdateAttendance(getSheet(SHEET_NAMES.PERSONNEL_ATTENDANCE), data); break;
 
-      case 'deleteReports': output = deleteRecords(getSheet(SHEET_NAMES.REPORTS), request.ids); break;
-      case 'deleteStudents': output = deleteRecords(getSheet(SHEET_NAMES.STUDENTS), request.ids); break;
-      case 'deletePersonnel': output = deleteRecords(getSheet(SHEET_NAMES.PERSONNEL), request.ids); break;
+      // --- Academic ---
+      case 'saveAcademicPlan': output = saveRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
+      case 'updateAcademicPlanStatus': output = patchRecord(getSheet(SHEET_NAMES.ACADEMIC_PLANS), data, uploadFolder); break;
+      case 'saveServiceRecord': output = saveRecord(getSheet(SHEET_NAMES.SERVICE_RECORDS), data, uploadFolder); break;
       case 'deleteServiceRecords': output = deleteRecords(getSheet(SHEET_NAMES.SERVICE_RECORDS), request.ids); break;
+
+      // --- Finance & Supply ---
+      case 'saveSupplyItem': output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_ITEMS), data, uploadFolder); break;
       case 'deleteSupplyItems': output = deleteRecords(getSheet(SHEET_NAMES.SUPPLY_ITEMS), request.ids); break;
+      case 'saveSupplyRequest': output = saveRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
+      case 'updateSupplyRequestStatus': output = patchRecord(getSheet(SHEET_NAMES.SUPPLY_REQUESTS), data, uploadFolder); break;
+      
+      case 'saveDurableGood': output = saveRecord(getSheet(SHEET_NAMES.DURABLE_GOODS), data, uploadFolder); break;
       case 'deleteDurableGoods': output = deleteRecords(getSheet(SHEET_NAMES.DURABLE_GOODS), request.ids); break;
-      case 'deleteCertificateRequests': output = deleteRecords(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS), request.ids); break;
-      case 'deleteMaintenanceRequests': output = deleteRecords(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS), request.ids); break;
-      case 'deletePerformanceReports': output = deleteRecords(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS), request.ids); break;
-      case 'deleteSARReports': output = deleteRecords(getSheet(SHEET_NAMES.SAR_REPORTS), request.ids); break;
-      case 'deleteDocuments': output = deleteRecords(getSheet(SHEET_NAMES.DOCUMENTS), request.ids); break;
-      case 'deleteConstructionRecords': output = deleteRecords(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), request.ids); break;
+
+      case 'saveProjectProposal': output = saveRecord(getSheet(SHEET_NAMES.PROJECT_PROPOSALS), data, uploadFolder); break;
       case 'deleteProjectProposals': output = deleteRecords(getSheet(SHEET_NAMES.PROJECT_PROPOSALS), request.ids); break;
+
+      // --- General Affairs ---
+      case 'saveCertificateRequest': output = saveRecord(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS), data, uploadFolder); break;
+      case 'deleteCertificateRequests': output = deleteRecords(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS), request.ids); break;
+
+      case 'saveMaintenanceRequest': output = saveRecord(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS), data, uploadFolder); break;
+      case 'deleteMaintenanceRequests': output = deleteRecords(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS), request.ids); break;
+
+      case 'saveDocument': output = saveRecord(getSheet(SHEET_NAMES.DOCUMENTS), data, uploadFolder); break;
+      case 'deleteDocuments': output = deleteRecords(getSheet(SHEET_NAMES.DOCUMENTS), request.ids); break;
+
+      case 'saveConstructionRecord': output = saveRecord(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), data, uploadFolder); break;
+      case 'deleteConstructionRecords': output = deleteRecords(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS), request.ids); break;
+
+      case 'saveMealPlan': output = saveRecord(getSheet(SHEET_NAMES.MEAL_PLANS), data, uploadFolder); break;
+      case 'deleteMealPlans': output = deleteRecords(getSheet(SHEET_NAMES.MEAL_PLANS), request.ids); break;
+      case 'saveIngredient': output = saveRecord(getSheet(SHEET_NAMES.INGREDIENTS), data, uploadFolder); break;
+      case 'deleteIngredients': output = deleteRecords(getSheet(SHEET_NAMES.INGREDIENTS), request.ids); break;
+
+      // --- Personnel Affairs ---
+      case 'savePerformanceReport': output = saveRecord(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS), data, uploadFolder); break;
+      case 'deletePerformanceReports': output = deleteRecords(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS), request.ids); break;
+
+      case 'saveSARReport': output = saveRecord(getSheet(SHEET_NAMES.SAR_REPORTS), data, uploadFolder); break;
+      case 'deleteSARReports': output = deleteRecords(getSheet(SHEET_NAMES.SAR_REPORTS), request.ids); break;
+
+      // --- Student Affairs ---
+      case 'saveHomeVisit': output = saveRecord(getSheet(SHEET_NAMES.HOME_VISITS), data, uploadFolder); break;
       case 'deleteHomeVisits': output = deleteRecords(getSheet(SHEET_NAMES.HOME_VISITS), request.ids); break;
+
+      case 'saveSDQRecord': output = saveRecord(getSheet(SHEET_NAMES.SDQ_RECORDS), data, uploadFolder); break;
       case 'deleteSDQRecords': output = deleteRecords(getSheet(SHEET_NAMES.SDQ_RECORDS), request.ids); break;
 
       default: throw new Error("Invalid action: " + action);
@@ -214,6 +242,8 @@ function doPost(e) {
     lock.releaseLock();
   }
 }
+
+// --- Helper Functions ---
 
 function getSpreadsheet() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
@@ -228,6 +258,7 @@ function getAllData() {
   const result = {};
   const ss = getSpreadsheet();
   
+  // Settings
   const settingsSheet = ss.getSheetByName(SHEET_NAMES.SETTINGS);
   if (settingsSheet && settingsSheet.getLastRow() > 0) {
     try {
@@ -236,6 +267,7 @@ function getAllData() {
     } catch(e) { result.settings = {}; }
   }
 
+  // Fetch all other sheets mapped to frontend keys
   Object.keys(SHEET_NAMES).forEach(key => {
     if (key !== 'SETTINGS') {
         const sheetName = SHEET_NAMES[key];
@@ -257,7 +289,8 @@ function getFrontendKey(constKey) {
         MAINTENANCE_REQUESTS: 'maintenanceRequests', PERFORMANCE_REPORTS: 'performanceReports',
         SAR_REPORTS: 'sarReports', DOCUMENTS: 'documents',
         CONSTRUCTION_RECORDS: 'constructionRecords', PROJECT_PROPOSALS: 'projectProposals',
-        HOME_VISITS: 'homeVisits', SDQ_RECORDS: 'sdqRecords'
+        HOME_VISITS: 'homeVisits', SDQ_RECORDS: 'sdqRecords',
+        MEAL_PLANS: 'mealPlans', INGREDIENTS: 'ingredients'
     };
     return map[constKey] || constKey.toLowerCase();
 }
@@ -536,7 +569,7 @@ function responseJSON(data) {
                                 onClick={() => setIsCodeModalOpen(true)}
                                 className="self-end mt-1 text-xs underline hover:text-red-900 font-bold bg-white/50 px-2 py-1 rounded"
                             >
-                                คลิกเพื่อรับโค้ด Google Script ล่าสุด (v2025.9 - รองรับทุกระบบ)
+                                คลิกเพื่อรับโค้ด Google Script ล่าสุด (v2025.11 - รองรับทุกระบบ)
                             </button>
                         )}
                     </div>

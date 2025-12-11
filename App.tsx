@@ -32,9 +32,10 @@ import ServiceRegistrationPage from './components/ServiceRegistrationPage';
 import ConstructionPage from './components/ConstructionPage';
 import BudgetPlanningPage from './components/BudgetPlanningPage';
 import LandingPage from './components/LandingPage';
+import NutritionPage from './components/NutritionPage';
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord } from './types';
-import { DEFAULT_SETTINGS } from './constants';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient } from './types';
+import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript } from './utils';
 
 const App: React.FC = () => {
@@ -100,6 +101,10 @@ const App: React.FC = () => {
 
     // SDQ State (New)
     const [sdqRecords, setSdqRecords] = useState<SDQRecord[]>([]);
+
+    // Nutrition State (New)
+    const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
+    const [ingredients, setIngredients] = useState<Ingredient[]>(DEFAULT_INGREDIENTS);
 
     // Service Registration State
     const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
@@ -235,6 +240,11 @@ const App: React.FC = () => {
             } else {
                 setSdqRecords([]);
             }
+
+            // Nutrition (Mocked backend support for now, or real if implemented)
+            // If backend doesn't return these yet, default to empty/default
+            if (data.mealPlans) setMealPlans(data.mealPlans);
+            if (data.ingredients) setIngredients(data.ingredients);
 
 
             if (data.settings) {
@@ -670,6 +680,20 @@ const App: React.FC = () => {
                         onDelete={(ids) => handleGenericDelete('deleteConstructionRecords', ids, setConstructionRecords)}
                         isSaving={isSaving}
                         personnel={personnel}
+                    />
+                ) : null;
+            case 'general_nutrition':
+                return currentUser ? (
+                    <NutritionPage 
+                        currentUser={currentUser}
+                        mealPlans={mealPlans}
+                        ingredients={ingredients}
+                        onSaveMealPlan={(mp) => handleGenericSave('saveMealPlan', mp, setMealPlans)}
+                        onDeleteMealPlan={(ids) => handleGenericDelete('deleteMealPlans', ids, setMealPlans)}
+                        onSaveIngredient={(ing) => handleGenericSave('saveIngredient', ing, setIngredients)}
+                        onDeleteIngredient={(ids) => handleGenericDelete('deleteIngredients', ids, setIngredients)}
+                        isSaving={isSaving}
+                        students={students}
                     />
                 ) : null;
             case 'student_home_visit':

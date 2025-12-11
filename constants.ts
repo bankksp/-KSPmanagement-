@@ -1,5 +1,5 @@
 
-import { Settings } from "./types";
+import { Settings, Ingredient, NutritionTargetGroup } from "./types";
 
 export const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (2560 + i).toString());
 
@@ -62,3 +62,24 @@ export const THAI_PROVINCES = [
     "สมุทรสงคราม", "สมุทรสาคร", "สระแก้ว", "สระบุรี", "สิงห์บุรี", "สุโขทัย", "สุพรรณบุรี", "สุราษฎร์ธานี", "สุรินทร์", "หนองคาย",
     "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์", "อุทัยธานี", "อุบลราชธานี"
 ].sort();
+
+// --- Nutrition Constants ---
+
+export const NUTRITION_STANDARDS: Record<NutritionTargetGroup, { calories: number, protein: number, fat: number, carbs: number }> = {
+    kindergarten: { calories: 1200, protein: 35, fat: 40, carbs: 175 }, // Approx 3-5 years
+    primary: { calories: 1600, protein: 45, fat: 53, carbs: 230 }, // Approx 6-12 years
+    secondary: { calories: 2100, protein: 60, fat: 70, carbs: 300 } // Approx 13-18 years
+};
+
+export const DEFAULT_INGREDIENTS: Ingredient[] = [
+    { id: 1, name: 'ข้าวสวย (สุก)', unit: 'ทัพพี', calories: 80, protein: 1.5, fat: 0.2, carbs: 18, price: 5 },
+    { id: 2, name: 'ไข่ไก่ (เบอร์ 2)', unit: 'ฟอง', calories: 72, protein: 6.3, fat: 4.8, carbs: 0.4, price: 4 },
+    { id: 3, name: 'เนื้อหมู (ไม่ติดมัน)', unit: 'ขีด (100g)', calories: 143, protein: 26, fat: 3.5, carbs: 0, price: 25 },
+    { id: 4, name: 'เนื้อไก่ (อก)', unit: 'ขีด (100g)', calories: 120, protein: 23, fat: 2.5, carbs: 0, price: 15 },
+    { id: 5, name: 'ผักบุ้ง', unit: 'กำ (100g)', calories: 20, protein: 2, fat: 0.2, carbs: 3, price: 10 },
+    { id: 6, name: 'น้ำมันพืช', unit: 'ช้อนชา', calories: 45, protein: 0, fat: 5, carbs: 0, price: 1 },
+    { id: 7, name: 'นมวัว (จืด)', unit: 'กล่อง (200ml)', calories: 130, protein: 8, fat: 7, carbs: 10, price: 10 },
+    { id: 8, name: 'กล้วยน้ำว้า', unit: 'ผล', calories: 60, protein: 0.8, fat: 0.2, carbs: 15, price: 3 },
+    { id: 9, name: 'ปลาทู (นึ่ง)', unit: 'ตัว', calories: 140, protein: 20, fat: 6, carbs: 0, price: 15 },
+    { id: 10, name: 'เส้นก๋วยเตี๋ยว (ลวก)', unit: 'ถ้วย', calories: 150, protein: 2, fat: 0.5, carbs: 33, price: 5 },
+];

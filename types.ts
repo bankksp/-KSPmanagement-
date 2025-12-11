@@ -53,6 +53,8 @@ export interface Student {
   guardianIdCardImage?: (File | string)[];
   latitude?: number;
   longitude?: number;
+  weight?: number; // New: Weight in kg
+  height?: number; // New: Height in cm
 }
 
 export interface Personnel {
@@ -420,6 +422,40 @@ export interface SDQRecord {
     resultTotal: SDQResultType;
 }
 
+// --- Nutrition System Types (New) ---
+
+export type NutritionTargetGroup = 'kindergarten' | 'primary' | 'secondary';
+
+export interface Ingredient {
+    id: number;
+    name: string;
+    unit: string;
+    calories: number; // kcal per 1 unit
+    protein: number; // g per 1 unit
+    fat: number; // g per 1 unit
+    carbs: number; // g per 1 unit
+    price?: number; // price per 1 unit
+}
+
+export interface MealPlanItem {
+    ingredientId: number;
+    amount: number; // Amount in Ingredient units
+}
+
+export interface MealPlan {
+    id: number;
+    date: string; // DD/MM/YYYY
+    targetGroup: NutritionTargetGroup;
+    menuName: string;
+    mealType: 'breakfast' | 'lunch' | 'dinner';
+    items: MealPlanItem[];
+    // Calculated (Cached for ease)
+    totalCalories: number;
+    totalProtein: number;
+    totalFat: number;
+    totalCarbs: number;
+}
+
 // Navigation Types
 export type Page = 
     | 'stats' 
@@ -442,5 +478,6 @@ export type Page =
     | 'general_repair'
     | 'general_certs' // ขอเลขเกียรติบัตร
     | 'general_construction' // บันทึกงานก่อสร้าง
+    | 'general_nutrition' // โภชนาการ (New)
     | 'student_home_visit' // เยี่ยมบ้านนักเรียน
     | 'student_sdq'; // ประเมิน SDQ

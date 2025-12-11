@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, safeParseArray, buddhistToISO, isoToBuddhist } from '../utils';
@@ -28,7 +29,9 @@ const initialFormData: Omit<Student, 'id' | 'studentClass'> = {
     studentProfileImage: [],
     studentIdCardImage: [], studentDisabilityCardImage: [], guardianIdCardImage: [],
     latitude: undefined,
-    longitude: undefined
+    longitude: undefined,
+    weight: 0,
+    height: 0
 };
 
 // --- Sub-components defined OUTSIDE to prevent re-mounts and focus loss ---
@@ -50,9 +53,10 @@ interface InputFieldProps {
     required?: boolean;
     wrapperClass?: string;
     type?: string;
+    step?: string;
 }
 
-const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, required = false, wrapperClass = '', type = 'text' }) => (
+const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, required = false, wrapperClass = '', type = 'text', step }) => (
     <div className={wrapperClass}>
         <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
         <input 
@@ -60,6 +64,7 @@ const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, r
             name={name} 
             value={value} 
             onChange={onChange} 
+            step={step}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
             required={required} 
         />
@@ -138,7 +143,9 @@ const StudentModal: React.FC<StudentModalProps> = ({
                 studentDisabilityCardImage: studentToEdit.studentDisabilityCardImage || [],
                 guardianIdCardImage: studentToEdit.guardianIdCardImage || [],
                 latitude: studentToEdit.latitude,
-                longitude: studentToEdit.longitude
+                longitude: studentToEdit.longitude,
+                weight: studentToEdit.weight || 0,
+                height: studentToEdit.height || 0
             });
             setCurrentClass(cls || studentClasses[0] || '');
             setCurrentRoom(room || studentClassrooms[0] || '');
@@ -274,7 +281,12 @@ const StudentModal: React.FC<StudentModalProps> = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        // Handle number inputs for weight/height
+        if (name === 'weight' || name === 'height') {
+             setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+        } else {
+             setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     // Handler specifically for AddressSelector
@@ -431,6 +443,22 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                     name="studentPhone" 
                                     label="เบอร์โทร" 
                                     value={String(formData.studentPhone || '')} 
+                                    onChange={handleChange} 
+                                />
+                                <InputField 
+                                    name="weight" 
+                                    label="น้ำหนัก (กก.)" 
+                                    type="number"
+                                    step="0.1"
+                                    value={String(formData.weight || 0)} 
+                                    onChange={handleChange} 
+                                />
+                                <InputField 
+                                    name="height" 
+                                    label="ส่วนสูง (ซม.)" 
+                                    type="number"
+                                    step="0.1"
+                                    value={String(formData.height || 0)} 
                                     onChange={handleChange} 
                                 />
                                 <div className="relative lg:col-span-2">
