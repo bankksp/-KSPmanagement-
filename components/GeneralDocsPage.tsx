@@ -143,6 +143,25 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         setIsViewModalOpen(true);
     };
 
+    const handlePrintOfficial = () => {
+        window.print();
+    };
+
+    const handleDownloadOfficial = () => {
+        // ในระบบนี้ การดาวน์โหลดที่รวมตราประทับใช้การ Print to PDF เป็นหลัก
+        // หรือถ้าต้องการดาวน์โหลดไฟล์ต้นฉบับตรงๆ ก็สามารถทำได้
+        if (currentDoc.file && currentDoc.file.length > 0) {
+            const file = currentDoc.file[0];
+            const url = getDirectDriveImageSrc(file);
+            const link = window.document.createElement('a');
+            link.href = url;
+            link.download = `document_${currentDoc.receiveNo || 'export'}.pdf`;
+            link.click();
+        } else {
+            window.print();
+        }
+    };
+
     const handleSaveDoc = (e: React.FormEvent) => {
         e.preventDefault();
         const docToSave = { 
@@ -164,6 +183,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             alert('หนังสือฉบับนี้อยู่ระหว่างเสนอผู้อำนวยการพิจารณา ผู้อำนวยการต้องลงนามก่อนจึงจะสามารถดำเนินการต่อได้');
             return;
         }
+
         setSelectedDocId(doc.id);
         setEndorseComment('ทราบ / ดำเนินการตามเสนอ');
         setDelegateToId(null);
@@ -230,10 +250,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         }
     };
 
-    const handlePrintPDF = () => {
-        window.print();
-    };
-
     const zoomIn = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(prev => Math.min(prev + 0.2, 3.0)); };
     const zoomOut = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(prev => Math.max(prev - 0.2, 0.2)); };
     const resetZoom = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(1.0); };
@@ -242,7 +258,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     const startDrawing = (e: any) => { const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext('2d'); if (!ctx) return; setIsDrawing(true); const rect = canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; ctx.beginPath(); ctx.strokeStyle = '#0000FF'; ctx.lineWidth = 2; ctx.moveTo(clientX - rect.left, clientY - rect.top); };
     const draw = (e: any) => { if (!isDrawing || !canvasRef.current) return; const ctx = canvasRef.current.getContext('2d'); if (!ctx) return; const rect = canvasRef.current.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); e.preventDefault(); };
 
-    const FormalStamp: React.FC<{ doc: Document; previewScale?: number }> = ({ doc, previewScale = 1.0 }) => {
+    const FormalStamp: React.FC<{ doc: Document }> = ({ doc }) => {
         if (doc.type !== 'incoming' || !doc.showStamp) return null;
         const cleanTime = formatOnlyTime(doc.receiveTime);
         const cleanDate = formatThaiDate(doc.receiveDate);
@@ -250,7 +266,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
         return (
             <div 
-                className="absolute top-10 right-10 border-[3px] border-blue-700 text-blue-700 w-[320px] bg-white shadow-xl z-20 overflow-hidden font-sarabun text-[16pt] pointer-events-none select-none origin-top-right"
+                className="absolute top-10 right-10 border-[3px] border-blue-700 text-blue-700 w-[320px] bg-white z-20 overflow-hidden font-sarabun text-[16pt] pointer-events-none select-none origin-top-right print:shadow-none"
                 style={{ transform: `scale(${scale})` }}
             >
                 <div className="text-center font-bold border-b-[3px] border-blue-700 py-1.5 bg-blue-50/20 leading-snug">
@@ -285,9 +301,8 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         onDocClick?: (e: any) => void; 
         isInteractive?: boolean; 
         scale?: number;
-        newEndorsement?: Partial<Endorsement>;
-        isPrintMode?: boolean;
-    }> = ({ doc, endorsements, onDocClick, isInteractive, scale = 1.0, newEndorsement, isPrintMode }) => {
+        newEndorsement?: Partial<Endorsement> 
+    }> = ({ doc, endorsements, onDocClick, isInteractive, scale = 1.0, newEndorsement }) => {
         const fileObj = doc.file && doc.file.length > 0 ? doc.file[0] : null;
         const isPdf = useMemo(() => {
             if (!fileObj) return false;
@@ -305,27 +320,21 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         const isImage = !isPdf && fileUrl;
         const safeEndorsements = useMemo(() => safeParseArray(endorsements), [endorsements]);
 
-        useEffect(() => {
-            return () => { if (fileUrl && fileUrl.startsWith('blob:')) URL.revokeObjectURL(fileUrl); };
-        }, [fileUrl]);
-
         return (
             <div 
-                className={`relative bg-white mx-auto overflow-hidden border border-gray-300 transition-transform duration-200 ${isInteractive ? 'cursor-crosshair' : ''} ${!isPrintMode ? 'shadow-2xl' : ''}`}
-                style={{ 
-                    width: '21cm', 
-                    minHeight: '29.7cm', 
-                    transform: isPrintMode ? 'none' : `scale(${scale})`, 
-                    transformOrigin: 'top center',
-                    pageBreakAfter: 'always'
-                }}
+                id="official-doc-render"
+                className={`relative bg-white shadow-2xl mx-auto overflow-hidden border border-gray-300 transition-transform duration-200 print:border-none print:shadow-none print:mx-0 ${isInteractive ? 'cursor-crosshair' : ''}`}
+                style={{ width: '21cm', minHeight: '29.7cm', transform: isInteractive || scale !== 1 ? `scale(${scale})` : 'none', transformOrigin: 'top center' }}
                 onClick={onDocClick}
             >
                 {isImage ? (
                     <img src={fileUrl!} className="absolute inset-0 w-full h-full object-contain z-0" alt="doc-bg" />
                 ) : isPdf ? (
                     <div className="absolute inset-0 w-full h-full bg-white z-0">
-                        <iframe src={`${fileUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-none" title="pdf-preview" />
+                        <iframe src={`${fileUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-none print:hidden" title="pdf-preview" />
+                        <div className="hidden print:flex h-full w-full items-center justify-center text-gray-400 font-bold text-2xl italic">
+                            เอกสาร PDF ต้นฉบับ
+                        </div>
                     </div>
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 z-0 opacity-10 select-none">
@@ -346,7 +355,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                     transformOrigin: 'center center'
                                 }}
                             >
-                                <div className="w-[340px] text-center space-y-1.5 bg-white/60 backdrop-blur-[1px] p-5 rounded-2xl border border-blue-400/30 text-blue-700 font-sarabun text-[16pt]">
+                                <div className="w-[340px] text-center space-y-1.5 bg-white/60 backdrop-blur-[1px] p-5 rounded-2xl border border-blue-400/30 text-blue-700 font-sarabun text-[16pt] print:bg-white print:border-blue-700">
                                     <p className="font-bold leading-tight">"{end.comment}"</p>
                                     {end.assignedName && (
                                         <p className="font-bold text-[15pt] text-blue-800 leading-none mb-1">มอบหมาย {end.assignedName}</p>
@@ -385,16 +394,64 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 min-h-[80vh] font-sarabun">
-            {/* Print Section (Hidden on UI) */}
-            <div id="saraban-print-area" className="hidden print:block fixed inset-0 z-[9999] bg-white">
-                {currentDoc && currentDoc.id && (
-                    <DocumentPreview 
-                        doc={currentDoc as Document} 
-                        endorsements={currentDoc.endorsements} 
-                        isPrintMode={true} 
-                    />
-                )}
-            </div>
+            <style>{`
+                @media print {
+                    body > *:not(#root) { display: none !important; }
+                    #root > *:not(.print-visible) { display: none !important; }
+                    .no-print { display: none !important; }
+                    @page { size: A4 portrait; margin: 0; }
+                    body { margin: 0; padding: 0; background: white; }
+                    #official-doc-render {
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        transform: none !important;
+                        border: none !important;
+                        visibility: visible !important;
+                    }
+                    .print-visible { display: block !important; visibility: visible !important; }
+                }
+                .floating-action-bar {
+                    position: fixed;
+                    right: 40px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    z-index: 1000;
+                }
+                .floating-btn {
+                    width: 56px;
+                    height: 56px;
+                    border-radius: 50%;
+                    background: white;
+                    color: #1e3a8a;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    cursor: pointer;
+                }
+                .floating-btn:hover {
+                    transform: scale(1.1);
+                    background: #f8fafc;
+                    color: #2563eb;
+                }
+                .floating-btn:active {
+                    transform: scale(0.95);
+                }
+                .floating-btn svg {
+                    width: 24px;
+                    height: 24px;
+                }
+            `}</style>
 
             <aside className="w-full lg:w-72 flex-shrink-0 space-y-4 no-print">
                 <div className="bg-gradient-to-b from-indigo-900 to-indigo-950 text-white rounded-2xl shadow-xl overflow-hidden border border-white/10">
@@ -464,9 +521,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                                 <div className="flex justify-center gap-1.5">
                                                     <button onClick={() => handleOpenView(doc)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="ดูรายละเอียด"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
                                                     {(myTasks.some(t => t.id === doc.id)) && <button onClick={() => handleOpenSign(doc)} className="p-2 bg-orange-500 text-white rounded-lg shadow-md" title="เกษียนหนังสือ"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>}
-                                                    {doc.status !== 'proposed' && doc.status !== 'draft' && (
-                                                        <button onClick={() => { setCurrentDoc(doc); setTimeout(handlePrintPDF, 100); }} className="p-2 bg-emerald-600 text-white rounded-lg shadow-md" title="ดาวน์โหลด PDF สมบูรณ์"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></button>
-                                                    )}
                                                     {isStaff && <button onClick={() => handleDeleteDoc(doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="ลบข้อมูลหนังสือ"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
                                                 </div>
                                             </td>
@@ -479,93 +533,49 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 </div>
             </main>
 
-            {/* Edit Modal */}
-            {isEditModalOpen && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 no-print">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-fade-in">
-                        <div className="bg-[#3C4B64] p-4 flex justify-between items-center text-white">
-                            <h3 className="font-bold">ลงทะเบียนและแก้ไขข้อมูลหนังสือ</h3>
-                            <button onClick={() => setIsEditModalOpen(false)} className="text-white text-3xl leading-none">&times;</button>
-                        </div>
-                        <form onSubmit={handleSaveDoc} className="p-8 space-y-5 bg-[#F8F9FB] overflow-y-auto">
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เลขทะเบียนรับ/ส่ง</label>
-                                        <input type="text" value={currentDoc.receiveNo} onChange={e=>setCurrentDoc({...currentDoc, receiveNo: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 font-bold text-blue-700" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">ที่หนังสือ</label>
-                                        <input type="text" value={currentDoc.number} onChange={e=>setCurrentDoc({...currentDoc, number: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">วันที่รับ</label>
-                                        <input type="date" value={buddhistToISO(currentDoc.receiveDate)} onChange={e=>setCurrentDoc({...currentDoc, receiveDate: isoToBuddhist(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
-                                    </div>
-                                    <div className="col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">จาก</label>
-                                        <input type="text" value={currentDoc.from} onChange={e=>setCurrentDoc({...currentDoc, from: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เรียน</label>
-                                        <input type="text" value={currentDoc.to} onChange={e=>setCurrentDoc({...currentDoc, to: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
-                                    </div>
-                                    <div className="col-span-3">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เรื่อง</label>
-                                        <input type="text" value={currentDoc.title} onChange={e=>setCurrentDoc({...currentDoc, title: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 font-bold" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">จำนวนหน้า</label>
-                                        <input type="number" min="1" value={currentDoc.totalPages} onChange={e=>setCurrentDoc({...currentDoc, totalPages: Number(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เกษียนหน้า</label>
-                                        <input type="number" min="1" value={currentDoc.signatoryPage} onChange={e=>setCurrentDoc({...currentDoc, signatoryPage: Number(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">ไฟล์แนบ</label>
-                                        <input type="file" onChange={e=> {if(e.target.files?.[0]) setCurrentDoc({...currentDoc, file: [e.target.files[0]]})}} className="w-full text-xs" />
-                                    </div>
-                                </div>
+            {/* View Modal with Floating Buttons */}
+            {isViewModalOpen && currentDoc && (
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-start justify-center z-50 p-4 no-print overflow-auto" onClick={() => setIsViewModalOpen(false)}>
+                    {/* Floating Side Action Bar */}
+                    <div className="floating-action-bar no-print" onClick={e => e.stopPropagation()}>
+                        <button 
+                            onClick={handlePrintOfficial}
+                            className="floating-btn"
+                            title="พิมพ์เอกสาร"
+                        >
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                        </button>
+                        <button 
+                            onClick={handleDownloadOfficial}
+                            className="floating-btn"
+                            title="ดาวน์โหลดไฟล์"
+                        >
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </button>
+                        <button 
+                            onClick={() => setIsViewModalOpen(false)}
+                            className="floating-btn !bg-red-500 !text-white hover:!bg-red-600"
+                            title="ปิดหน้าต่าง"
+                        >
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
 
-                                {currentDoc.type === 'incoming' && (
-                                    <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-200/50 space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-sm font-black text-blue-800 uppercase tracking-tight">ปรับขนาดตราประทับรับ (SCALE)</label>
-                                            <span className="text-2xl font-black text-blue-600">{Math.round((currentDoc.stampScale || 1.0) * 100)}%</span>
-                                        </div>
-                                        <div className="relative pt-2">
-                                            <input 
-                                                type="range" 
-                                                min="0.5" 
-                                                max="1.5" 
-                                                step="0.05"
-                                                value={currentDoc.stampScale || 1.0}
-                                                onChange={e => setCurrentDoc({...currentDoc, stampScale: parseFloat(e.target.value)})}
-                                                className="w-full h-3 bg-blue-100 rounded-full appearance-none cursor-pointer accent-blue-600" 
-                                            />
-                                            <div className="flex justify-between mt-2 text-[11px] font-bold text-blue-400 uppercase tracking-widest">
-                                                <span>เล็ก (0.5x)</span>
-                                                <span className="text-blue-500/50">ปกติ (1.0x)</span>
-                                                <span>ใหญ่ (1.5x)</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                    {/* Top Zoom Bar */}
+                    <div className="fixed top-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/20 backdrop-blur-2xl px-6 py-3 rounded-full border border-white/30 z-[100] shadow-2xl pointer-events-auto" onClick={e => e.stopPropagation()}>
+                        <button onClick={zoomOut} className="p-2 text-white hover:text-indigo-300 pointer-events-auto"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" /></svg></button>
+                        <div className="px-5 py-1 bg-white text-indigo-900 rounded-lg font-black text-base min-w-[90px] text-center" onClick={resetZoom}>{Math.round(zoomLevel * 100)}%</div>
+                        <button onClick={zoomIn} className="p-2 text-white hover:text-indigo-300 pointer-events-auto"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg></button>
+                    </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">หมายเหตุ</label>
-                                    <textarea value={currentDoc.note} onChange={e=>setCurrentDoc({...currentDoc, note: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" rows={2} placeholder="เพิ่มเติมข้อมูลอื่น ๆ"></textarea>
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4 border-t">
-                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-8 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-600 font-bold">ยกเลิก</button>
-                                <button type="submit" disabled={isSaving} className="bg-indigo-600 text-white px-12 py-2.5 rounded-xl font-bold shadow-lg flex items-center gap-2">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                                    บันทึกข้อมูลหนังสือ
-                                </button>
-                            </div>
-                        </form>
+                    <div className="relative animate-fade-in py-28 w-full flex justify-center print-visible" onClick={e => e.stopPropagation()}>
+                        <DocumentPreview doc={currentDoc as Document} endorsements={currentDoc.endorsements} scale={zoomLevel} />
                     </div>
                 </div>
             )}
@@ -616,11 +626,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                             onChange={e => setEndorseScale(parseFloat(e.target.value))}
                                             className="w-full h-2 bg-blue-100 rounded-full appearance-none cursor-pointer accent-blue-600" 
                                         />
-                                        <div className="flex justify-between text-[9px] font-bold text-blue-400 uppercase">
-                                            <span>เล็ก</span>
-                                            <span>ปกติ</span>
-                                            <span>ใหญ่</span>
-                                        </div>
                                     </div>
 
                                     <label className="text-xs font-bold text-gray-400 uppercase">มอบหมายงานต่อ (กรณีสั่งการ)</label>
@@ -648,20 +653,79 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 </div>
             )}
 
-            {isViewModalOpen && currentDoc && (
-                <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-start justify-center z-50 p-4 no-print overflow-auto" onClick={() => setIsViewModalOpen(false)}>
-                    <div className="fixed top-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/20 backdrop-blur-2xl px-6 py-3 rounded-full border border-white/30 z-[100] shadow-2xl pointer-events-auto" onClick={e => e.stopPropagation()}>
-                        <button onClick={zoomOut} className="p-2 text-white hover:text-indigo-300 pointer-events-auto"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" /></svg></button>
-                        <div className="px-5 py-1 bg-white text-indigo-900 rounded-lg font-black text-base min-w-[90px] text-center" onClick={resetZoom}>{Math.round(zoomLevel * 100)}%</div>
-                        <button onClick={zoomIn} className="p-2 text-white hover:text-indigo-300 pointer-events-auto"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg></button>
-                        <div className="w-px h-8 bg-white/20 mx-2"></div>
-                        <button onClick={handlePrintPDF} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded-full shadow-lg transition-all transform active:scale-95">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            ดาวน์โหลด PDF
-                        </button>
-                    </div>
-                    <div className="relative animate-fade-in py-28 w-full flex justify-center" onClick={e => e.stopPropagation()}>
-                        <DocumentPreview doc={currentDoc as Document} endorsements={currentDoc.endorsements} scale={zoomLevel} />
+            {/* Edit Modal (Hidden for normal flow) */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 no-print">
+                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-fade-in">
+                        <div className="bg-[#3C4B64] p-4 flex justify-between items-center text-white">
+                            <h3 className="font-bold">ลงทะเบียนและแก้ไขข้อมูลหนังสือ</h3>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-white text-3xl leading-none">&times;</button>
+                        </div>
+                        <form onSubmit={handleSaveDoc} className="p-8 space-y-5 bg-[#F8F9FB] overflow-y-auto">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เลขทะเบียนรับ/ส่ง</label>
+                                        <input type="text" value={currentDoc.receiveNo} onChange={e=>setCurrentDoc({...currentDoc, receiveNo: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 font-bold text-blue-700" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">ที่หนังสือ</label>
+                                        <input type="text" value={currentDoc.number} onChange={e=>setCurrentDoc({...currentDoc, number: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">วันที่รับ</label>
+                                        <input type="date" value={buddhistToISO(currentDoc.receiveDate)} onChange={e=>setCurrentDoc({...currentDoc, receiveDate: isoToBuddhist(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">จาก</label>
+                                        <input type="text" value={currentDoc.from} onChange={e=>setCurrentDoc({...currentDoc, from: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เรียน</label>
+                                        <input type="text" value={currentDoc.to} onChange={e=>setCurrentDoc({...currentDoc, to: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-3">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เรื่อง</label>
+                                        <input type="text" value={currentDoc.title} onChange={e=>setCurrentDoc({...currentDoc, title: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 font-bold" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">จำนวนหน้า</label>
+                                        <input type="number" min="1" value={currentDoc.totalPages} onChange={e=>setCurrentDoc({...currentDoc, totalPages: Number(currentDoc.totalPages) || 1})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เกษียนหน้า</label>
+                                        <input type="number" min="1" value={currentDoc.signatoryPage} onChange={e=>setCurrentDoc({...currentDoc, signatoryPage: Number(currentDoc.signatoryPage) || 1})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">ไฟล์แนบ</label>
+                                        <input type="file" onChange={e=> {if(e.target.files?.[0]) setCurrentDoc({...currentDoc, file: [e.target.files[0]]})}} className="w-full text-xs" />
+                                    </div>
+                                </div>
+                                <div
+                                    className="bg-blue-50/50 p-6 rounded-2xl border border-blue-200/50 space-y-4"
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-black text-blue-800 uppercase tracking-tight">ปรับขนาดตราประทับรับ (SCALE)</label>
+                                        <span className="text-2xl font-black text-blue-600">{Math.round((currentDoc.stampScale || 1.0) * 100)}%</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min="0.5" 
+                                        max="1.5" 
+                                        step="0.05"
+                                        value={currentDoc.stampScale || 1.0}
+                                        onChange={e => setCurrentDoc({...currentDoc, stampScale: parseFloat(e.target.value)})}
+                                        className="w-full h-3 bg-blue-100 rounded-full appearance-none cursor-pointer accent-blue-600" 
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t">
+                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-8 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-600 font-bold">ยกเลิก</button>
+                                <button type="submit" disabled={isSaving} className="bg-indigo-600 text-white px-12 py-2.5 rounded-xl font-bold shadow-lg flex items-center gap-2">
+                                    บันทึกข้อมูลหนังสือ
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
