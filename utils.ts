@@ -28,7 +28,6 @@ export const formatOnlyTime = (timeStr: string | undefined): string => {
     if (!timeStr) return '';
     const s = String(timeStr).trim();
     
-    // Check if it's an ISO string (e.g. 2024-12-27T07:00:00.000Z)
     if (s.includes('T')) {
         try {
             const date = new Date(s);
@@ -40,7 +39,6 @@ export const formatOnlyTime = (timeStr: string | undefined): string => {
         } catch (e) {}
     }
     
-    // Regular HH:mm format or similar
     const match = s.match(/(\d{1,2}):(\d{2})/);
     if (match) {
         return `${match[1].padStart(2, '0')}:${match[2]}`;
@@ -49,68 +47,78 @@ export const formatOnlyTime = (timeStr: string | undefined): string => {
     return s;
 };
 
+/**
+ * Extracts Google Drive ID from various URL formats
+ */
+export const getDriveId = (url: any): string | null => {
+    if (!url || typeof url !== 'string') return null;
+    const cleanUrl = url.trim().replace(/[\[\]"']/g, '');
+    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
+                  cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+};
+
+/**
+ * URL for embedding images or small previews.
+ */
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) {
         return URL.createObjectURL(url);
     }
-    if (typeof url !== 'string') return '';
-
-    let cleanUrl = url.trim();
-
-    let attempts = 0;
-    while ((cleanUrl.startsWith('[') || cleanUrl.startsWith('"') || cleanUrl.startsWith("'")) && attempts < 5) {
-        try {
-            if (cleanUrl.startsWith("'") || (cleanUrl.startsWith("[") && cleanUrl.includes("'"))) {
-                 cleanUrl = cleanUrl.replace(/'/g, '"');
-            }
-            const parsed = JSON.parse(cleanUrl);
-            if (Array.isArray(parsed)) {
-                if (parsed.length > 0) cleanUrl = parsed[0];
-                else return ''; 
-            } else if (typeof parsed === 'string') {
-                cleanUrl = parsed;
-            } else {
-                cleanUrl = String(parsed);
-            }
-        } catch (e) {
-             cleanUrl = cleanUrl.replace(/^["'\[]+|["'\]]+$/g, '');
-             break; 
-        }
-        attempts++;
-    }
-
-    cleanUrl = cleanUrl.replace(/[\[\]"']/g, '').trim();
-    if (cleanUrl.startsWith('data:')) return cleanUrl;
-
-    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
-                  cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
     
-    if (match && match[1]) {
-        return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+    const id = getDriveId(url);
+    if (id) {
+        // Use preview for images to avoid 403 Forbidden on uc?id
+        return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
     }
-    return cleanUrl;
+    
+    return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
 /**
- * Gets a preview URL for Google Drive documents (like PDFs) suitable for iframes
+ * URL for downloading files or opening them in Drive Viewer.
+ * Changed to 'view' as it's the most reliable way to avoid 403 Forbidden.
+ */
+export const getDriveDownloadUrl = (url: string | File | undefined | null): string => {
+    if (!url) return '';
+    if (url instanceof File) return URL.createObjectURL(url);
+    
+    const id = getDriveId(url);
+    if (id) {
+        return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+    }
+    return String(url).trim().replace(/[\[\]"']/g, '');
+};
+
+/**
+ * URL for opening the file in Google Drive's native viewer.
+ */
+export const getDriveViewUrl = (url: string | File | undefined | null): string => {
+    if (!url) return '';
+    if (url instanceof File) return URL.createObjectURL(url);
+    
+    const id = getDriveId(url);
+    if (id) {
+        return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+    }
+    return String(url).trim().replace(/[\[\]"']/g, '');
+};
+
+/**
+ * Gets a preview URL for Google Drive documents (like PDFs) suitable for iframes.
  */
 export const getDrivePreviewUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) {
         return URL.createObjectURL(url);
     }
-    if (typeof url !== 'string') return '';
 
-    let cleanUrl = url.trim().replace(/^["'\[]+|["'\]]+$/g, '');
-    
-    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
-                  cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
-    
-    if (match && match[1]) {
-        return `https://drive.google.com/file/d/${match[1]}/preview`;
+    const id = getDriveId(url);
+    if (id) {
+        return `https://drive.google.com/file/d/${id}/preview`;
     }
-    return cleanUrl;
+    return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
 export const getFirstImageSource = (source: any): string | null => {
