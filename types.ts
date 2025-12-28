@@ -12,7 +12,7 @@ export interface Endorsement {
 }
 
 export type DocumentType = 'incoming' | 'order' | 'outgoing'; 
-export type DocumentStatus = 'draft' | 'proposed' | 'delegated' | 'endorsed' | 'distributed'; 
+export type DocumentStatus = 'draft' | 'proposed' | 'endorsed' | 'delegated' | 'distributed'; 
 
 export interface Document {
   id: number;
@@ -96,6 +96,8 @@ export interface Student {
   height?: number; 
 }
 
+export type SpecialRank = 'director' | 'deputy' | 'head' | 'staff';
+
 export interface Personnel {
   id: number;
   personnelTitle: string;
@@ -118,6 +120,7 @@ export interface Personnel {
   status?: 'pending' | 'approved' | 'blocked';
   isProjectManager?: boolean; 
   isSarabanAdmin?: boolean; 
+  specialRank?: SpecialRank;
   token?: string; 
 }
 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Personnel, Student } from '../types';
+import { Personnel, Student, SpecialRank } from '../types';
 import { getFirstImageSource, buddhistToISO, isoToBuddhist, safeParseArray } from '../utils';
 import AddressSelector from './AddressSelector'; 
 
@@ -32,7 +32,8 @@ const initialFormData: Omit<Personnel, 'id'> = {
     advisoryClasses: [],
     role: 'user',
     status: 'approved',
-    isSarabanAdmin: false
+    isSarabanAdmin: false,
+    specialRank: 'staff'
 };
 
 interface InputFieldProps {
@@ -80,6 +81,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                 password: personnelToEdit.password,
                 address: (personnelToEdit as any).address || '',
                 isSarabanAdmin: personnelToEdit.isSarabanAdmin || false,
+                specialRank: personnelToEdit.specialRank || 'staff',
                 advisoryClasses: safeParseArray(personnelToEdit.advisoryClasses)
             });
         } else {
@@ -133,7 +135,6 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Basic email format check
         if (formData.email && !formData.email.includes('@')) {
             alert('กรุณากรอกรูปแบบอีเมลที่ถูกต้อง');
             return;
@@ -200,6 +201,20 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                             <option value="admin">Admin (ผู้ดูแลระบบ)</option>
                                         </select>
                                     </div>
+                                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                                        <label className="block text-sm font-bold text-purple-800 mb-2">ระดับบริหาร (Rank)</label>
+                                        <select 
+                                            name="specialRank" 
+                                            value={formData.specialRank} 
+                                            onChange={handleChange} 
+                                            className="w-full px-2 py-1 border border-purple-300 rounded text-sm text-navy bg-white"
+                                        >
+                                            <option value="staff">บุคลากรทั่วไป</option>
+                                            <option value="head">หัวหน้างาน</option>
+                                            <option value="deputy">รองผู้อำนวยการ</option>
+                                            <option value="director">ผู้อำนวยการ</option>
+                                        </select>
+                                    </div>
                                     <div className="bg-orange-50 p-3 rounded border border-orange-200">
                                         <label className="block text-sm font-bold text-orange-800 mb-2">สถานะผู้ใช้</label>
                                         <select 
@@ -222,7 +237,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                             onChange={handleChange} 
                                             className="w-4 h-4 text-blue-600 rounded"
                                         />
-                                        <label htmlFor="isSarabanAdmin" className="text-sm font-bold text-gray-700">ผู้ดูแลงานสารบัญ</label>
+                                        <label htmlFor="isSarabanAdmin" className="text-sm font-bold text-gray-700">เจ้าหน้าที่สารบรรณ</label>
                                     </div>
                                 </div>
                             )}

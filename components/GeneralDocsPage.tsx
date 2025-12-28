@@ -21,9 +21,9 @@ interface GeneralDocsPageProps {
 const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({ 
     currentUser, personnel, documents, onSave, onDelete, isSaving 
 }) => {
-    // สิทธิ์เฉพาะ Admin หรือ ผู้ได้รับมอบหมายงานสารบัญ (isSarabanAdmin)
     const isStaff = currentUser.role === 'admin' || currentUser.isSarabanAdmin === true; 
-    const isAdmin = currentUser.role === 'admin';
+    const isDirector = currentUser.specialRank === 'director';
+    const isDeputy = currentUser.specialRank === 'deputy';
 
     const [activeTab, setActiveTab] = useState<DocumentType | 'inbox' | 'dashboard'>('incoming');
     const [subPage, setSubPage] = useState<string>('incoming_list');
@@ -56,22 +56,22 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     }).sort((a, b) => b.id - a.id), [documents, currentUser.id]);
 
     const myTasks = useMemo(() => {
-        const directorTasks = (currentUser.role === 'admin') ? documents.filter(d => d.status === 'proposed') : [];
-        const assignedTasks = documents.filter(d => d.assignedTo === currentUser.id && d.status === 'delegated');
-        return Array.from(new Set([...directorTasks, ...assignedTasks])).sort((a, b) => b.id - a.id);
-    }, [documents, currentUser]);
+        if (isDirector) {
+            return documents.filter(d => d.status === 'proposed').sort((a, b) => b.id - a.id);
+        }
+        return documents.filter(d => d.assignedTo === currentUser.id && d.status === 'delegated').sort((a, b) => b.id - a.id);
+    }, [documents, currentUser, isDirector]);
 
     const filteredPersonnel = useMemo(() => {
         if (!personSearch) return personnel.slice(0, 10);
         return personnel.filter(p => `${p.personnelTitle}${p.personnelName}`.includes(personSearch) || p.position.includes(personSearch)).slice(0, 10);
     }, [personnel, personSearch]);
 
-    // Helper to render Thai Status Label
     const getStatusLabelThai = (status: DocumentStatus) => {
         switch (status) {
-            case 'proposed': return 'รอเสนอพิจารณา';
+            case 'proposed': return 'รอผู้อำนวยการพิจารณา';
+            case 'endorsed': return 'ผู้อำนวยการลงนามแล้ว';
             case 'delegated': return 'มอบหมายงานแล้ว';
-            case 'endorsed': return 'เกษียน/ลงนามแล้ว';
             case 'distributed': return 'แจกจ่ายแล้ว';
             case 'draft': return 'ฉบับร่าง';
             default: return status;
@@ -81,8 +81,8 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     const getStatusBadgeClass = (status: DocumentStatus) => {
         switch (status) {
             case 'proposed': return 'bg-amber-100 text-amber-700 border-amber-200';
-            case 'delegated': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
             case 'endorsed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            case 'delegated': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
             case 'distributed': return 'bg-blue-100 text-blue-700 border-blue-200';
             default: return 'bg-gray-100 text-gray-700 border-gray-200';
         }
@@ -90,20 +90,17 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
     const handleSubNav = (id: string) => {
         if (id.endsWith('_new') && !isStaff) {
-            alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้ เฉพาะผู้ดูแลระบบหรือแอดมินงานสารบัญเท่านั้น');
+            alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้ เฉพาะผู้ดูแลระบบหรือเจ้าหน้าที่งานสารบรรณเท่านั้น');
             return;
         }
-
         setSubPage(id);
         const type = id.split('_')[0] as DocumentType;
         setActiveTab(type);
-        
         if (id.endsWith('_new')) handleOpenEdit(type);
     };
 
     const handleOpenEdit = (type: DocumentType, doc?: Document) => {
         if (!doc && !isStaff) return;
-
         if (doc) setCurrentDoc(doc); 
         else {
             const now = new Date();
@@ -163,6 +160,10 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     };
 
     const handleOpenSign = (doc: Document) => {
+        if (doc.status === 'proposed' && !isDirector) {
+            alert('หนังสือฉบับนี้อยู่ระหว่างเสนอผู้อำนวยการพิจารณา ผู้อำนวยการต้องลงนามก่อนจึงจะสามารถดำเนินการต่อได้');
+            return;
+        }
         setSelectedDocId(doc.id);
         setEndorseComment('ทราบ / ดำเนินการตามเสนอ');
         setDelegateToId(null);
@@ -204,9 +205,16 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         const currentRecipients = safeParseArray(doc.recipients);
         const updatedRecipients = Array.from(new Set([...currentRecipients, currentUser.id]));
 
+        let nextStatus: DocumentStatus = doc.status;
+        if (isDirector) {
+            nextStatus = delegateToId ? 'delegated' : 'endorsed';
+        } else if (doc.status === 'delegated') {
+            nextStatus = delegateToId ? 'delegated' : 'distributed';
+        }
+
         const updatedDoc: Document = { 
             ...doc, 
-            status: delegateToId ? 'delegated' : 'endorsed', 
+            status: nextStatus, 
             assignedTo: delegateToId || undefined, 
             endorsements: [...safeParseArray(doc.endorsements), newEndorsement],
             recipients: updatedRecipients
@@ -217,9 +225,13 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     };
 
     const handleDeleteDoc = (id: any) => {
-        if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลหนังสือฉบับนี้? การลบไม่สามารถเรียกคืนได้')) {
+        if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลหนังสือฉบับนี้?')) {
             onDelete([Number(id)]);
         }
+    };
+
+    const handlePrintPDF = () => {
+        window.print();
     };
 
     const zoomIn = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(prev => Math.min(prev + 0.2, 3.0)); };
@@ -273,10 +285,10 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         onDocClick?: (e: any) => void; 
         isInteractive?: boolean; 
         scale?: number;
-        newEndorsement?: Partial<Endorsement> 
-    }> = ({ doc, endorsements, onDocClick, isInteractive, scale = 1.0, newEndorsement }) => {
+        newEndorsement?: Partial<Endorsement>;
+        isPrintMode?: boolean;
+    }> = ({ doc, endorsements, onDocClick, isInteractive, scale = 1.0, newEndorsement, isPrintMode }) => {
         const fileObj = doc.file && doc.file.length > 0 ? doc.file[0] : null;
-        
         const isPdf = useMemo(() => {
             if (!fileObj) return false;
             if (fileObj instanceof File) return fileObj.type === 'application/pdf';
@@ -293,22 +305,19 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         const isImage = !isPdf && fileUrl;
         const safeEndorsements = useMemo(() => safeParseArray(endorsements), [endorsements]);
 
-        // Effect to clean up blob URLs
         useEffect(() => {
-            return () => {
-                if (fileUrl && fileUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(fileUrl);
-                }
-            };
+            return () => { if (fileUrl && fileUrl.startsWith('blob:')) URL.revokeObjectURL(fileUrl); };
         }, [fileUrl]);
 
         return (
             <div 
-                className={`relative bg-white shadow-2xl mx-auto overflow-hidden print:shadow-none print:m-0 border border-gray-300 transition-transform duration-200 ${isInteractive ? 'cursor-crosshair' : ''}`}
+                className={`relative bg-white mx-auto overflow-hidden border border-gray-300 transition-transform duration-200 ${isInteractive ? 'cursor-crosshair' : ''} ${!isPrintMode ? 'shadow-2xl' : ''}`}
                 style={{ 
-                    width: '21cm', minHeight: '29.7cm', 
-                    transform: `scale(${scale})`, 
-                    transformOrigin: 'top center' 
+                    width: '21cm', 
+                    minHeight: '29.7cm', 
+                    transform: isPrintMode ? 'none' : `scale(${scale})`, 
+                    transformOrigin: 'top center',
+                    pageBreakAfter: 'always'
                 }}
                 onClick={onDocClick}
             >
@@ -327,14 +336,12 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 <div className="absolute inset-0 z-10 w-full h-full pointer-events-none">
                     <div className="w-full h-full relative pointer-events-auto">
                         <FormalStamp doc={doc} />
-                        
                         {safeEndorsements.map((end: Endorsement, idx: number) => (
                             <div 
                                 key={idx}
                                 className="absolute pointer-events-none transition-all duration-300"
                                 style={{ 
-                                    left: `${end.posX}%`, 
-                                    top: `${end.posY}%`, 
+                                    left: `${end.posX}%`, top: `${end.posY}%`, 
                                     transform: `translate(-50%, -50%) scale(${end.scale || 1.0})`,
                                     transformOrigin: 'center center'
                                 }}
@@ -353,27 +360,16 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                 </div>
                             </div>
                         ))}
-
                         {newEndorsement && (
-                             <div 
-                             className="absolute pointer-events-none transition-all duration-100 opacity-50 ring-4 ring-orange-500 rounded-2xl"
-                             style={{ 
-                                 left: `${newEndorsement.posX}%`, 
-                                 top: `${newEndorsement.posY}%`, 
-                                 transform: `translate(-50%, -50%) scale(${newEndorsement.scale || 1.0})`,
-                                 transformOrigin: 'center center'
-                             }}
-                         >
-                             <div className="w-[340px] text-center space-y-1.5 bg-white/80 p-5 rounded-2xl border border-orange-400 text-orange-700 font-sarabun text-[16pt]">
-                                 <p className="font-bold leading-tight">"{newEndorsement.comment}"</p>
-                                 {newEndorsement.assignedName && (
-                                     <p className="font-bold text-[15pt] text-orange-800 leading-none mb-1">มอบหมาย {newEndorsement.assignedName}</p>
-                                 )}
-                                 <div className="h-18 flex items-center justify-center bg-gray-100 rounded italic text-xs">พื้นที่ลายเซ็น</div>
-                                 <p className="font-bold">({newEndorsement.signerName})</p>
-                                 <p className="text-[14pt]">{newEndorsement.signerPosition}</p>
+                             <div className="absolute pointer-events-none transition-all duration-100 opacity-50 ring-4 ring-orange-500 rounded-2xl" style={{ left: `${newEndorsement.posX}%`, top: `${newEndorsement.posY}%`, transform: `translate(-50%, -50%) scale(${newEndorsement.scale || 1.0})`, transformOrigin: 'center center' }}>
+                                 <div className="w-[340px] text-center space-y-1.5 bg-white/80 p-5 rounded-2xl border border-orange-400 text-orange-700 font-sarabun text-[16pt]">
+                                     <p className="font-bold leading-tight">"{newEndorsement.comment}"</p>
+                                     {newEndorsement.assignedName && <p className="font-bold text-[15pt] text-orange-800 leading-none mb-1">มอบหมาย {newEndorsement.assignedName}</p>}
+                                     <div className="h-18 flex items-center justify-center bg-gray-100 rounded italic text-xs">พื้นที่ลายเซ็น</div>
+                                     <p className="font-bold">({newEndorsement.signerName})</p>
+                                     <p className="text-[14pt]">{newEndorsement.signerPosition}</p>
+                                 </div>
                              </div>
-                         </div>
                         )}
                     </div>
                 </div>
@@ -389,11 +385,22 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 min-h-[80vh] font-sarabun">
+            {/* Print Section (Hidden on UI) */}
+            <div id="saraban-print-area" className="hidden print:block fixed inset-0 z-[9999] bg-white">
+                {currentDoc && currentDoc.id && (
+                    <DocumentPreview 
+                        doc={currentDoc as Document} 
+                        endorsements={currentDoc.endorsements} 
+                        isPrintMode={true} 
+                    />
+                )}
+            </div>
+
             <aside className="w-full lg:w-72 flex-shrink-0 space-y-4 no-print">
                 <div className="bg-gradient-to-b from-indigo-900 to-indigo-950 text-white rounded-2xl shadow-xl overflow-hidden border border-white/10">
                     <div className="p-4 bg-white/10 flex items-center gap-3 border-b border-white/5">
                         <div className="p-2 bg-indigo-500 rounded-lg"><svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg></div>
-                        <h2 className="font-bold">งานสารบัญ</h2>
+                        <h2 className="font-bold">งานสารบรรณ</h2>
                     </div>
                     <nav className="p-2 space-y-4 py-4">
                         {sarabanMenus.map((group, gIdx) => (
@@ -420,7 +427,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 </div>
             </aside>
 
-            <main className="flex-grow">
+            <main className="flex-grow no-print">
                 <div className="bg-white p-6 rounded-2xl shadow-xl border border-indigo-50 min-h-[70vh]">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-black text-indigo-900 tracking-tight">
@@ -456,8 +463,11 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                             <td className="p-4 text-center">
                                                 <div className="flex justify-center gap-1.5">
                                                     <button onClick={() => handleOpenView(doc)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="ดูรายละเอียด"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
-                                                    {myTasks.includes(doc) && <button onClick={() => handleOpenSign(doc)} className="p-2 bg-orange-500 text-white rounded-lg shadow-md" title="เกษียนหนังสือ"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>}
-                                                    {isStaff && <button onClick={() => handleDeleteDoc(doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="ลบข้อมูลหนังสือ (สำหรับ Admin/งานสารบัญ)"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
+                                                    {(myTasks.some(t => t.id === doc.id)) && <button onClick={() => handleOpenSign(doc)} className="p-2 bg-orange-500 text-white rounded-lg shadow-md" title="เกษียนหนังสือ"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>}
+                                                    {doc.status !== 'proposed' && doc.status !== 'draft' && (
+                                                        <button onClick={() => { setCurrentDoc(doc); setTimeout(handlePrintPDF, 100); }} className="p-2 bg-emerald-600 text-white rounded-lg shadow-md" title="ดาวน์โหลด PDF สมบูรณ์"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></button>
+                                                    )}
+                                                    {isStaff && <button onClick={() => handleDeleteDoc(doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="ลบข้อมูลหนังสือ"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
                                                 </div>
                                             </td>
                                         </tr>
@@ -469,95 +479,90 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 </div>
             </main>
 
-            {/* Registration Modal */}
+            {/* Edit Modal */}
             {isEditModalOpen && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 no-print">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-fade-in">
                         <div className="bg-[#3C4B64] p-4 flex justify-between items-center text-white">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xl">📄</span>
-                                <h3 className="font-bold">ลงทะเบียนและแก้ไขข้อมูลหนังสือ</h3>
-                            </div>
+                            <h3 className="font-bold">ลงทะเบียนและแก้ไขข้อมูลหนังสือ</h3>
                             <button onClick={() => setIsEditModalOpen(false)} className="text-white text-3xl leading-none">&times;</button>
                         </div>
-                        
-                        <form onSubmit={handleSaveDoc} className="p-8 space-y-5 bg-[#F8F9FB]">
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <form onSubmit={handleSaveDoc} className="p-8 space-y-5 bg-[#F8F9FB] overflow-y-auto">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">เลขทะเบียนรับ/ส่ง</label>
-                                        <input type="text" value={currentDoc.receiveNo} onChange={e=>setCurrentDoc({...currentDoc, receiveNo: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 font-bold text-blue-700 focus:ring-2 focus:ring-indigo-500" placeholder="123" />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">ที่หนังสือ</label>
-                                        <input type="text" value={currentDoc.number} onChange={e=>setCurrentDoc({...currentDoc, number: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500" placeholder="ศธ 04007.06/..." />
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เลขทะเบียนรับ/ส่ง</label>
+                                        <input type="text" value={currentDoc.receiveNo} onChange={e=>setCurrentDoc({...currentDoc, receiveNo: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 font-bold text-blue-700" />
                                     </div>
                                     <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">ลงวันที่ / วันที่รับ</label>
-                                        <input type="date" value={buddhistToISO(currentDoc.receiveDate)} onChange={e=>setCurrentDoc({...currentDoc, receiveDate: isoToBuddhist(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500" />
-                                    </div>
-                                    
-                                    <div className="col-span-1 md:col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">หนังสือจาก</label>
-                                        <input type="text" value={currentDoc.from} onChange={e=>setCurrentDoc({...currentDoc, from: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500" placeholder="ระบุหน่วยงานต้นทาง" />
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">ที่หนังสือ</label>
+                                        <input type="text" value={currentDoc.number} onChange={e=>setCurrentDoc({...currentDoc, number: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
                                     </div>
                                     <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">เรียน</label>
-                                        <input type="text" value={currentDoc.to} onChange={e=>setCurrentDoc({...currentDoc, to: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500" placeholder="ระบุผู้รับ" />
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">วันที่รับ</label>
+                                        <input type="date" value={buddhistToISO(currentDoc.receiveDate)} onChange={e=>setCurrentDoc({...currentDoc, receiveDate: isoToBuddhist(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
                                     </div>
-
-                                    <div className="col-span-1 md:col-span-3">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">เรื่อง</label>
-                                        <input type="text" value={currentDoc.title} onChange={e=>setCurrentDoc({...currentDoc, title: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 shadow-inner bg-blue-50/30" placeholder="ระบุชื่อเรื่อง" />
-                                    </div>
-
-                                    <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">จำนวนหน้าทั้งหมด</label>
-                                        <input type="number" min="1" value={currentDoc.totalPages} onChange={e=>setCurrentDoc({...currentDoc, totalPages: Number(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500" />
+                                    <div className="col-span-2">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">จาก</label>
+                                        <input type="text" value={currentDoc.from} onChange={e=>setCurrentDoc({...currentDoc, from: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
                                     </div>
                                     <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">ผู้บริหารลงนามอยู่ที่หน้า</label>
-                                        <input type="number" min="1" value={currentDoc.signatoryPage} onChange={e=>setCurrentDoc({...currentDoc, signatoryPage: Number(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500" />
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เรียน</label>
+                                        <input type="text" value={currentDoc.to} onChange={e=>setCurrentDoc({...currentDoc, to: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-3">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เรื่อง</label>
+                                        <input type="text" value={currentDoc.title} onChange={e=>setCurrentDoc({...currentDoc, title: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 font-bold" />
                                     </div>
                                     <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">ไฟล์แนบ (PDF/IMAGE)</label>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">จำนวนหน้า</label>
+                                        <input type="number" min="1" value={currentDoc.totalPages} onChange={e=>setCurrentDoc({...currentDoc, totalPages: Number(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">เกษียนหน้า</label>
+                                        <input type="number" min="1" value={currentDoc.signatoryPage} onChange={e=>setCurrentDoc({...currentDoc, signatoryPage: Number(e.target.value)})} className="w-full border-gray-300 rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">ไฟล์แนบ</label>
                                         <input type="file" onChange={e=> {if(e.target.files?.[0]) setCurrentDoc({...currentDoc, file: [e.target.files[0]]})}} className="w-full text-xs" />
                                     </div>
+                                </div>
 
-                                    {currentDoc.type === 'incoming' && (
-                                        <div className="col-span-1 md:col-span-3 bg-blue-50/50 p-4 rounded-xl border border-blue-200">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <label className="text-xs font-bold text-blue-700 uppercase">ปรับขนาดตราประทับรับ (Scale)</label>
-                                                <span className="text-sm font-bold text-blue-800">{Math.round((currentDoc.stampScale || 1.0) * 100)}%</span>
-                                            </div>
+                                {currentDoc.type === 'incoming' && (
+                                    <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-200/50 space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-black text-blue-800 uppercase tracking-tight">ปรับขนาดตราประทับรับ (SCALE)</label>
+                                            <span className="text-2xl font-black text-blue-600">{Math.round((currentDoc.stampScale || 1.0) * 100)}%</span>
+                                        </div>
+                                        <div className="relative pt-2">
                                             <input 
                                                 type="range" 
                                                 min="0.5" 
                                                 max="1.5" 
-                                                step="0.05" 
-                                                value={currentDoc.stampScale || 1.0} 
+                                                step="0.05"
+                                                value={currentDoc.stampScale || 1.0}
                                                 onChange={e => setCurrentDoc({...currentDoc, stampScale: parseFloat(e.target.value)})}
-                                                className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                className="w-full h-3 bg-blue-100 rounded-full appearance-none cursor-pointer accent-blue-600" 
                                             />
-                                            <div className="flex justify-between text-[10px] text-blue-400 mt-1 font-bold">
+                                            <div className="flex justify-between mt-2 text-[11px] font-bold text-blue-400 uppercase tracking-widest">
                                                 <span>เล็ก (0.5x)</span>
-                                                <span>ปกติ (1.0x)</span>
+                                                <span className="text-blue-500/50">ปกติ (1.0x)</span>
                                                 <span>ใหญ่ (1.5x)</span>
                                             </div>
                                         </div>
-                                    )}
-
-                                    <div className="col-span-1 md:col-span-3">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">หมายเหตุ</label>
-                                        <textarea value={currentDoc.note} onChange={e=>setCurrentDoc({...currentDoc, note: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500" rows={2} placeholder="เพิ่มเติมข้อมูลอื่น ๆ"></textarea>
                                     </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">หมายเหตุ</label>
+                                    <textarea value={currentDoc.note} onChange={e=>setCurrentDoc({...currentDoc, note: e.target.value})} className="w-full border-gray-300 rounded-lg px-4 py-2" rows={2} placeholder="เพิ่มเติมข้อมูลอื่น ๆ"></textarea>
                                 </div>
                             </div>
-                            
-                            <div className="flex justify-end items-center gap-3 pt-4 border-t border-gray-200">
-                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-8 py-3 rounded-xl font-bold bg-white border-2 border-gray-300 text-gray-600 hover:bg-gray-50 transition-all">ยกเลิก</button>
-                                <button type="submit" disabled={isSaving} className="bg-indigo-600 text-white px-12 py-3 rounded-xl font-bold shadow-xl hover:bg-indigo-700 transition-all transform active:scale-95 flex items-center gap-2">
-                                    {isSaving ? 'กำลังประมวลผล...' : '💾 บันทึกข้อมูลหนังสือ'}
+                            <div className="flex justify-end gap-3 pt-4 border-t">
+                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-8 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-600 font-bold">ยกเลิก</button>
+                                <button type="submit" disabled={isSaving} className="bg-indigo-600 text-white px-12 py-2.5 rounded-xl font-bold shadow-lg flex items-center gap-2">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                                    บันทึกข้อมูลหนังสือ
                                 </button>
                             </div>
                         </form>
@@ -565,15 +570,15 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 </div>
             )}
 
-            {/* Signature & Visual Placement Modal */}
+            {/* Signature Modal */}
             {isSignModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto">
-                    <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden animate-zoom-in relative my-auto">
-                        <div className="p-4 bg-orange-500 text-white flex justify-between items-center shadow-lg shrink-0">
-                            <div><h3 className="text-xl font-bold">การเกษียนหนังสือและวางตำแหน่ง</h3><p className="text-xs opacity-90">ระบุพิกัดเกษียนบนเอกสาร</p></div>
-                            <button onClick={() => setIsSignModalOpen(false)} className="bg-white/20 p-2 rounded-full"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 no-print">
+                    <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden h-[90vh]">
+                        <div className="p-4 bg-orange-500 text-white flex justify-between items-center shrink-0">
+                            <h3 className="text-xl font-bold">การลงนาม/เกษียนหนังสือราชการ</h3>
+                            <button onClick={() => setIsSignModalOpen(false)} className="bg-white/20 p-2 rounded-full">&times;</button>
                         </div>
-                        <div className="flex flex-col lg:flex-row overflow-hidden h-[80vh]">
+                        <div className="flex flex-col lg:flex-row overflow-hidden flex-grow">
                             <div className="flex-grow bg-gray-500 overflow-auto p-4 flex justify-center items-start relative">
                                 <div className="origin-top scale-75">
                                     <DocumentPreview 
@@ -582,77 +587,60 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                         onDocClick={handleDocumentClickForPlacement} 
                                         isInteractive={isSettingPosition}
                                         newEndorsement={isSettingPosition ? {
-                                            posX: placedX,
-                                            posY: placedY,
-                                            comment: endorseComment,
+                                            posX: placedX, posY: placedY, comment: endorseComment,
                                             signerName: `${currentUser.personnelTitle}${currentUser.personnelName}`,
-                                            signerPosition: currentUser.position,
-                                            scale: endorseScale,
-                                            assignedName: delegateName 
+                                            signerPosition: currentUser.position, scale: endorseScale, assignedName: delegateName 
                                         } : undefined}
                                     />
                                 </div>
                             </div>
-                            <div className="w-full lg:w-96 bg-white border-l shadow-2xl p-6 overflow-y-auto space-y-6">
-                                <div className="space-y-4 text-blue-700">
-                                    <button onClick={() => setIsSettingPosition(!isSettingPosition)} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 ${isSettingPosition ? 'bg-orange-600 text-white shadow-inner animate-pulse' : 'bg-white border-2 border-orange-500 text-orange-600 shadow-sm'}`}>
-                                        {isSettingPosition ? '📍 คลิกที่ว่างในเอกสารได้เลย' : '🎯 ระบุพิกัดตำแหน่งวาง'}
-                                    </button>
+                            <div className="w-full lg:w-96 bg-white border-l p-6 overflow-y-auto space-y-6">
+                                <button onClick={() => setIsSettingPosition(!isSettingPosition)} className={`w-full py-3 rounded-xl font-bold ${isSettingPosition ? 'bg-orange-600 text-white animate-pulse' : 'bg-white border-2 border-orange-500 text-orange-600'}`}>
+                                    {isSettingPosition ? '📍 คลิกวางตำแหน่งในเอกสาร' : '🎯 ระบุตำแหน่งเกษียน'}
+                                </button>
+                                <div className="space-y-4">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">ข้อความเกษียน</label>
+                                    <textarea className="w-full border border-gray-200 rounded-xl p-3 text-sm" rows={2} value={endorseComment} onChange={(e) => setEndorseComment(e.target.value)} />
                                     
-                                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="text-xs font-bold text-blue-700 uppercase">ปรับขนาดตรายางเกษียน</label>
-                                            <span className="text-sm font-bold text-blue-800">{Math.round(endorseScale * 100)}%</span>
+                                    <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-200/50 space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[10px] font-black text-blue-800 uppercase tracking-tight">ปรับขนาดตราเกษียน (SCALE)</label>
+                                            <span className="text-lg font-black text-blue-600">{Math.round(endorseScale * 100)}%</span>
                                         </div>
                                         <input 
                                             type="range" 
                                             min="0.5" 
                                             max="1.5" 
-                                            step="0.05" 
-                                            value={endorseScale} 
+                                            step="0.05"
+                                            value={endorseScale}
                                             onChange={e => setEndorseScale(parseFloat(e.target.value))}
-                                            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            className="w-full h-2 bg-blue-100 rounded-full appearance-none cursor-pointer accent-blue-600" 
                                         />
-                                        <div className="flex justify-between text-[10px] text-blue-400 mt-1 font-bold">
-                                            <span>ย่อ (0.5x)</span>
-                                            <span>ปกติ (1.0x)</span>
-                                            <span>ขยาย (1.5x)</span>
+                                        <div className="flex justify-between text-[9px] font-bold text-blue-400 uppercase">
+                                            <span>เล็ก</span>
+                                            <span>ปกติ</span>
+                                            <span>ใหญ่</span>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">ข้อความเกษียน</label>
-                                        <textarea className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-blue-500 font-sarabun" rows={2} value={endorseComment} onChange={(e) => setEndorseComment(e.target.value)} />
+                                    <label className="text-xs font-bold text-gray-400 uppercase">มอบหมายงานต่อ (กรณีสั่งการ)</label>
+                                    <div className="relative">
+                                        <input type="text" placeholder="พิมพ์ชื่อเพื่อมอบหมาย..." value={personSearch} onChange={(e) => setPersonSearch(e.target.value)} className="w-full border rounded-xl p-2.5 text-sm" />
+                                        {personSearch && (
+                                            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border rounded shadow-xl z-20 max-h-40 overflow-auto">
+                                                {filteredPersonnel.map(p => (
+                                                    <button key={p.id} type="button" onClick={() => { setDelegateToId(p.id); setDelegateName(`${p.personnelTitle}${p.personnelName}`); setPersonSearch(`${p.personnelTitle}${p.personnelName}`); }} className="w-full text-left p-2 hover:bg-blue-50 text-xs border-b last:border-0">{p.personnelTitle}{p.personnelName}</button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">มอบหมายงานต่อ (ถ้ามี)</label>
-                                        <div className="relative">
-                                            <input type="text" placeholder="พิมพ์ชื่อเพื่อมอบหมายงาน..." value={personSearch} onChange={(e) => setPersonSearch(e.target.value)} className="w-full pl-4 pr-10 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500" />
-                                            {personSearch && (
-                                                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto">
-                                                    {filteredPersonnel.map(p => (
-                                                        <button key={p.id} type="button" onClick={() => { 
-                                                            setDelegateToId(p.id); 
-                                                            const fullName = `${p.personnelTitle}${p.personnelName}`;
-                                                            setDelegateName(fullName); 
-                                                            setPersonSearch(fullName); 
-                                                        }} className="w-full text-left px-4 py-2 hover:bg-blue-50 text-xs border-b last:border-0"><div className="font-bold">{p.personnelTitle}{p.personnelName}</div><div className="text-[9px] text-gray-400">{p.position}</div></button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase">ลงลายมือชื่อ</label>
+                                    <div className="border bg-gray-50 rounded-2xl h-32 relative overflow-hidden group">
+                                        <canvas ref={canvasRef} width={400} height={130} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-full cursor-pencil" />
+                                        <button onClick={clearCanvas} className="absolute bottom-2 right-2 text-xs text-red-500">ล้าง</button>
                                     </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">ลงลายมือชื่อ (เซ็นที่นี่)</label>
-                                        <div className="border-4 border-dashed border-gray-100 bg-gray-50 rounded-2xl h-40 relative overflow-hidden group">
-                                            <canvas ref={canvasRef} width={400} height={160} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-full cursor-pencil" />
-                                            <button onClick={clearCanvas} className="absolute bottom-2 right-2 text-[10px] font-bold text-red-500 bg-white px-2 py-1 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity">ล้างลายเซ็น</button>
-                                        </div>
-                                    </div>
-
-                                    <button onClick={handleSaveSignature} disabled={isSaving} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-xl hover:bg-indigo-700 transform active:scale-95 transition-all">{isSaving ? 'กำลังบันทึก...' : '✅ เกษียนทราบ / จบเรื่อง'}</button>
+                                    <button onClick={handleSaveSignature} disabled={isSaving} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg">{isSaving ? 'กำลังบันทึก...' : '✅ ยืนยันการลงนาม'}</button>
                                 </div>
                             </div>
                         </div>
@@ -662,26 +650,18 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
             {isViewModalOpen && currentDoc && (
                 <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-start justify-center z-50 p-4 no-print overflow-auto" onClick={() => setIsViewModalOpen(false)}>
-                    <div 
-                        className="fixed top-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/20 backdrop-blur-2xl px-6 py-3 rounded-full border border-white/30 z-[100] shadow-2xl pointer-events-auto" 
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <button onClick={zoomOut} className="p-2 text-white hover:text-indigo-300 transition-colors pointer-events-auto" title="ย่อ"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" /></svg></button>
-                        <div className="px-5 py-1 bg-white text-indigo-900 rounded-lg font-black text-base min-w-[90px] text-center shadow-inner cursor-pointer" onClick={resetZoom}>
-                            {Math.round(zoomLevel * 100)}%
-                        </div>
-                        <button onClick={zoomIn} className="p-2 text-white hover:text-indigo-300 transition-colors pointer-events-auto" title="ขยาย"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg></button>
-                        <div className="w-[1.5px] h-6 bg-white/30 mx-2"></div>
-                        <button onClick={resetZoom} className="text-white text-xs font-bold hover:text-indigo-200 uppercase tracking-widest">Reset</button>
+                    <div className="fixed top-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/20 backdrop-blur-2xl px-6 py-3 rounded-full border border-white/30 z-[100] shadow-2xl pointer-events-auto" onClick={e => e.stopPropagation()}>
+                        <button onClick={zoomOut} className="p-2 text-white hover:text-indigo-300 pointer-events-auto"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" /></svg></button>
+                        <div className="px-5 py-1 bg-white text-indigo-900 rounded-lg font-black text-base min-w-[90px] text-center" onClick={resetZoom}>{Math.round(zoomLevel * 100)}%</div>
+                        <button onClick={zoomIn} className="p-2 text-white hover:text-indigo-300 pointer-events-auto"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg></button>
+                        <div className="w-px h-8 bg-white/20 mx-2"></div>
+                        <button onClick={handlePrintPDF} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded-full shadow-lg transition-all transform active:scale-95">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            ดาวน์โหลด PDF
+                        </button>
                     </div>
-
                     <div className="relative animate-fade-in py-28 w-full flex justify-center" onClick={e => e.stopPropagation()}>
                         <DocumentPreview doc={currentDoc as Document} endorsements={currentDoc.endorsements} scale={zoomLevel} />
-                        
-                        <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-[100]">
-                            <button onClick={(e) => { e.stopPropagation(); window.print(); }} className="p-4 bg-indigo-600 text-white rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg></button>
-                            <button onClick={(e) => { e.stopPropagation(); setIsViewModalOpen(false); }} className="p-4 bg-white text-gray-500 rounded-full shadow-2xl hover:bg-gray-100 flex items-center justify-center"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
-                        </div>
                     </div>
                 </div>
             )}
