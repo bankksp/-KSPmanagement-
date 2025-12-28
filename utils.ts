@@ -60,6 +60,7 @@ export const getDriveId = (url: any): string | null => {
 
 /**
  * URL for embedding images or small previews.
+ * Uses the 'uc' (User Content) endpoint which is generally more reliable for direct display.
  */
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -69,16 +70,15 @@ export const getDirectDriveImageSrc = (url: string | File | undefined | null): s
     
     const id = getDriveId(url);
     if (id) {
-        // Use preview for images to avoid 403 Forbidden on uc?id
-        return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+        return `https://drive.google.com/uc?id=${id}`;
     }
     
+    // If not a drive link, return as is (could be base64 or other URL)
     return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
 /**
- * URL for downloading files or opening them in Drive Viewer.
- * Changed to 'view' as it's the most reliable way to avoid 403 Forbidden.
+ * URL for downloading files directly.
  */
 export const getDriveDownloadUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -86,13 +86,13 @@ export const getDriveDownloadUrl = (url: string | File | undefined | null): stri
     
     const id = getDriveId(url);
     if (id) {
-        return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+        return `https://drive.google.com/uc?export=download&id=${id}`;
     }
     return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
 /**
- * URL for opening the file in Google Drive's native viewer.
+ * URL for opening the file in Google Drive's native viewer (Safe against 403 Forbidden).
  */
 export const getDriveViewUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
