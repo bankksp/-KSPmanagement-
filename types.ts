@@ -1,4 +1,43 @@
 
+export interface Endorsement {
+  signature?: string; 
+  comment: string; 
+  date: string;
+  signerName: string;
+  signerPosition?: string;
+  posX?: number;
+  posY?: number;
+  scale?: number;
+  assignedName?: string;
+}
+
+export type DocumentType = 'incoming' | 'order' | 'outgoing'; 
+export type DocumentStatus = 'draft' | 'proposed' | 'delegated' | 'endorsed' | 'distributed'; 
+
+export interface Document {
+  id: number;
+  type: DocumentType;
+  receiveNo?: string; 
+  number: string; 
+  date: string; 
+  receiveDate?: string; 
+  receiveTime?: string; 
+  title: string; 
+  from: string; 
+  to: string; 
+  file?: (File | string)[]; 
+  status: DocumentStatus;
+  endorsements?: Endorsement[];
+  assignedTo?: number; 
+  recipients: number[]; 
+  createdDate: string;
+  totalPages?: number;
+  signatoryPage?: number;
+  note?: string;
+  showStamp?: boolean;
+  stampScale?: number;
+}
+
 export interface Report {
   id: number;
   reportDate: string;
@@ -9,9 +48,9 @@ export interface Report {
   dormitory: string;
   presentCount: number;
   sickCount: number;
-  homeCount?: number; // New field
+  homeCount?: number; 
   log: string;
-  studentDetails?: string; // JSON string storing detailed status [{name, nickname, status}]
+  studentDetails?: string; 
   images?: (File | string)[];
 }
 
@@ -53,8 +92,8 @@ export interface Student {
   guardianIdCardImage?: (File | string)[];
   latitude?: number;
   longitude?: number;
-  weight?: number; // New: Weight in kg
-  height?: number; // New: Height in cm
+  weight?: number; 
+  height?: number; 
 }
 
 export interface Personnel {
@@ -65,19 +104,22 @@ export interface Personnel {
   position: string;
   dob: string;
   idCard: string;
+  email: string; 
+  isEmailVerified: boolean; 
+  authProvider?: 'manual' | 'google' | 'facebook';
   appointmentDate: string;
   positionNumber: string;
   phone: string;
-  address?: string; // Address field
+  address?: string; 
   profileImage?: (File | string)[];
   advisoryClasses?: string[];
   password?: string;
   role?: 'user' | 'pro' | 'admin';
   status?: 'pending' | 'approved' | 'blocked';
   isProjectManager?: boolean; 
-  token?: string; // Authentication token
+  isSarabanAdmin?: boolean; 
+  token?: string; 
 }
-
 
 export interface ThemeColors {
   primary: string;
@@ -86,7 +128,7 @@ export interface ThemeColors {
 
 export interface Settings {
     schoolName: string;
-    schoolLogo: string; // URL or Base64 string
+    schoolLogo: string; 
     themeColors: ThemeColors;
     dormitories: string[];
     positions: string[];
@@ -95,19 +137,17 @@ export interface Settings {
     studentClassrooms: string[];
     googleScriptUrl: string;
     adminPassword?: string;
-    serviceLocations?: string[]; // New: Service locations
-    projectGroups?: string[]; // New: Strategic Groups for projects
-    projectManagerIds?: number[]; // New: List of personnel IDs who are Project Managers
+    serviceLocations?: string[]; 
+    projectGroups?: string[]; 
+    projectManagerIds?: number[]; 
 }
 
-// --- New Attendance Types ---
-
 export type TimePeriod = 'morning' | 'lunch' | 'evening';
-export type AttendanceStatus = 'present' | 'sick' | 'leave' | 'absent' | 'activity'; // activity is mostly for personnel
+export type AttendanceStatus = 'present' | 'sick' | 'leave' | 'absent' | 'activity'; 
 
 export interface StudentAttendance {
-    id: string; // Composite key: date_period_studentId
-    date: string; // DD/MM/YYYY (Buddhist)
+    id: string; 
+    date: string; 
     period: TimePeriod;
     studentId: number;
     status: AttendanceStatus;
@@ -115,8 +155,8 @@ export interface StudentAttendance {
 }
 
 export interface PersonnelAttendance {
-    id: string; // Composite key: date_period_personnelId
-    date: string; // DD/MM/YYYY (Buddhist)
+    id: string; 
+    date: string; 
     period: TimePeriod;
     personnelId: number;
     status: AttendanceStatus;
@@ -124,28 +164,24 @@ export interface PersonnelAttendance {
     note?: string;
 }
 
-// --- Academic Work Types ---
-
 export type PlanStatus = 'pending' | 'approved' | 'needs_edit';
 
 export interface AcademicPlan {
   id: number;
-  date: string; // Submission date
+  date: string; 
   teacherId: number;
   teacherName: string;
-  learningArea: string; // กลุ่มสาระ
+  learningArea: string; 
   subjectCode: string;
   subjectName: string;
-  courseStructureFile?: (File | string)[]; // PDF
-  lessonPlanFile?: (File | string)[]; // PDF
+  courseStructureFile?: (File | string)[]; 
+  lessonPlanFile?: (File | string)[]; 
   additionalLink?: string;
   status: PlanStatus;
-  comment?: string; // For feedback when requesting edits
+  comment?: string; 
   approverName?: string;
   approvedDate?: string;
 }
-
-// --- Service Registration Types (New) ---
 
 export interface ServiceStudent {
     id: number;
@@ -156,17 +192,12 @@ export interface ServiceStudent {
 
 export interface ServiceRecord {
   id: number;
-  date: string; // DD/MM/YYYY
-  time: string; // HH:mm
-  
-  // Group Fields
+  date: string; 
+  time: string; 
   students: ServiceStudent[];
-  
-  // Backward compatibility fields (optional)
   studentId?: number;
   studentName?: string;
   studentClass?: string;
-
   location: string;
   purpose: string;
   teacherId: number;
@@ -174,16 +205,14 @@ export interface ServiceRecord {
   images?: (File | string)[];
 }
 
-// --- Supply Management Types ---
-
 export interface SupplyItem {
   id: number;
   code: string;
   name: string;
   unit: string;
   unitPrice: number;
-  initialStock: number; // Opening balance
-  addedStock: number; // Total purchased/added
+  initialStock: number; 
+  addedStock: number; 
 }
 
 export interface SupplyRequestItem {
@@ -191,76 +220,68 @@ export interface SupplyRequestItem {
   itemName: string;
   quantity: number;
   unit: string;
-  price: number; // Snapshot of price at request time
+  price: number; 
 }
 
 export interface SupplyRequest {
   id: number;
-  date: string; // DD/MM/YYYY
+  date: string; 
   requesterId: number;
   requesterName: string;
   position: string;
-  department: string; // ฝ่าย/กลุ่มสาระ/โครงการ
+  department: string; 
   reason: string;
   items: SupplyRequestItem[];
   status: 'pending' | 'approved' | 'rejected';
-  note?: string; // Admin note
+  note?: string; 
   approverName?: string;
   approvedDate?: string;
 }
-
-// --- Durable Goods Types (New) ---
 
 export type DurableGoodStatus = 'available' | 'in_use' | 'repair' | 'write_off';
 
 export interface DurableGood {
   id: number;
-  code: string; // รหัสครุภัณฑ์
-  name: string; // ชื่อครุภัณฑ์
-  category: string; // หมวดหมู่
-  price: number; // ราคา
-  acquisitionDate: string; // วันที่ได้มา
-  location: string; // สถานที่จัดเก็บ
-  status: DurableGoodStatus; // สถานะ
+  code: string; 
+  name: string; 
+  category: string; 
+  price: number; 
+  acquisitionDate: string; 
+  location: string; 
+  status: DurableGoodStatus; 
   description?: string;
   image?: (File | string)[];
 }
 
-// --- Certificate Request Types ---
-
 export interface CertificateRequest {
   id: number;
-  requesterName: string; // ชื่อ-สกุลผู้ขอ
-  date: string; // วันที่
-  activityName: string; // ชื่อกิจกรรม
-  peopleCount: number; // จำนวนคน
-  academicYear: string; // ปีการศึกษา
-  activityNo: string; // กิจกรรมที่
-  prefix: string; // อักษรย่อ (default กส.ปญ)
-  generatedNumber: string; // เลขที่เกียรติบัตร (Auto-generated)
-  note?: string; // หมายเหตุ
+  requesterName: string; 
+  date: string; 
+  activityName: string; 
+  peopleCount: number; 
+  academicYear: string; 
+  activityNo: string; 
+  prefix: string; 
+  generatedNumber: string; 
+  note?: string; 
 }
-
-// --- Maintenance Request Types ---
 
 export type MaintenanceStatus = 'pending' | 'in_progress' | 'completed' | 'cannot_repair';
 
 export interface MaintenanceRequest {
   id: number;
-  date: string; // Request date
-  requesterName: string; // Who requested
-  itemName: string; // What is broken
-  description: string; // Detail
-  location: string; // Where
+  date: string; 
+  requesterName: string; 
+  itemName: string; 
+  description: string; 
+  location: string; 
   status: MaintenanceStatus;
   image?: (File | string)[];
-  repairerName?: string; // Who fixed it
+  repairerName?: string; 
   completionDate?: string;
-  cost?: number; // Cost of repair
+  cost?: number; 
   remark?: string;
 }
-
-// --- Personnel Performance Report Types ---
 
 export interface PerformanceReport {
   id: number;
@@ -268,15 +289,13 @@ export interface PerformanceReport {
   name: string;
   position: string;
   academicYear: string;
-  round: string; // '1' or '2'
+  round: string; 
   file?: (File | string)[];
   score?: number;
   status: 'pending' | 'approved' | 'needs_edit';
   submissionDate: string;
   note?: string;
 }
-
-// --- SAR Report Types (New) ---
 
 export interface SARReport {
   id: number;
@@ -284,7 +303,7 @@ export interface SARReport {
   name: string;
   position: string;
   academicYear: string;
-  round: string; // '1' or '2'
+  round: string; 
   file?: (File | string)[];
   score?: number;
   status: 'pending' | 'approved' | 'needs_edit';
@@ -292,128 +311,24 @@ export interface SARReport {
   note?: string;
 }
 
-// --- Document & Order Types (New) ---
-
-export type DocumentType = 'incoming' | 'order'; // หนังสือเข้า | คำสั่ง
-export type DocumentStatus = 'draft' | 'proposed' | 'endorsed' | 'distributed'; // ร่าง | เสนอ ผอ. | เกษียนแล้ว | ส่งแล้ว
-
-export interface Endorsement {
-  signature?: string; // Base64 image of signature
-  comment: string; // ข้อความเกษียน
-  date: string;
-  signerName: string;
-}
-
-export interface Document {
-  id: number;
-  type: DocumentType;
-  number: string; // เลขที่หนังสือ
-  date: string; // ลงวันที่
-  title: string; // เรื่อง
-  from: string; // จาก
-  to: string; // ถึง
-  file?: (File | string)[]; // ไฟล์แนบ (PDF)
-  status: DocumentStatus;
-  endorsement?: Endorsement; // การเกษียนหนังสือ
-  recipients: number[]; // IDs of personnel who received this doc
-  createdDate: string;
-}
-
-// --- Construction Work Types (New) ---
-
-export type ConstructionStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed';
-
-export interface ConstructionRecord {
-  id: number;
-  date: string; // Recording date
-  projectName: string;
-  contractor: string; // ผู้รับเหมา
-  location: string;
-  progress: number; // 0-100
-  status: ConstructionStatus;
-  
-  // Detailed Report Fields
-  contractorWork: string; // รายการปฏิบัติงานของผู้รับจ้าง (ช่างไม้, เหล็ก, ปูน ฯลฯ)
-  materials: string; // วัสดุที่นำเข้าในการก่อสร้าง
-  workers: string; // คนงาน (จำนวน หรือ รายละเอียด)
-  description: string; // งานที่ดำเนินการก่อสร้างประจำวัน (Detailed Description)
-  problems: string; // ปัญหาอุสรรค์ต่างๆ
-  
-  startDate: string;
-  endDate: string;
-  budget?: number;
-  media?: (File | string)[]; // Images and Videos
-  
-  reporter: string; // Who recorded (can be redundant if using supervisors[0])
-  supervisors: number[]; // IDs of personnel who signed/supervised
-}
-
-// --- Project Planning Types (New) ---
-
-export type ProjectStatus = 'pending_approval' | 'approved' | 'rejected';
-export type ProjectProcessStatus = 'not_started' | 'in_progress' | 'completed';
-
-export interface ProjectProposal {
-  id: number;
-  name: string;
-  fiscalYear: string;
-  group: string; // Strategic Group e.g. Academic, Personnel
-  budget: number;
-  responsiblePersonId: number;
-  responsiblePersonName: string;
-  status: ProjectStatus; // Approval Status
-  processStatus: ProjectProcessStatus; // Execution Status
-  description: string;
-  files?: (File | string)[]; // PDF, Doc, Excel
-  images?: (File | string)[]; // Activity Photos
-  createdDate: string;
-  approverName?: string;
-  approvedDate?: string;
-  rejectReason?: string;
-}
-
-// --- Home Visit Types ---
-
-export interface HomeVisit {
-  id: number;
-  studentId: number;
-  date: string;
-  term: string; // ภาคเรียนที่
-  academicYear: string; // ปีการศึกษา
-  visitorId: number;
-  visitorName: string;
-  image?: (File | string)[];
-  notes?: string;
-  locationName?: string;
-  status: 'visited' | 'pending';
-  latitude?: number;
-  longitude?: number;
-}
-
-// --- SDQ Assessment Types (New) ---
-
 export type SDQResultType = 'normal' | 'risk' | 'problem';
 
 export interface SDQRecord {
     id: number;
     studentId: number;
-    studentName: string; // Denormalized for easier export
+    studentName: string; 
     academicYear: string;
-    term: string; // 1 or 2
+    term: string; 
     evaluatorId: number;
     evaluatorName: string;
     date: string;
-    scores: Record<number, number>; // Question 1-25, value 0,1,2
-    
-    // Calculated Scores
+    scores: Record<number, number>; 
     scoreEmotional: number;
     scoreConduct: number;
     scoreHyper: number;
     scorePeer: number;
     scoreProsocial: number;
-    scoreTotalDifficulties: number; // Sum of first 4 scales
-    
-    // Interpretations
+    scoreTotalDifficulties: number; 
     resultEmotional: SDQResultType;
     resultConduct: SDQResultType;
     resultHyper: SDQResultType;
@@ -422,41 +337,37 @@ export interface SDQRecord {
     resultTotal: SDQResultType;
 }
 
-// --- Nutrition System Types (New) ---
-
 export type NutritionTargetGroup = 'kindergarten' | 'primary' | 'secondary';
 
 export interface Ingredient {
     id: number;
     name: string;
     unit: string;
-    calories: number; // kcal per 1 unit
-    protein: number; // g per 1 unit
-    fat: number; // g per 1 unit
-    carbs: number; // g per 1 unit
-    price?: number; // price per 1 unit
+    calories: number; 
+    protein: number; 
+    fat: number; 
+    carbs: number; 
+    price?: number; 
 }
 
 export interface MealPlanItem {
     ingredientId: number;
-    amount: number; // Amount in Ingredient units
+    amount: number; 
 }
 
 export interface MealPlan {
     id: number;
-    date: string; // DD/MM/YYYY
+    date: string; 
     targetGroup: NutritionTargetGroup;
     menuName: string;
     mealType: 'breakfast' | 'lunch' | 'dinner';
     items: MealPlanItem[];
-    // Calculated (Cached for ease)
     totalCalories: number;
     totalProtein: number;
     totalFat: number;
     totalCarbs: number;
 }
 
-// Navigation Types
 export type Page = 
     | 'stats' 
     | 'attendance' 
@@ -466,18 +377,75 @@ export type Page =
     | 'personnel' 
     | 'admin' 
     | 'profile'
-    // New Pages
     | 'academic_plans'
-    | 'academic_service' // ลงทะเบียนเข้าใช้บริการ
+    | 'academic_service' 
     | 'finance_supplies'
-    | 'finance_projects' // ระบบแผนงาน (New)
+    | 'finance_projects' 
     | 'durable_goods'
     | 'personnel_report'
     | 'personnel_sar'
     | 'general_docs'
     | 'general_repair'
-    | 'general_certs' // ขอเลขเกียรติบัตร
-    | 'general_construction' // บันทึกงานก่อสร้าง
-    | 'general_nutrition' // โภชนาการ (New)
-    | 'student_home_visit' // เยี่ยมบ้านนักเรียน
-    | 'student_sdq'; // ประเมิน SDQ
+    | 'general_certs' 
+    | 'general_construction' 
+    | 'general_nutrition' 
+    | 'student_home_visit' 
+    | 'student_sdq';
+
+export interface HomeVisit {
+  id: number;
+  studentId: number;
+  visitorId: number;
+  visitorName: string;
+  academicYear: string;
+  term: string;
+  status: 'visited' | 'pending';
+  date: string;
+  notes: string;
+  locationName: string;
+  image: (File | string)[];
+  latitude?: number;
+  longitude?: number;
+}
+
+export type ConstructionStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed';
+
+export interface ConstructionRecord {
+  id: number;
+  date: string;
+  projectName: string;
+  contractor: string;
+  location: string;
+  progress: number;
+  status: ConstructionStatus;
+  contractorWork: string;
+  materials: string;
+  workers: string;
+  description: string;
+  problems: string;
+  budget: number;
+  media: (File | string)[];
+  reporter: string;
+  supervisors: number[];
+}
+
+export type ProjectStatus = 'pending_approval' | 'approved' | 'rejected';
+export type ProjectProcessStatus = 'not_started' | 'in_progress' | 'completed';
+
+export interface ProjectProposal {
+  id: number;
+  fiscalYear: string;
+  name: string;
+  group: string;
+  budget: number;
+  responsiblePersonId: number;
+  responsiblePersonName: string;
+  status: ProjectStatus;
+  processStatus: ProjectProcessStatus;
+  description: string;
+  files: (File | string)[];
+  images: (File | string)[];
+  createdDate: string;
+  approverName?: string;
+  approvedDate?: string;
+}

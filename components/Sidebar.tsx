@@ -19,9 +19,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     onNavigate, currentPage, schoolName, schoolLogo, 
     currentUser, personnel, isOpen, onCloseMobile, isDesktopOpen
 }) => {
-    const [expandedMenu, setExpandedMenu] = useState<string | null>('studentAffairs');
+    const [expandedMenu, setExpandedMenu] = useState<string | null>('general');
 
-    // Calculate pending counts
     const pendingCount = personnel.filter(p => p.status === 'pending').length;
 
     const menuStructure = [
@@ -57,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             items: [
                 { label: 'ข้อมูลบุคลากร', page: 'personnel' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
                 { label: 'เช็คชื่อครู', page: 'attendance_personnel' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-                { label: 'รายงานการปฏิบัติงาน', page: 'personnel_report' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+                { label: 'รายงานการปฏิบัติงาน', page: 'personnel_report' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1.01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
                 { label: 'รายงาน SAR', page: 'personnel_sar' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
             ]
         },
@@ -65,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             key: 'general',
             label: 'งานบริหารทั่วไป',
             items: [
-                { label: 'หนังสือ/คำสั่ง', page: 'general_docs' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
+                { label: 'งานสารบัญ', page: 'general_docs' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
                 { label: 'แจ้งซ่อม', page: 'general_repair' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> },
                 { label: 'งานก่อสร้าง', page: 'general_construction' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
                 { label: 'ระบบโภชนาการ', page: 'general_nutrition' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
@@ -89,18 +88,15 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <>
-            {/* Mobile Overlay */}
             {isOpen && (
                 <div className="fixed inset-0 bg-black/30 z-40 lg:hidden backdrop-blur-sm transition-opacity" onClick={onCloseMobile}></div>
             )}
 
-            {/* Sidebar Container */}
             <div className={`
                 fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                 ${isDesktopOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'}
             `}>
-                {/* Logo Area */}
                 <div className="p-6 flex flex-col items-center justify-center border-b border-gray-100">
                     <div className="relative group cursor-pointer" onClick={() => { onNavigate('stats'); onCloseMobile(); }}>
                         <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-xl group-hover:bg-blue-400/30 transition-all"></div>
@@ -115,7 +111,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <p className="text-xs text-gray-500 font-medium mt-1">ระบบบริหารจัดการสถานศึกษา</p>
                 </div>
 
-                {/* Navigation */}
                 <nav className="p-4 overflow-y-auto h-[calc(100%-240px)] custom-scrollbar space-y-1">
                     {menuStructure.map(group => {
                         const isExpanded = expandedMenu === group.key || group.key === 'main';
@@ -162,7 +157,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     })}
                 </nav>
 
-                {/* Footer / Admin Link */}
                 <div className="absolute bottom-0 left-0 w-full p-4 border-t border-gray-100 bg-white/50 backdrop-blur-md">
                      {currentUser?.role === 'admin' && (
                         <button
