@@ -107,7 +107,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
              </div>
 
             {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-fade-in-up transform transition-all scale-100">
                         <div className="text-center mb-4">
                             <div className="bg-red-100 p-3 rounded-full inline-block mb-3">
@@ -142,7 +142,7 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                     <thead className="bg-navy text-white">
                         <tr>
                             <th className="p-4 text-left w-10"><input type="checkbox" onChange={handleSelectAll} checked={displayPersonnel.length > 0 && selectedIds.size === displayPersonnel.length} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></th>
-                            <th className="p-4 text-left font-semibold">รูปโปรไฟล์</th>
+                            <th className="p-4 text-left font-semibold">รูปถ่าย</th>
                             <th className="p-4 text-left font-semibold">ชื่อ-นามสกุล</th>
                             <th className="p-4 text-left font-semibold">ตำแหน่ง</th>
                             <th className="p-4 text-center font-semibold">อายุ</th>
@@ -162,16 +162,19 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                                 <tr key={person.id} className={`hover:bg-blue-50/50 transition-colors ${selectedIds.has(person.id) ? 'bg-blue-50' : ''}`}>
                                     <td className="p-4"><input type="checkbox" checked={selectedIds.has(person.id)} onChange={() => handleSelect(person.id)} className="rounded text-primary-blue focus:ring-primary-blue h-4 w-4" /></td>
                                     <td className="p-4">
-                                        <div className="w-10 h-12 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm">
+                                        <div className="w-12 h-14 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm group">
                                             {profileImageUrl ? (
                                                 <img 
                                                     src={profileImageUrl} 
                                                     alt={person.personnelName} 
-                                                    className="w-full h-full object-cover"
+                                                    className="w-full h-full object-cover transition-transform group-hover:scale-110"
                                                     referrerPolicy="no-referrer"
                                                     onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                        e.currentTarget.parentElement?.classList.add('fallback-icon');
+                                                        const target = e.currentTarget;
+                                                        target.style.display = 'none';
+                                                        if (target.parentElement) {
+                                                            target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-xs font-bold text-gray-400">${person.personnelName.charAt(0)}</div>`;
+                                                        }
                                                     }} 
                                                 />
                                             ) : (
@@ -241,8 +244,11 @@ const PersonnelTable: React.FC<PersonnelTableProps> = ({ personnel, onViewPerson
                                                 className="w-full h-full object-cover"
                                                 referrerPolicy="no-referrer"
                                                 onError={(e) => {
-                                                    e.currentTarget.style.display = 'none';
-                                                    e.currentTarget.parentElement?.classList.add('fallback-icon');
+                                                    const target = e.currentTarget;
+                                                    target.style.display = 'none';
+                                                    if (target.parentElement) {
+                                                        target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-lg font-bold text-gray-400">${person.personnelName.charAt(0)}</div>`;
+                                                    }
                                                 }} 
                                             />
                                         ) : (

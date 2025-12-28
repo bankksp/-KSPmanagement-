@@ -80,11 +80,11 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 
     const getStatusBadgeClass = (status: DocumentStatus) => {
         switch (status) {
-            case 'proposed': return 'bg-amber-100 text-amber-700 border-amber-200';
-            case 'endorsed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-            case 'delegated': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-            case 'distributed': return 'bg-blue-100 text-blue-700 border-blue-200';
-            default: return 'bg-gray-100 text-gray-700 border-gray-200';
+            case 'proposed': return 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm';
+            case 'endorsed': return 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm';
+            case 'delegated': return 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm';
+            case 'distributed': return 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm';
+            default: return 'bg-gray-50 text-gray-700 border-gray-200';
         }
     };
 
@@ -497,7 +497,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                     <th className="p-4 w-20 text-center">รับที่</th>
                                     <th className="p-4 w-32 text-center">ลงวันที่</th>
                                     <th className="p-4 min-w-[200px]">เรื่อง</th>
-                                    <th className="p-4 w-40 text-center">สถานะ</th>
+                                    <th className="p-4 w-48 text-center">สถานะ</th>
                                     <th className="p-4 w-28 text-center">ต้นฉบับ</th>
                                     <th className="p-4 w-28 text-center">เกษียณแล้ว</th>
                                     <th className="p-4 w-32 text-center">จัดการ</th>
@@ -510,7 +510,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                     filteredDocsToDisplay.map(doc => {
                                         const fileObj = doc.file && doc.file.length > 0 ? doc.file[0] : null;
                                         const viewUrl = getDriveViewUrl(fileObj);
-                                        const downloadUrl = getDriveDownloadUrl(fileObj);
                                         const hasEndorsement = safeParseArray(doc.endorsements).length > 0;
 
                                         return (
@@ -519,25 +518,22 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                                 <td className="p-4 text-center text-gray-600">{formatThaiDate(doc.date)}</td>
                                                 <td className="p-4 font-medium text-gray-900 leading-snug">{doc.title}</td>
                                                 <td className="p-4 text-center">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(doc.status)}`}>
+                                                    <span className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-bold border leading-none ${getStatusBadgeClass(doc.status)}`}>
                                                         {getStatusLabelThai(doc.status)}
                                                     </span>
                                                 </td>
                                                 <td className="p-4 text-center">
                                                     {fileObj ? (
                                                         <div className="flex justify-center gap-1">
-                                                            <a href={viewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center p-2 text-indigo-600 bg-indigo-50 rounded-full hover:bg-indigo-100 transition-colors" title="เปิดดูต้นฉบับ (Drive)">
-                                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                            </a>
-                                                            <a href={downloadUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center p-2 text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors" title="ดาวน์โหลดไฟล์ต้นฉบับ">
-                                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                            <a href={viewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center p-2 text-indigo-600 bg-indigo-50 rounded-full hover:bg-indigo-100 transition-colors shadow-sm" title="เปิดดูต้นฉบับ (Google Drive)">
+                                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                                             </a>
                                                         </div>
                                                     ) : '-'}
                                                 </td>
                                                 <td className="p-4 text-center">
                                                     {hasEndorsement ? (
-                                                        <button onClick={() => handleOpenView(doc)} className="inline-flex items-center justify-center p-2 text-emerald-600 bg-emerald-50 rounded-full hover:bg-emerald-100 transition-colors" title="ดูหนังสือที่เกษียนแล้ว">
+                                                        <button onClick={() => handleOpenView(doc)} className="inline-flex items-center justify-center p-2 text-emerald-600 bg-emerald-50 rounded-full hover:bg-emerald-100 transition-colors shadow-sm" title="ดูหนังสือที่เกษียนแล้ว">
                                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                         </button>
                                                     ) : (
@@ -574,19 +570,10 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                         <button 
                             onClick={handlePrintOfficial}
                             className="floating-btn"
-                            title="พิมพ์เอกสาร"
+                            title="พิมพ์เอกสาร / บันทึก PDF"
                         >
                             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                            </svg>
-                        </button>
-                        <button 
-                            onClick={handleDownloadOfficial}
-                            className="floating-btn"
-                            title="ดาวน์โหลดไฟล์ที่เกษียนแล้ว"
-                        >
-                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                         </button>
                         <button 

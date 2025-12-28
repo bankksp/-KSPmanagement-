@@ -109,8 +109,8 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                 <table className="min-w-full bg-white">
                     <thead className="bg-navy text-white">
                         <tr>
-                            <th className="p-4 text-left"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size > 0 && selectedIds.size === filteredStudents.length} className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue" /></th>
-                            <th className="p-4 text-left font-semibold">รูปโปรไฟล์</th>
+                            <th className="p-4 text-left w-12"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size > 0 && selectedIds.size === filteredStudents.length} className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue" /></th>
+                            <th className="p-4 text-left font-semibold w-24">รูปถ่าย</th>
                             <th className="p-4 text-left font-semibold">ชื่อ-นามสกุล</th>
                             <th className="p-4 text-left font-semibold">ชื่อเล่น</th>
                             <th className="p-4 text-left font-semibold">ชั้น</th>
@@ -126,20 +126,23 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                                 <tr key={student.id} className={`hover:bg-blue-50/50 transition-colors ${selectedIds.has(student.id) ? 'bg-blue-50' : ''}`}>
                                     <td className="p-4"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => handleSelect(student.id)} className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue" /></td>
                                     <td className="p-4">
-                                        <div className="w-10 h-12 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm">
+                                        <div className="w-12 h-14 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm group">
                                             {profileImageUrl ? (
                                                 <img 
                                                     src={profileImageUrl} 
                                                     alt={student.studentName} 
-                                                    className="w-full h-full object-cover"
+                                                    className="w-full h-full object-cover transition-transform group-hover:scale-110"
                                                     referrerPolicy="no-referrer"
                                                     onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                        e.currentTarget.parentElement?.classList.add('fallback-icon');
+                                                        const target = e.currentTarget;
+                                                        target.style.display = 'none';
+                                                        if (target.parentElement) {
+                                                            target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-xs font-bold text-gray-400">${student.studentName.charAt(0)}</div>`;
+                                                        }
                                                     }} 
                                                 />
                                             ) : (
-                                                <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                                <svg className="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                                             )}
                                         </div>
                                     </td>
@@ -147,7 +150,7 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{student.studentNickname || '-'}</td>
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{student.studentClass}</td>
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{student.dormitory}</td>
-                                    <td className="p-4 text-gray-600 whitespace-nowrap font-mono">{student.studentIdCard}</td>
+                                    <td className="p-4 text-gray-600 whitespace-nowrap font-mono text-sm">{student.studentIdCard}</td>
                                     <td className="p-4 text-center">
                                         <div className="flex justify-center items-center gap-2">
                                             <button 
@@ -195,8 +198,11 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                                                 className="w-full h-full object-cover"
                                                 referrerPolicy="no-referrer"
                                                 onError={(e) => {
-                                                    e.currentTarget.style.display = 'none';
-                                                    e.currentTarget.parentElement?.classList.add('fallback-icon');
+                                                    const target = e.currentTarget;
+                                                    target.style.display = 'none';
+                                                    if (target.parentElement) {
+                                                        target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-lg font-bold text-gray-400">${student.studentName.charAt(0)}</div>`;
+                                                    }
                                                 }} 
                                             />
                                         ) : (

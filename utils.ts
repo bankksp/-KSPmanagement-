@@ -52,7 +52,8 @@ export const formatOnlyTime = (timeStr: string | undefined): string => {
  */
 export const getDriveId = (url: any): string | null => {
     if (!url || typeof url !== 'string') return null;
-    const cleanUrl = url.trim().replace(/[\[\]"']/g, '');
+    // Aggressively clean the URL from quotes, brackets, and escapes
+    const cleanUrl = url.trim().replace(/[\[\]"'\\]/g, '');
     const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
                   cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
     return match ? match[1] : null;
@@ -60,7 +61,7 @@ export const getDriveId = (url: any): string | null => {
 
 /**
  * URL for embedding images or small previews.
- * Uses the 'uc' (User Content) endpoint which is generally more reliable for direct display.
+ * Uses the lh3 endpoint which is often more reliable for direct display than uc?id.
  */
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -70,11 +71,13 @@ export const getDirectDriveImageSrc = (url: string | File | undefined | null): s
     
     const id = getDriveId(url);
     if (id) {
-        return `https://drive.google.com/uc?id=${id}`;
+        // Using lh3.googleusercontent.com for better cross-origin support
+        return `https://lh3.googleusercontent.com/d/${id}`;
     }
     
     // If not a drive link, return as is (could be base64 or other URL)
-    return String(url).trim().replace(/[\[\]"']/g, '');
+    // Clean string from potential JSON artifacts like brackets or escaped quotes
+    return String(url).trim().replace(/[\[\]"\\]/g, '').replace(/^'|'$/g, '');
 };
 
 /**
@@ -123,13 +126,37 @@ export const getDrivePreviewUrl = (url: string | File | undefined | null): strin
 
 export const getFirstImageSource = (source: any): string | null => {
     if (!source) return null;
+    
+    // Handle array directly
     if (Array.isArray(source)) {
         if (source.length === 0) return null;
         return getDirectDriveImageSrc(source[0]);
     }
+    
+    // Handle string (which might be a stringified array or double-quoted JSON from Sheets)
     if (typeof source === 'string') {
-        return getDirectDriveImageSrc(source);
+        let trimmed = source.trim();
+        
+        // Remove leading/trailing quotes if the entire string is wrapped like ""[...]""
+        while (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+            trimmed = trimmed.substring(1, trimmed.length - 1).trim();
+        }
+
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return getDirectDriveImageSrc(parsed[0]);
+                }
+            } catch (e) {
+                // Manual fallback: extract first string between quotes inside brackets
+                const match = trimmed.match(/"([^"]+)"/);
+                if (match) return getDirectDriveImageSrc(match[1]);
+            }
+        }
+        return getDirectDriveImageSrc(trimmed);
     }
+    
     return null;
 };
 
@@ -138,6 +165,10 @@ export const safeParseArray = (input: any): any[] => {
     if (Array.isArray(input)) return input;
     if (typeof input === 'string') {
         let clean = input.trim();
+        // Remove double-quoted artifacts
+        while (clean.startsWith('"') && clean.endsWith('"')) {
+            clean = clean.substring(1, clean.length - 1).trim();
+        }
         if (clean.startsWith('[') && clean.endsWith(']')) {
             try {
                if (clean.includes("'")) {
@@ -147,7 +178,7 @@ export const safeParseArray = (input: any): any[] => {
                if (Array.isArray(parsed)) return parsed;
             } catch(e) {}
         }
-        return [input];
+        return [clean];
     }
     return [];
 };

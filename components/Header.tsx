@@ -25,7 +25,10 @@ const Header: React.FC<HeaderProps> = ({
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
 
-    const userProfileImg = useMemo(() => currentUser ? getFirstImageSource(currentUser.profileImage) : null, [currentUser]);
+    const userProfileImg = useMemo(() => {
+        if (!currentUser) return null;
+        return getFirstImageSource(currentUser.profileImage);
+    }, [currentUser]);
 
     // Click outside handler
     useEffect(() => {
@@ -72,9 +75,21 @@ const Header: React.FC<HeaderProps> = ({
                                 <div className="text-sm font-bold text-gray-800 leading-tight group-hover:text-primary-blue transition-colors">{currentUser.personnelName}</div>
                                 <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">{currentUser.role === 'admin' ? 'ADMIN' : currentUser.position}</div>
                             </div>
-                            <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                            <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden border border-gray-200 relative">
                                 {userProfileImg ? (
-                                    <img src={userProfileImg} alt="User" className="w-full h-full object-cover" />
+                                    <img 
+                                        src={userProfileImg} 
+                                        alt="User" 
+                                        className="w-full h-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                            const target = e.currentTarget;
+                                            target.style.display = 'none';
+                                            if (target.parentElement) {
+                                                target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-sm font-bold text-gray-400">${currentUser.personnelName.charAt(0)}</div>`;
+                                            }
+                                        }}
+                                    />
                                 ) : (
                                     <div className="flex items-center justify-center h-full text-sm font-bold text-gray-400">{currentUser.personnelName.charAt(0)}</div>
                                 )}

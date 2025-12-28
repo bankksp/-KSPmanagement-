@@ -185,6 +185,16 @@ const App: React.FC = () => {
             });
 
             setPersonnel(fetchedPersonnel);
+
+            // Sync currentUser with newest fetched data if applicable
+            if (currentUser) {
+                const updatedMe = fetchedPersonnel.find(p => p.id === currentUser.id);
+                if (updatedMe) {
+                    setCurrentUser(prev => ({ ...prev, ...updatedMe }));
+                    localStorage.setItem('ksp_user', JSON.stringify({ ...currentUser, ...updatedMe }));
+                }
+            }
+
             setStudentAttendance(data.studentAttendance || []);
             setPersonnelAttendance(data.personnelAttendance || []);
             setAcademicPlans(data.academicPlans || []);
@@ -262,7 +272,7 @@ const App: React.FC = () => {
                 setIsLoading(false);
             }
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, currentUser?.id]);
 
     // Check UI busy
     const isUIBusy = useMemo(() => {
@@ -404,7 +414,10 @@ const App: React.FC = () => {
             const finalP = processed.map(fixAdmin);
             if(isEditing) {
                 setPersonnel(prev => prev.map(p => String(p.id) === String(finalP[0].id) ? finalP[0] : p));
-                if(currentUser && String(currentUser.id) === String(finalP[0].id)) setCurrentUser(finalP[0]);
+                if(currentUser && String(currentUser.id) === String(finalP[0].id)) {
+                    setCurrentUser(finalP[0]);
+                    localStorage.setItem('ksp_user', JSON.stringify(finalP[0]));
+                }
             } else setPersonnel(prev => [...prev, ...finalP]);
             handleClosePersonnelModal();
         } catch(e) { console.error(e); alert('Error'); } finally { setIsSaving(false); }
