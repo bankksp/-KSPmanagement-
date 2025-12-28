@@ -92,6 +92,27 @@ export const getDirectDriveImageSrc = (url: string | File | undefined | null): s
     return cleanUrl;
 };
 
+/**
+ * Gets a preview URL for Google Drive documents (like PDFs) suitable for iframes
+ */
+export const getDrivePreviewUrl = (url: string | File | undefined | null): string => {
+    if (!url) return '';
+    if (url instanceof File) {
+        return URL.createObjectURL(url);
+    }
+    if (typeof url !== 'string') return '';
+
+    let cleanUrl = url.trim().replace(/^["'\[]+|["'\]]+$/g, '');
+    
+    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
+                  cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    
+    if (match && match[1]) {
+        return `https://drive.google.com/file/d/${match[1]}/preview`;
+    }
+    return cleanUrl;
+};
+
 export const getFirstImageSource = (source: any): string | null => {
     if (!source) return null;
     if (Array.isArray(source)) {

@@ -50,10 +50,10 @@ const App: React.FC = () => {
     const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); // Desktop
 
     // Report states
-    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     const [reports, setReports] = useState<Report[]>([]);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
     const [editingReport, setEditingReport] = useState<Report | null>(null);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
     // Student states
     const [students, setStudents] = useState<Student[]>([]);
@@ -195,7 +195,7 @@ const App: React.FC = () => {
             setMaintenanceRequests(data.maintenanceRequests || []);
             setPerformanceReports(data.performanceReports || []);
             setSarReports(data.sarReports || []);
-            setDocuments(data.documents || []); 
+            setDocuments(data.generalDocuments || data.documents || []); 
             setServiceRecords(data.serviceRecords || []);
             setConstructionRecords(data.constructionRecords || []); 
             setProjectProposals(data.projectProposals || []); 
@@ -230,7 +230,6 @@ const App: React.FC = () => {
             // SDQ
             if (data.sdqRecords) {
                  const normSDQ = data.sdqRecords.map((r: any) => {
-                     // Parse scores if string
                      if (typeof r.scores === 'string') {
                          try { r.scores = JSON.parse(r.scores); } catch(e) { r.scores = {}; }
                      }
@@ -241,11 +240,8 @@ const App: React.FC = () => {
                 setSdqRecords([]);
             }
 
-            // Nutrition (Mocked backend support for now, or real if implemented)
-            // If backend doesn't return these yet, default to empty/default
             if (data.mealPlans) setMealPlans(data.mealPlans);
             if (data.ingredients) setIngredients(data.ingredients);
-
 
             if (data.settings) {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
@@ -300,9 +296,6 @@ const App: React.FC = () => {
         return () => clearInterval(intervalId);
     }, [fetchData, isUIBusy, isAuthenticated]);
 
-
-    // ... [Previous Save/Delete Handlers kept as is - omitted for brevity but assumed present] ...
-    
     const handleSaveAdminSettings = async (newSettings: Settings, redirect: boolean = true) => {
         setIsSaving(true);
         try {
@@ -322,6 +315,7 @@ const App: React.FC = () => {
             setSettings(response.data);
         } catch (error) { console.error(error); alert('เกิดข้อผิดพลาด'); } finally { setIsSaving(false); }
     };
+
     // Auth Handlers
     const handleLoginSuccess = (user: Personnel) => {
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
@@ -330,12 +324,14 @@ const App: React.FC = () => {
         setIsAuthenticated(true);
         localStorage.setItem('ksp_user', JSON.stringify(user));
     };
+
     const handleSessionLogin = (user: Personnel, rememberMe: boolean) => {
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
         if (normalizeId(user.idCard) === '1469900181659') user.role = 'admin';
         setCurrentUser(user);
         if (rememberMe) localStorage.setItem('ksp_user', JSON.stringify(user));
     };
+
     const handleLogout = () => {
         setCurrentUser(null);
         setIsAuthenticated(false);
@@ -343,12 +339,13 @@ const App: React.FC = () => {
         setCurrentPage('stats');
         setReports([]); setStudents([]); setPersonnel([]);
     };
+
     const handleRegister = async (newPersonnel: Personnel) => {
         await handleSavePersonnel(newPersonnel);
         setIsRegisterModalOpen(false);
     };
 
-    // --- Entity Handlers (Shortened for context fit) ---
+    // --- Entity Handlers ---
     const handleSaveReport = async (report: Report) => { 
         setIsSaving(true);
         try {
@@ -368,8 +365,9 @@ const App: React.FC = () => {
             handleCloseReportModal();
         } catch(e) { console.error(e); alert('Error saving report'); } finally { setIsSaving(false); }
     };
+
     const deleteReports = async (ids: number[]) => { 
-        try { await postToGoogleScript({ action: 'deleteReports', ids }); setReports(prev => prev.filter(r => !ids.includes(r.id))); } catch(e) { console.error(e); alert('Error deleting'); }
+        try { await postToGoogleScript({ action: 'deleteReports', ids }); setReports(prev => prev.filter(r => !ids.map(String).includes(String(r.id)))); } catch(e) { console.error(e); alert('Error deleting'); }
     };
     
     const handleSaveStudent = async (student: Student) => { 
@@ -386,7 +384,8 @@ const App: React.FC = () => {
             handleCloseStudentModal();
         } catch(e) { console.error(e); alert('Error'); } finally { setIsSaving(false); }
     };
-    const deleteStudents = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deleteStudents', ids }); setStudents(prev => prev.filter(s => !ids.includes(s.id))); } catch(e) { alert('Error'); } };
+
+    const deleteStudents = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deleteStudents', ids }); setStudents(prev => prev.filter(s => !ids.map(String).includes(String(s.id)))); } catch(e) { alert('Error'); } };
     
     const handleSavePersonnel = async (person: Personnel) => { 
         setIsSaving(true);
@@ -397,7 +396,6 @@ const App: React.FC = () => {
             const response = await postToGoogleScript({ action, data: apiPayload });
             const saved = response.data;
             let processed = Array.isArray(saved) ? saved : [saved];
-            // Admin logic check
             const fixAdmin = (p: Personnel) => {
                  if(String(p.idCard).replace(/[^0-9]/g, '') === '1469900181659') return {...p, role: 'admin' as const, status: 'approved' as const};
                  if(!p.status) p.status = 'approved';
@@ -411,7 +409,8 @@ const App: React.FC = () => {
             handleClosePersonnelModal();
         } catch(e) { console.error(e); alert('Error'); } finally { setIsSaving(false); }
     };
-    const deletePersonnel = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deletePersonnel', ids }); setPersonnel(prev => prev.filter(p => !ids.includes(p.id))); } catch(e) { alert('Error'); } };
+
+    const deletePersonnel = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deletePersonnel', ids }); setPersonnel(prev => prev.filter(p => !ids.map(String).includes(String(p.id)))); } catch(e) { alert('Error'); } };
 
     const handleSaveAttendance = async (t: any, d: any) => { 
         setIsSaving(true);
@@ -423,6 +422,7 @@ const App: React.FC = () => {
             else setPersonnelAttendance(prev => { const ids = new Set(saved.map((x:any)=>x.id)); return [...prev.filter(r=>!ids.has(r.id)), ...saved]; });
         } catch(e) { alert('Error'); } finally { setIsSaving(false); }
     }; 
+
     const handleSaveAcademicPlan = async (p: AcademicPlan) => { 
         setIsSaving(true);
         try {
@@ -431,30 +431,36 @@ const App: React.FC = () => {
             setAcademicPlans(prev => [...prev, response.data]);
         } catch(e) { alert('Error'); } finally { setIsSaving(false); }
     };
+
     const handleUpdateAcademicPlanStatus = async (id: number, status: PlanStatus, comment?: string) => { 
         setIsSaving(true);
         try {
             await postToGoogleScript({ action: 'updateAcademicPlanStatus', data: { id, status, comment, approverName: currentUser?.personnelName, approvedDate: new Date().toLocaleDateString('th-TH') } });
-            setAcademicPlans(prev => prev.map(p => p.id === id ? { ...p, status, comment } : p));
+            setAcademicPlans(prev => prev.map(p => String(p.id) === String(id) ? { ...p, status, comment } : p));
         } catch(e) { alert('Error'); } finally { setIsSaving(false); }
     };
     
-    const handleGenericSave = async (action: string, data: any, setter: any, isArray: boolean = false) => {
+    const handleGenericSave = async (action: string, data: any, setter: any) => {
         setIsSaving(true);
         try {
             const apiPayload = await prepareDataForApi(data);
             const response = await postToGoogleScript({ action, data: apiPayload });
             const saved = response.data;
             setter((prev: any[]) => {
-                const index = prev.findIndex(item => item.id === saved.id);
+                const index = prev.findIndex(item => String(item.id) === String(saved.id));
                 if (index >= 0) { const n = [...prev]; n[index] = saved; return n; }
                 return [...prev, saved];
             });
             alert('บันทึกเรียบร้อย');
-        } catch(e) { console.error(e); alert('Error'); } finally { setIsSaving(false); }
+        } catch(e) { console.error(e); alert('Error saving: ' + e); } finally { setIsSaving(false); }
     };
+
     const handleGenericDelete = async (action: string, ids: number[], setter: any) => {
-        try { await postToGoogleScript({ action, ids }); setter((prev: any[]) => prev.filter(i => !ids.includes(i.id))); alert('ลบเรียบร้อย'); } catch(e) { alert('Error'); }
+        try { 
+            await postToGoogleScript({ action, ids }); 
+            setter((prev: any[]) => prev.filter(i => !ids.map(String).includes(String(i.id)))); 
+            alert('ลบเรียบร้อย'); 
+        } catch(e) { alert('Error deleting: ' + e); }
     };
 
     // Helper functions for modal toggles
@@ -475,7 +481,6 @@ const App: React.FC = () => {
     const handleViewPersonnel = (p: Personnel) => setViewingPersonnel(p);
     const handleCloseViewPersonnelModal = () => setViewingPersonnel(null);
     const handleEditPersonnel = (p: Personnel) => { setEditingPersonnel(p); setIsPersonnelModalOpen(true); };
-
 
     // Render Main Content based on Page
     const renderPage = () => {
@@ -831,7 +836,6 @@ const App: React.FC = () => {
                 </main>
             </div>
 
-            {/* Modals remain the same */}
             <LoginModal 
                 isOpen={isLoginModalOpen}
                 onClose={() => setIsLoginModalOpen(false)}
@@ -844,11 +848,11 @@ const App: React.FC = () => {
             />
 
             <RegisterModal 
-                isOpen={isRegisterModalOpen}
-                onClose={() => setIsRegisterModalOpen(false)}
-                onRegister={handleRegister}
-                positions={settings.positions}
-                isSaving={isSaving}
+                isOpen={isRegisterModalOpen} 
+                onClose={() => setIsRegisterModalOpen(false)} 
+                onRegister={handleRegister} 
+                positions={settings.positions} 
+                isSaving={isSaving} 
             />
 
             {isReportModalOpen && (

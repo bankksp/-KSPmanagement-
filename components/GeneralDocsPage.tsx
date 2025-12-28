@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Document, Personnel, DocumentType, DocumentStatus, Endorsement } from '../types';
-import { getDirectDriveImageSrc, getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate, toThaiNumerals, safeParseArray, formatOnlyTime } from '../utils';
+import { getDirectDriveImageSrc, getDrivePreviewUrl, getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate, toThaiNumerals, safeParseArray, formatOnlyTime } from '../utils';
 
 const sarabanMenus = [
   { title: 'หนังสือรับ', items: [ { id: 'incoming_list', label: 'ทะเบียนหนังสือรับ', icon: '📂' }, { id: 'incoming_new', label: 'ลงทะเบียนรับใหม่', icon: '🆕' } ] },
@@ -23,8 +23,9 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
 }) => {
     // สิทธิ์เฉพาะ Admin หรือ ผู้ได้รับมอบหมายงานสารบัญ (isSarabanAdmin)
     const isStaff = currentUser.role === 'admin' || currentUser.isSarabanAdmin === true; 
+    const isAdmin = currentUser.role === 'admin';
 
-    const [activeTab, setActiveTab] = useState<'incoming' | 'orders' | 'outgoing' | 'inbox' | 'dashboard'>('incoming');
+    const [activeTab, setActiveTab] = useState<DocumentType | 'inbox' | 'dashboard'>('incoming');
     const [subPage, setSubPage] = useState<string>('incoming_list');
     
     // Modals
@@ -42,14 +43,18 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     const [isDrawing, setIsDrawing] = useState(false);
     const [endorseComment, setEndorseComment] = useState('ทราบ / ดำเนินการตามเสนอ');
     const [delegateToId, setDelegateToId] = useState<number | null>(null);
-    const [delegateName, setDelegateName] = useState<string>(''); // เก็บชื่อผู้ถูกมอบหมาย
+    const [delegateName, setDelegateName] = useState<string>(''); 
     const [personSearch, setPersonSearch] = useState('');
     const [placedX, setPlacedX] = useState<number>(70); 
     const [placedY, setPlacedY] = useState<number>(80);
     const [isSettingPosition, setIsSettingPosition] = useState(false);
-    const [endorseScale, setEndorseScale] = useState<number>(1.0); // ขนาดเกษียนหนังสือใน Modal
+    const [endorseScale, setEndorseScale] = useState<number>(1.0); 
 
-    const myInboxDocs = useMemo(() => documents.filter(d => d.recipients.includes(currentUser.id)).sort((a, b) => b.id - a.id), [documents, currentUser.id]);
+    const myInboxDocs = useMemo(() => documents.filter(d => {
+        const recipients = safeParseArray(d.recipients);
+        return recipients.includes(currentUser.id) || recipients.includes(Number(currentUser.id));
+    }).sort((a, b) => b.id - a.id), [documents, currentUser.id]);
+
     const myTasks = useMemo(() => {
         const directorTasks = (currentUser.role === 'admin') ? documents.filter(d => d.status === 'proposed') : [];
         const assignedTasks = documents.filter(d => d.assignedTo === currentUser.id && d.status === 'delegated');
@@ -61,18 +66,39 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         return personnel.filter(p => `${p.personnelTitle}${p.personnelName}`.includes(personSearch) || p.position.includes(personSearch)).slice(0, 10);
     }, [personnel, personSearch]);
 
+    // Helper to render Thai Status Label
+    const getStatusLabelThai = (status: DocumentStatus) => {
+        switch (status) {
+            case 'proposed': return 'รอเสนอพิจารณา';
+            case 'delegated': return 'มอบหมายงานแล้ว';
+            case 'endorsed': return 'เกษียน/ลงนามแล้ว';
+            case 'distributed': return 'แจกจ่ายแล้ว';
+            case 'draft': return 'ฉบับร่าง';
+            default: return status;
+        }
+    };
+
+    const getStatusBadgeClass = (status: DocumentStatus) => {
+        switch (status) {
+            case 'proposed': return 'bg-amber-100 text-amber-700 border-amber-200';
+            case 'delegated': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+            case 'endorsed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            case 'distributed': return 'bg-blue-100 text-blue-700 border-blue-200';
+            default: return 'bg-gray-100 text-gray-700 border-gray-200';
+        }
+    };
+
     const handleSubNav = (id: string) => {
         if (id.endsWith('_new') && !isStaff) {
-            alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้ เฉพาะผู้รับผิดชอบงานสารบัญหรือผู้ดูแลระบบเท่านั้น');
+            alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้ เฉพาะผู้ดูแลระบบหรือแอดมินงานสารบัญเท่านั้น');
             return;
         }
 
         setSubPage(id);
-        if (id.includes('incoming')) setActiveTab('incoming');
-        else if (id.includes('order')) setActiveTab('orders');
-        else if (id.includes('outgoing')) setActiveTab('outgoing');
+        const type = id.split('_')[0] as DocumentType;
+        setActiveTab(type);
         
-        if (id.endsWith('_new')) handleOpenEdit(id.split('_')[0] as DocumentType);
+        if (id.endsWith('_new')) handleOpenEdit(type);
     };
 
     const handleOpenEdit = (type: DocumentType, doc?: Document) => {
@@ -108,7 +134,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 totalPages: 1,
                 signatoryPage: 1,
                 note: '',
-                stampScale: 1.0 // Default scale for stamp
+                stampScale: 1.0 
             });
         }
         setIsEditModalOpen(true);
@@ -175,7 +201,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             assignedName: delegateName 
         };
 
-        // เพิ่ม ID ของผู้ลงนามเข้าในรายชื่อผู้เกี่ยวข้อง (recipients) เพื่อให้แสดงผลใน "หนังสือถึงฉัน"
         const currentRecipients = safeParseArray(doc.recipients);
         const updatedRecipients = Array.from(new Set([...currentRecipients, currentUser.id]));
 
@@ -191,6 +216,12 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         setIsSignModalOpen(false);
     };
 
+    const handleDeleteDoc = (id: any) => {
+        if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลหนังสือฉบับนี้? การลบไม่สามารถเรียกคืนได้')) {
+            onDelete([Number(id)]);
+        }
+    };
+
     const zoomIn = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(prev => Math.min(prev + 0.2, 3.0)); };
     const zoomOut = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(prev => Math.max(prev - 0.2, 0.2)); };
     const resetZoom = (e: React.MouseEvent) => { e.stopPropagation(); setZoomLevel(1.0); };
@@ -199,7 +230,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
     const startDrawing = (e: any) => { const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext('2d'); if (!ctx) return; setIsDrawing(true); const rect = canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; ctx.beginPath(); ctx.strokeStyle = '#0000FF'; ctx.lineWidth = 2; ctx.moveTo(clientX - rect.left, clientY - rect.top); };
     const draw = (e: any) => { if (!isDrawing || !canvasRef.current) return; const ctx = canvasRef.current.getContext('2d'); if (!ctx) return; const rect = canvasRef.current.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); e.preventDefault(); };
 
-    // --- Formal Stamp Component (BLUE 16pt) ---
     const FormalStamp: React.FC<{ doc: Document; previewScale?: number }> = ({ doc, previewScale = 1.0 }) => {
         if (doc.type !== 'incoming' || !doc.showStamp) return null;
         const cleanTime = formatOnlyTime(doc.receiveTime);
@@ -243,11 +273,34 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
         onDocClick?: (e: any) => void; 
         isInteractive?: boolean; 
         scale?: number;
-        newEndorsement?: Partial<Endorsement> // For real-time placement feedback
+        newEndorsement?: Partial<Endorsement> 
     }> = ({ doc, endorsements, onDocClick, isInteractive, scale = 1.0, newEndorsement }) => {
-        const fileUrl = useMemo(() => doc.file && doc.file.length > 0 ? getDirectDriveImageSrc(doc.file[0]) : null, [doc.file]);
-        const isImage = fileUrl && (fileUrl.includes('thumbnail') || fileUrl.startsWith('data:image'));
+        const fileObj = doc.file && doc.file.length > 0 ? doc.file[0] : null;
+        
+        const isPdf = useMemo(() => {
+            if (!fileObj) return false;
+            if (fileObj instanceof File) return fileObj.type === 'application/pdf';
+            const urlStr = String(fileObj).toLowerCase();
+            return urlStr.includes('.pdf') || (urlStr.includes('drive.google.com') && !urlStr.includes('thumbnail'));
+        }, [fileObj]);
+
+        const fileUrl = useMemo(() => {
+            if (!fileObj) return null;
+            if (isPdf) return getDrivePreviewUrl(fileObj);
+            return getDirectDriveImageSrc(fileObj);
+        }, [fileObj, isPdf]);
+
+        const isImage = !isPdf && fileUrl;
         const safeEndorsements = useMemo(() => safeParseArray(endorsements), [endorsements]);
+
+        // Effect to clean up blob URLs
+        useEffect(() => {
+            return () => {
+                if (fileUrl && fileUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(fileUrl);
+                }
+            };
+        }, [fileUrl]);
 
         return (
             <div 
@@ -260,8 +313,8 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                 onClick={onDocClick}
             >
                 {isImage ? (
-                    <img src={fileUrl} className="absolute inset-0 w-full h-full object-contain z-0" alt="doc-bg" />
-                ) : fileUrl ? (
+                    <img src={fileUrl!} className="absolute inset-0 w-full h-full object-contain z-0" alt="doc-bg" />
+                ) : isPdf ? (
                     <div className="absolute inset-0 w-full h-full bg-white z-0">
                         <iframe src={`${fileUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-none" title="pdf-preview" />
                     </div>
@@ -275,7 +328,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                     <div className="w-full h-full relative pointer-events-auto">
                         <FormalStamp doc={doc} />
                         
-                        {/* Render existing endorsements */}
                         {safeEndorsements.map((end: Endorsement, idx: number) => (
                             <div 
                                 key={idx}
@@ -302,7 +354,6 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                             </div>
                         ))}
 
-                        {/* Rendering preview for new endorsement during placement */}
                         {newEndorsement && (
                              <div 
                              className="absolute pointer-events-none transition-all duration-100 opacity-50 ring-4 ring-orange-500 rounded-2xl"
@@ -329,6 +380,12 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             </div>
         );
     };
+
+    const filteredDocsToDisplay = useMemo(() => {
+        if (activeTab === 'inbox') return myInboxDocs;
+        if (activeTab === 'dashboard') return myTasks;
+        return documents.filter(d => d.type === activeTab).sort((a, b) => b.id - a.id);
+    }, [documents, activeTab, myInboxDocs, myTasks]);
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 min-h-[80vh] font-sarabun">
@@ -366,7 +423,9 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
             <main className="flex-grow">
                 <div className="bg-white p-6 rounded-2xl shadow-xl border border-indigo-50 min-h-[70vh]">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-black text-indigo-900 tracking-tight">{activeTab === 'dashboard' ? 'รายการงานรอลงนาม' : activeTab === 'inbox' ? 'หนังสือถึงฉัน' : 'ทะเบียนข้อมูลสารบัญ'}</h2>
+                        <h2 className="text-2xl font-black text-indigo-900 tracking-tight">
+                            {activeTab === 'dashboard' ? 'รายการงานรอลงนาม' : activeTab === 'inbox' ? 'หนังสือถึงฉัน' : `ทะเบียนข้อมูล${activeTab === 'incoming' ? 'หนังสือรับ' : activeTab === 'order' ? 'คำสั่ง' : 'หนังสือส่ง'}`}
+                        </h2>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left border-collapse">
@@ -379,24 +438,31 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {documents.filter(d => activeTab === 'inbox' ? myInboxDocs.includes(d) : activeTab === 'dashboard' ? myTasks.includes(d) : d.type === activeTab).map(doc => (
-                                    <tr key={doc.id} className="hover:bg-indigo-50/30 transition-all">
-                                        <td className="p-4 text-center">
-                                            <div className="font-bold text-indigo-800">{doc.receiveNo || '-'}</div>
-                                            <div className="text-[10px] text-gray-500">{formatThaiDate(doc.date)}</div>
-                                        </td>
-                                        <td className="p-4 font-medium text-gray-900">{doc.title}</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${doc.status === 'endorsed' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{doc.status}</span>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center gap-2">
-                                                <button onClick={() => handleOpenView(doc)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
-                                                {myTasks.includes(doc) && <button onClick={() => handleOpenSign(doc)} className="p-2 bg-orange-500 text-white rounded-lg shadow-md"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {filteredDocsToDisplay.length === 0 ? (
+                                    <tr><td colSpan={4} className="p-12 text-center text-gray-400">ไม่พบรายการข้อมูลในหมวดหมู่นี้</td></tr>
+                                ) : (
+                                    filteredDocsToDisplay.map(doc => (
+                                        <tr key={doc.id} className="hover:bg-indigo-50/30 transition-all">
+                                            <td className="p-4 text-center">
+                                                <div className="font-bold text-indigo-800">{doc.receiveNo || '-'}</div>
+                                                <div className="text-[10px] text-gray-500">{formatThaiDate(doc.date)}</div>
+                                            </td>
+                                            <td className="p-4 font-medium text-gray-900">{doc.title}</td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(doc.status)}`}>
+                                                    {getStatusLabelThai(doc.status)}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <div className="flex justify-center gap-1.5">
+                                                    <button onClick={() => handleOpenView(doc)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="ดูรายละเอียด"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>
+                                                    {myTasks.includes(doc) && <button onClick={() => handleOpenSign(doc)} className="p-2 bg-orange-500 text-white rounded-lg shadow-md" title="เกษียนหนังสือ"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>}
+                                                    {isStaff && <button onClick={() => handleDeleteDoc(doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="ลบข้อมูลหนังสือ (สำหรับ Admin/งานสารบัญ)"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -522,7 +588,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                             signerName: `${currentUser.personnelTitle}${currentUser.personnelName}`,
                                             signerPosition: currentUser.position,
                                             scale: endorseScale,
-                                            assignedName: delegateName // แสดงชื่อผู้รับมอบหมายในพรีวิวด้วย
+                                            assignedName: delegateName 
                                         } : undefined}
                                     />
                                 </div>
@@ -586,7 +652,7 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                                         </div>
                                     </div>
 
-                                    <button onClick={handleSaveSignature} disabled={isSaving} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-xl hover:bg-indigo-700 transform active:scale-95 transition-all">{isSaving ? 'กำลังบันทึกข้อมูล...' : '✅ เกษียนทราบ / จบเรื่อง'}</button>
+                                    <button onClick={handleSaveSignature} disabled={isSaving} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-xl hover:bg-indigo-700 transform active:scale-95 transition-all">{isSaving ? 'กำลังบันทึก...' : '✅ เกษียนทราบ / จบเรื่อง'}</button>
                                 </div>
                             </div>
                         </div>

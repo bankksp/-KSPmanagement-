@@ -1,6 +1,6 @@
 
 /**
- * KSP Management System - Backend Script (Version 2025.16 - Full Auth & Notification)
+ * KSP Management System - Backend Script (Version 2025.17 - Full Router Implementation)
  */
 
 const FOLDER_NAME = "KSP_Management_System_Uploads"; 
@@ -101,57 +101,21 @@ function doPost(e) {
       return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
     }
 
-    // --- 2. Generic Actions with Integrated Notifications ---
+    // --- 2. Generic Actions Router ---
 
     if (action === 'getAllData') {
       const allData = {};
       for (const key in SHEET_NAMES) {
         if (key === 'OTP_STORE') continue;
         const sheetName = SHEET_NAMES[key];
-        allData[sheetName.charAt(0).toLowerCase() + sheetName.slice(1)] = readSheet(getSheet(sheetName));
+        const keyName = sheetName.charAt(0).toLowerCase() + sheetName.slice(1);
+        allData[keyName] = readSheet(getSheet(sheetName));
       }
       const settingsList = readSheet(getSheet(SHEET_NAMES.SETTINGS));
       allData.settings = settingsList.length > 0 ? settingsList[0] : null;
       return responseJSON({ status: 'success', data: allData });
     }
 
-    // Save Handlers
-    const saveMap = {
-      'addReport': SHEET_NAMES.REPORTS, 'updateReport': SHEET_NAMES.REPORTS,
-      'addPersonnel': SHEET_NAMES.PERSONNEL, 'updatePersonnel': SHEET_NAMES.PERSONNEL,
-      'saveMaintenanceRequest': SHEET_NAMES.MAINTENANCE_REQUESTS,
-      'saveSupplyRequest': SHEET_NAMES.SUPPLY_REQUESTS,
-      'saveDocument': SHEET_NAMES.DOCUMENTS,
-      'updateAcademicPlanStatus': SHEET_NAMES.ACADEMIC_PLANS
-    };
-
-    // This block handles specific notifications for save actions
-    if (saveMap[action]) {
-      const result = saveRecord(getSheet(saveMap[action]), data, uploadFolder);
-      
-      // Notify based on action
-      if (action === 'addReport') {
-        sendNotificationToRole('admin', "มีรายงานสถานะเรือนนอนใหม่", `โดย: ${data.reporterName}\nเรือน: ${data.dormitory}\nมา: ${data.presentCount} ป่วย: ${data.sickCount}`);
-      } else if (action === 'addPersonnel') {
-        sendNotificationToRole('admin', "มีการลงทะเบียนบุคลากรใหม่", `ชื่อ: ${data.personnelName}\nอีเมล: ${data.email}\nตำแหน่ง: ${data.position}`);
-      } else if (action === 'saveMaintenanceRequest' && !data.id) {
-        sendNotificationToRole('admin', "แจ้งซ่อมพัสดุใหม่", `รายการ: ${data.itemName}\nสถานที่: ${data.location}\nผู้แจ้ง: ${data.requesterName}`);
-      } else if (action === 'saveDocument') {
-        // Notify all recipients
-        const recipientsIds = data.recipients || [];
-        const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
-        recipientsIds.forEach(rid => {
-          const person = personnel.find(p => p.id === rid);
-          if (person && person.email) {
-            sendEmail(person.email, "คุณมีหนังสือ/คำสั่งใหม่", `เรื่อง: ${data.title}\nจาก: ${data.from}\nกรุณาเข้าสู่ระบบเพื่อตรวจสอบ`);
-          }
-        });
-      }
-      
-      return responseJSON({ status: 'success', data: result });
-    }
-
-    // Fallback for standard save/delete (restore full logic from Version 2025.15)
     return routeGenericAction(action, request, uploadFolder);
 
   } catch (error) {
@@ -161,9 +125,101 @@ function doPost(e) {
   }
 }
 
-/**
- * Sends notification to everyone with a specific role
- */
+function routeGenericAction(action, request, uploadFolder) {
+  const data = request.data;
+  const ids = request.ids;
+  
+  // Mapping of common actions to sheet names
+  const actionToSheetMap = {
+    // Save/Update
+    'addReport': SHEET_NAMES.REPORTS, 'updateReport': SHEET_NAMES.REPORTS,
+    'addPersonnel': SHEET_NAMES.PERSONNEL, 'updatePersonnel': SHEET_NAMES.PERSONNEL,
+    'addStudent': SHEET_NAMES.STUDENTS, 'updateStudent': SHEET_NAMES.STUDENTS,
+    'saveAcademicPlan': SHEET_NAMES.ACADEMIC_PLANS,
+    'updateAcademicPlanStatus': SHEET_NAMES.ACADEMIC_PLANS,
+    'saveServiceRecord': SHEET_NAMES.SERVICE_RECORDS,
+    'saveSupplyItem': SHEET_NAMES.SUPPLY_ITEMS,
+    'saveSupplyRequest': SHEET_NAMES.SUPPLY_REQUESTS,
+    'updateSupplyRequestStatus': SHEET_NAMES.SUPPLY_REQUESTS,
+    'saveDurableGood': SHEET_NAMES.DURABLE_GOODS,
+    'saveCertificateRequest': SHEET_NAMES.CERTIFICATE_REQUESTS,
+    'saveMaintenanceRequest': SHEET_NAMES.MAINTENANCE_REQUESTS,
+    'savePerformanceReport': SHEET_NAMES.PERFORMANCE_REPORTS,
+    'saveSARReport': SHEET_NAMES.SAR_REPORTS,
+    'saveDocument': SHEET_NAMES.DOCUMENTS,
+    'saveConstructionRecord': SHEET_NAMES.CONSTRUCTION_RECORDS,
+    'saveProjectProposal': SHEET_NAMES.PROJECT_PROPOSALS,
+    'saveHomeVisit': SHEET_NAMES.HOME_VISITS,
+    'saveSDQRecord': SHEET_NAMES.SDQ_RECORDS,
+    'saveMealPlan': SHEET_NAMES.MEAL_PLANS,
+    'saveIngredient': SHEET_NAMES.INGREDIENTS,
+    'updateSettings': SHEET_NAMES.SETTINGS,
+    
+    // Delete
+    'deleteReports': SHEET_NAMES.REPORTS,
+    'deleteStudents': SHEET_NAMES.STUDENTS,
+    'deletePersonnel': SHEET_NAMES.PERSONNEL,
+    'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
+    'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
+    'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
+    'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
+    'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
+    'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
+    'deleteSARReports': SHEET_NAMES.SAR_REPORTS,
+    'deleteDocuments': SHEET_NAMES.DOCUMENTS,
+    'deleteConstructionRecords': SHEET_NAMES.CONSTRUCTION_RECORDS,
+    'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
+    'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS,
+    'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
+    'deleteIngredients': SHEET_NAMES.INGREDIENTS
+  };
+
+  const sheetName = actionToSheetMap[action];
+  if (!sheetName) return responseJSON({ status: 'error', message: 'Unknown action: ' + action });
+
+  const sheet = getSheet(sheetName);
+
+  // Handle Deletion
+  if (action.startsWith('delete')) {
+    if (!ids || !Array.isArray(ids)) return responseJSON({ status: 'error', message: 'Missing IDs for deletion' });
+    deleteRecords(sheet, ids);
+    return responseJSON({ status: 'success' });
+  }
+
+  // Handle Saving
+  if (action === 'updateSettings') {
+    const result = saveRecord(sheet, data, uploadFolder);
+    return responseJSON({ status: 'success', data: result });
+  }
+
+  if (action.startsWith('add') || action.startsWith('update') || action.startsWith('save')) {
+    const records = Array.isArray(data) ? data : [data];
+    const results = records.map(r => saveRecord(sheet, r, uploadFolder));
+    
+    // Specialized Notifications
+    if (action === 'addReport') {
+      sendNotificationToRole('admin', "มีรายงานสถานะเรือนนอนใหม่", `โดย: ${data.reporterName}\nเรือน: ${data.dormitory}\nมา: ${data.presentCount} ป่วย: ${data.sickCount}`);
+    } else if (action === 'addPersonnel') {
+      sendNotificationToRole('admin', "มีการลงทะเบียนบุคลากรใหม่", `ชื่อ: ${data.personnelName}\nอีเมล: ${data.email}\nตำแหน่ง: ${data.position}`);
+    } else if (action === 'saveMaintenanceRequest' && !data.id) {
+      sendNotificationToRole('admin', "แจ้งซ่อมพัสดุใหม่", `รายการ: ${data.itemName}\nสถานที่: ${data.location}\nผู้แจ้ง: ${data.requesterName}`);
+    } else if (action === 'saveDocument') {
+      const recipientsIds = data.recipients || [];
+      const personnelList = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
+      recipientsIds.forEach(rid => {
+        const person = personnelList.find(p => String(p.id) === String(rid));
+        if (person && person.email) {
+          sendEmail(person.email, "คุณมีหนังสือ/คำสั่งใหม่", `เรื่อง: ${data.title}\nจาก: ${data.from}\nกรุณาเข้าสู่ระบบเพื่อตรวจสอบ`);
+        }
+      });
+    }
+
+    return responseJSON({ status: 'success', data: Array.isArray(data) ? results : results[0] });
+  }
+
+  return responseJSON({ status: 'error', message: 'Action not fully implemented' });
+}
+
 function sendNotificationToRole(role, title, body) {
   const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
   const emails = personnel.filter(p => p.role === role).map(p => p.email).filter(e => e && e.includes('@'));
@@ -172,9 +228,6 @@ function sendNotificationToRole(role, title, body) {
   }
 }
 
-/**
- * Helper to send formatted emails
- */
 function sendEmail(to, subject, bodyText) {
   try {
     const htmlBody = `
@@ -189,12 +242,16 @@ function sendEmail(to, subject, bodyText) {
   } catch(e) { console.error("Email fail", e); }
 }
 
-// ... Utility functions (getSheet, readSheet, saveRecord etc. from Version 2025.15 implemented here) ...
-
 function getSheet(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(name);
-  if (!sheet) sheet = ss.insertSheet(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    // Add default headers if creating new
+    if (name === SHEET_NAMES.SETTINGS) {
+       sheet.appendRow(["schoolName", "schoolLogo", "themeColors", "dormitories", "positions", "academicYears", "studentClasses", "studentClassrooms", "googleScriptUrl", "adminPassword"]);
+    }
+  }
   return sheet;
 }
 
@@ -205,28 +262,75 @@ function readSheet(sheet) {
   const headers = data.shift();
   return data.map(row => {
     const obj = {};
-    headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
+    headers.forEach((h, i) => { 
+      if (h) {
+        let val = row[i];
+        if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+          try { val = JSON.parse(val); } catch(e) {}
+        }
+        obj[h] = val;
+      }
+    });
     return obj;
   });
 }
 
 function saveRecord(sheet, dataObj, uploadFolder) {
+  // Handle file uploads
+  for (const key in dataObj) {
+    const val = dataObj[key];
+    if (Array.isArray(val)) {
+      dataObj[key] = val.map(item => {
+        if (item && item.data && item.filename) {
+          const blob = Utilities.newBlob(Utilities.base64Decode(item.data), item.mimeType, item.filename);
+          const file = uploadFolder.createFile(blob);
+          return file.getUrl();
+        }
+        return item;
+      });
+    } else if (val && val.data && val.filename) {
+       const blob = Utilities.newBlob(Utilities.base64Decode(val.data), val.mimeType, val.filename);
+       const file = uploadFolder.createFile(blob);
+       dataObj[key] = file.getUrl();
+    }
+  }
+
   if (sheet.getLastRow() === 0) sheet.appendRow(Object.keys(dataObj));
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const idIndex = headers.indexOf('id');
   let rowIndex = -1;
+  
   if (sheet.getLastRow() > 1 && idIndex !== -1) {
     const ids = sheet.getRange(2, idIndex + 1, sheet.getLastRow() - 1, 1).getValues().flat();
-    const matchIdx = ids.indexOf(dataObj.id);
+    const matchIdx = ids.map(String).indexOf(String(dataObj.id));
     if (matchIdx !== -1) rowIndex = matchIdx + 2;
+  } else if (sheet.getName() === SHEET_NAMES.SETTINGS && sheet.getLastRow() > 1) {
+    rowIndex = 2; // Always update second row for settings
   }
+
   const rowData = headers.map(h => {
     const val = dataObj[h];
     return (val !== null && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? '' : val);
   });
+
   if (rowIndex > 0) sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
   else sheet.appendRow(rowData);
   return dataObj;
+}
+
+function deleteRecords(sheet, ids) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idIndex = headers.indexOf('id');
+  if (idIndex === -1) return;
+
+  const data = sheet.getDataRange().getValues();
+  const idsToMatch = ids.map(String);
+  
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (idsToMatch.includes(String(data[i][idIndex]))) {
+      sheet.deleteRow(i + 1);
+    }
+  }
 }
 
 function getUploadFolder() {
@@ -236,9 +340,4 @@ function getUploadFolder() {
 
 function responseJSON(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}
-
-function routeGenericAction(action, request, uploadFolder) {
-  // Restore all cases from 2025.15 version to ensure no "Unknown action" error
-  return { status: 'success' }; // Placeholder for brevity
 }
