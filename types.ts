@@ -411,6 +411,7 @@ export interface LeaveRecord {
     approverName?: string;
     approvedDate?: string;
     comment?: string;
+    files?: (File | string)[];
 }
 
 export type Page = 

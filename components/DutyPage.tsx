@@ -30,6 +30,9 @@ const DutyPage: React.FC<DutyPageProps> = ({
     const [isLocating, setIsLocating] = useState(false);
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
     
+    // Local settings state to prevent constant API calls
+    const [localSettings, setLocalSettings] = useState<Settings>(settings);
+    
     // Check-in location state
     const [currentGeo, setCurrentGeo] = useState<{ lat: number, lng: number, distance: number } | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -40,12 +43,16 @@ const DutyPage: React.FC<DutyPageProps> = ({
     const [filterPos, setFilterPos] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const isAdmin = currentUser.role === 'admin';
+
+    // Sync local settings when props change
+    useEffect(() => {
+        setLocalSettings(settings);
+    }, [settings]);
 
     // --- Effect to attach stream when video element is ready ---
     useEffect(() => {
@@ -74,7 +81,6 @@ const DutyPage: React.FC<DutyPageProps> = ({
         }).sort((a, b) => b.id - a.id);
     }, [records, searchName, filterPos, startDate, endDate]);
 
-    // Haversine formula
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
         const R = 6371e3; 
         const φ1 = lat1 * Math.PI / 180;
@@ -111,22 +117,16 @@ const DutyPage: React.FC<DutyPageProps> = ({
             const canvas = canvasRef.current;
             const video = videoRef.current;
             const context = canvas.getContext('2d');
-            
             if (context) {
-                // Ensure canvas size matches video frame
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
-                
-                // Mirror effect for capture
                 context.save();
                 context.translate(canvas.width, 0);
                 context.scale(-1, 1);
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 context.restore();
-                
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                setCapturedImage(dataUrl);
-                stopCamera(); // Close camera after capture to save resource
+                setCapturedImage(canvas.toDataURL('image/jpeg', 0.7));
+                stopCamera();
             }
         }
     };
@@ -149,93 +149,53 @@ const DutyPage: React.FC<DutyPageProps> = ({
 
     const handleConfirmCheckIn = () => {
         if (!currentGeo) { alert('กรุณายืนยันพิกัด GPS ก่อนบันทึก'); return; }
-        
         setIsProcessing(true);
+        const status = currentGeo.distance <= (settings.checkInRadius || 200) ? 'within_range' : 'out_of_range';
         
-        // Final verification of image
-        let finalImage = capturedImage || '';
-        
-        // If camera is still active but not captured, try to capture once
-        if (cameraActive && !capturedImage && videoRef.current && canvasRef.current) {
-            const canvas = canvasRef.current;
-            const video = videoRef.current;
-            const context = canvas.getContext('2d');
-            if (context) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.save();
-                context.translate(canvas.width, 0);
-                context.scale(-1, 1);
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                context.restore();
-                finalImage = canvas.toDataURL('image/jpeg', 0.7);
-            }
+        if (status === 'out_of_range' && !window.confirm(`อยู่นอกระยะ (${currentGeo.distance} ม.) ยืนยันลงชื่อหรือไม่?`)) {
+            setIsProcessing(false); return;
         }
-
-        setTimeout(() => {
-            const status = currentGeo.distance <= (settings.checkInRadius || 200) ? 'within_range' : 'out_of_range';
-            if (status === 'out_of_range' && !window.confirm(`อยู่นอกระยะ (${currentGeo.distance} ม.) ยืนยันหรือไม่?`)) {
-                setIsProcessing(false); return;
-            }
-            
-            const now = new Date();
-            onSave({
-                id: Date.now(),
-                date: getCurrentThaiDate(),
-                time: now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'),
-                personnelId: currentUser.id,
-                personnelName: `${currentUser.personnelTitle}${currentUser.personnelName}`,
-                type: checkInType,
-                latitude: currentGeo.lat,
-                longitude: currentGeo.lng,
-                distance: currentGeo.distance,
-                image: finalImage,
-                status: status
-            });
-            
-            alert('บันทึกเวลาปฏิบัติหน้าที่สำเร็จ');
-            setIsProcessing(false); 
-            setCapturedImage(null); 
-            setCurrentGeo(null); 
-            stopCamera();
-        }, 800);
-    };
-
-    // --- Export Functions ---
-    const exportExcel = () => {
-        setIsExportMenuOpen(false);
-        const header = ['วันที่', 'เวลา', 'ชื่อ-นามสกุล', 'ประเภท', 'ระยะห่าง(ม.)', 'สถานะ'];
-        const rows = filteredRecords.map(r => [
-            `"${formatThaiDate(r.date)}"`, 
-            `"${formatOnlyTime(r.time)} น."`, 
-            `"${r.personnelName}"`, 
-            `"${r.type === 'check_in' ? 'เริ่มปฏิบัติหน้าที่' : 'สิ้นสุดหน้าที่'}"`,
-            r.distance,
-            `"${r.status === 'within_range' ? 'ในเขต' : 'นอกเขต'}"`
-        ]);
-        let csv = "data:text/csv;charset=utf-8,\uFEFF" + header.join(",") + "\n";
-        rows.forEach(row => { csv += row.join(",") + "\n"; });
-        const link = document.createElement("a");
-        link.setAttribute("href", encodeURI(csv));
-        link.setAttribute("download", `duty_report_${getCurrentThaiDate().replace(/\//g,'-')}.csv`);
-        link.click();
+        
+        const now = new Date();
+        onSave({
+            id: Date.now(),
+            date: getCurrentThaiDate(),
+            time: now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'),
+            personnelId: currentUser.id,
+            personnelName: `${currentUser.personnelTitle}${currentUser.personnelName}`,
+            type: checkInType,
+            latitude: currentGeo.lat,
+            longitude: currentGeo.lng,
+            distance: currentGeo.distance,
+            image: capturedImage || '',
+            status: status
+        });
+        
+        alert('บันทึกเวลาปฏิบัติหน้าที่สำเร็จ');
+        setIsProcessing(false); 
+        setCapturedImage(null); 
+        setCurrentGeo(null); 
+        stopCamera();
     };
 
     const handleAdminGetLocation = () => {
         if (!navigator.geolocation) return;
         setIsLocating(true);
         navigator.geolocation.getCurrentPosition((pos) => {
-            onSaveSettings({ ...settings, schoolLat: pos.coords.latitude, schoolLng: pos.coords.longitude });
+            setLocalSettings(prev => ({ ...prev, schoolLat: pos.coords.latitude, schoolLng: pos.coords.longitude }));
             setIsLocating(false);
-            alert('อัปเดตพิกัดโรงเรียนสำเร็จ');
+            alert('ดึงพิกัดสำเร็จ อย่าลืมกดปุ่ม "บันทึกการตั้งค่า" ด้านล่าง');
         }, () => setIsLocating(false));
+    };
+
+    const handleSaveLocalSettings = () => {
+        onSaveSettings(localSettings);
     };
 
     useEffect(() => { return () => stopCamera(); }, []);
 
     return (
         <div className="space-y-6 animate-fade-in font-sarabun pb-10">
-            {/* Tabs */}
             <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 no-print border border-gray-100">
                 <button onClick={() => setActiveTab('checkin')} className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'checkin' ? 'bg-primary-blue text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>
                     บันทึกปฏิบัติหน้าที่
@@ -250,7 +210,6 @@ const DutyPage: React.FC<DutyPageProps> = ({
                 )}
             </div>
 
-            {/* --- CHECK-IN TAB --- */}
             {activeTab === 'checkin' && (
                 <div className="max-w-md mx-auto space-y-6">
                     <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-white text-center relative overflow-hidden">
@@ -258,7 +217,6 @@ const DutyPage: React.FC<DutyPageProps> = ({
                         <h2 className="text-2xl font-black text-navy mb-1">ลงเวลาปฏิบัติหน้าที่</h2>
                         <p className="text-[10px] text-gray-400 mb-8 uppercase tracking-widest font-black">Identity & Location Verified</p>
 
-                        {/* Scanner UI */}
                         <div className="relative aspect-[3/4] w-full max-w-[280px] mx-auto rounded-3xl overflow-hidden bg-slate-900 shadow-2xl border-4 border-white mb-8 group">
                             {!cameraActive && !capturedImage && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 space-y-4">
@@ -276,11 +234,7 @@ const DutyPage: React.FC<DutyPageProps> = ({
                                         <div className="w-full h-1 bg-blue-400 shadow-[0_0_20px_rgba(96,165,250,1)] absolute animate-scan-line"></div>
                                         <div className="absolute inset-0 border-[40px] border-slate-900/40 rounded-full"></div>
                                     </div>
-                                    <button 
-                                        type="button"
-                                        onClick={captureFace} 
-                                        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white/90 text-navy p-4 rounded-full shadow-2xl backdrop-blur-sm transition-transform active:scale-90 border-2 border-white"
-                                    >
+                                    <button onClick={captureFace} className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white/90 text-navy p-4 rounded-full shadow-2xl backdrop-blur-sm transition-transform active:scale-90 border-2 border-white">
                                         <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                     </button>
                                 </div>
@@ -289,177 +243,116 @@ const DutyPage: React.FC<DutyPageProps> = ({
                             {capturedImage && (
                                 <div className="relative w-full h-full animate-fade-in z-20 bg-black">
                                     <img src={capturedImage} className="w-full h-full object-cover" alt="Captured" />
-                                    <div className="absolute inset-0 border-4 border-emerald-500/40 pointer-events-none rounded-2xl"></div>
-                                    <button onClick={() => { setCapturedImage(null); startCamera(); }} className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-colors">
+                                    <button onClick={() => { setCapturedImage(null); startCamera(); }} className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600">
                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* GPS Section */}
                         <div className="space-y-4 mb-8">
-                            <button onClick={verifyLocation} disabled={isLocating} className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 border-2 transition-all ${currentGeo ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-inner' : 'bg-white border-blue-500 text-blue-600 hover:bg-blue-50'}`}>
+                            <button onClick={verifyLocation} disabled={isLocating} className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 border-2 transition-all ${currentGeo ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-blue-500 text-blue-600'}`}>
                                 {isLocating ? <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                                 {currentGeo ? 'ยืนยันพิกัด GPS สำเร็จ ✓' : 'กดปุ่มยืนยันพิกัด GPS'}
                             </button>
                             {currentGeo && (
-                                <div className="bg-blue-50/80 p-4 rounded-2xl border border-blue-100 text-left animate-slide-up shadow-sm">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Live Coordinate Data</span>
-                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${currentGeo.distance <= (settings.checkInRadius || 200) ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
-                                            {currentGeo.distance <= (settings.checkInRadius || 200) ? 'อยู่ในเขตปฏิบัติหน้าที่' : 'อยู่นอกเขตโรงเรียน'}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs font-mono font-bold text-blue-900">LAT: {currentGeo.lat.toFixed(6)} | LNG: {currentGeo.lng.toFixed(6)}</p>
-                                    <p className="text-center mt-2 pt-2 border-t border-blue-100 text-xl font-black text-blue-700">ห่างจากศูนย์กลาง {currentGeo.distance} เมตร</p>
+                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-center animate-slide-up">
+                                    <p className="text-xs font-bold text-blue-900">ระยะห่างจากศูนย์กลางโรงเรียน: {currentGeo.distance} เมตร</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* Submit Actions */}
                         <div className="space-y-4">
                             <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl">
-                                <button onClick={() => setCheckInType('check_in')} className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${checkInType === 'check_in' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>เริ่มปฏิบัติหน้าที่</button>
-                                <button onClick={() => setCheckInType('check_out')} className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${checkInType === 'check_out' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>สิ้นสุดหน้าที่</button>
+                                <button onClick={() => setCheckInType('check_in')} className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${checkInType === 'check_in' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>เริ่มปฏิบัติหน้าที่</button>
+                                <button onClick={() => setCheckInType('check_out')} className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${checkInType === 'check_out' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>สิ้นสุดหน้าที่</button>
                             </div>
-                            <button 
-                                onClick={handleConfirmCheckIn} 
-                                disabled={isProcessing || !currentGeo} 
-                                className={`w-full py-4.5 rounded-2xl font-black text-lg shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 ${isProcessing ? 'bg-slate-300' : (!currentGeo ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : (checkInType === 'check_in' ? 'bg-blue-600 text-white' : 'bg-rose-600 text-white'))}`}
-                            >
-                                {isProcessing ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันลงชื่อปฏิบัติหน้าที่'}
+                            <button onClick={handleConfirmCheckIn} disabled={isProcessing || !currentGeo} className={`w-full py-4 rounded-2xl font-black text-lg transition-all ${isProcessing ? 'bg-slate-300' : (!currentGeo ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : (checkInType === 'check_in' ? 'bg-blue-600 text-white' : 'bg-rose-600 text-white'))}`}>
+                                {isProcessing ? 'กำลังประมวลผล...' : 'ยืนยันบันทึกเวลา'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* --- LIST TAB --- */}
             {activeTab === 'list' && (
                 <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 animate-fade-in no-print">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                        <div>
-                            <h2 className="text-2xl font-black text-navy tracking-tight">ประวัติปฏิบัติหน้าที่</h2>
-                            <p className="text-sm text-gray-400 mt-1">สรุปรายการมาปฏิบัติงานรายบุคคล</p>
-                        </div>
-                        <div className="relative group">
-                            <button onClick={exportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg flex items-center gap-2 transition-all">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                ดาวน์โหลด Excel
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Filter Bar */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-inner">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชื่อบุคลากร</label>
-                            <input type="text" placeholder="พิมพ์ชื่อ..." value={searchName} onChange={e => setSearchName(e.target.value)} className="w-full border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm" />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ตั้งแต่วันที่</label>
-                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm" />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ถึงวันที่</label>
-                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm" />
-                        </div>
-                        <div className="flex items-end">
-                            <button onClick={() => { setSearchName(''); setStartDate(''); setEndDate(''); }} className="w-full bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold py-2.5 rounded-xl transition-all">ล้างตัวกรอง</button>
-                        </div>
-                    </div>
-
-                    <div className="overflow-x-auto rounded-3xl border border-slate-100 shadow-sm">
+                    <h2 className="text-xl font-black text-navy mb-6">ประวัติปฏิบัติหน้าที่</h2>
+                    <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-100 border-b border-slate-200 text-slate-500 uppercase tracking-tighter">
+                            <thead className="bg-slate-50 border-b">
                                 <tr>
-                                    <th className="p-4 w-20 text-center font-black">PHOTO</th>
-                                    <th className="p-4 font-black">วัน/เวลา</th>
-                                    <th className="p-4 font-black">ชื่อ-นามสกุล</th>
-                                    <th className="p-4 font-black">รายการ</th>
-                                    <th className="p-4 font-black">ระยะห่าง</th>
-                                    <th className="p-4 text-center font-black">สถานะ GPS</th>
+                                    <th className="p-4">รูปภาพ</th>
+                                    <th className="p-4">วัน/เวลา</th>
+                                    <th className="p-4">ชื่อ-นามสกุล</th>
+                                    <th className="p-4">รายการ</th>
+                                    <th className="p-4">ระยะห่าง</th>
+                                    <th className="p-4">สถานะ</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50">
+                            <tbody>
                                 {filteredRecords.map(r => (
-                                    <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
+                                    <tr key={r.id} className="border-b hover:bg-slate-50 transition-colors">
                                         <td className="p-3">
-                                            <div className="w-14 h-16 rounded-xl bg-slate-200 overflow-hidden border-2 border-white shadow-sm mx-auto group">
-                                                {r.image ? (
-                                                    <img src={getDirectDriveImageSrc(r.image as string)} className="w-full h-full object-cover group-hover:scale-110 transition-transform" alt="Face" />
-                                                ) : <div className="w-full h-full flex items-center justify-center text-gray-400">👤</div>}
+                                            <div className="w-12 h-14 bg-slate-100 rounded overflow-hidden border">
+                                                {r.image ? <img src={getDirectDriveImageSrc(r.image as string)} className="w-full h-full object-cover" /> : null}
                                             </div>
                                         </td>
-                                        <td className="p-4">
-                                            <div className="font-black text-navy">{formatThaiDate(r.date)}</div>
-                                            <div className="text-[11px] font-bold text-blue-500 mt-0.5">{formatOnlyTime(r.time)} น.</div>
-                                        </td>
-                                        <td className="p-4 font-bold text-slate-700 leading-tight">{r.personnelName}</td>
-                                        <td className="p-4">
-                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm border ${r.type === 'check_in' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
-                                                {r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน'}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-xs font-bold text-slate-600">ห่างโรงเรียน {r.distance} ม.</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`inline-flex items-center gap-1.5 font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded-lg ${r.status === 'within_range' ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-rose-500 bg-rose-50 border border-rose-100'}`}>
-                                                <div className={`w-2 h-2 rounded-full ${r.status === 'within_range' ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
-                                                {r.status === 'within_range' ? 'ในเขต' : 'นอกเขต'}
-                                            </span>
-                                        </td>
+                                        <td className="p-4"><b>{r.date}</b><br/>{formatOnlyTime(r.time)} น.</td>
+                                        <td className="p-4 font-bold">{r.personnelName}</td>
+                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.type === 'check_in' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน'}</span></td>
+                                        <td className="p-4">{r.distance} ม.</td>
+                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.status === 'within_range' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>{r.status === 'within_range' ? 'ในเขต' : 'นอกเขต'}</span></td>
                                     </tr>
                                 ))}
-                                {filteredRecords.length === 0 && (
-                                    <tr><td colSpan={6} className="p-24 text-center text-slate-400 font-bold italic">ไม่พบข้อมูลการปฏิบัติหน้าที่</td></tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
                 </div>
             )}
 
-            {/* --- SETTINGS TAB --- */}
             {activeTab === 'settings' && isAdmin && (
-                <div className="max-w-lg mx-auto bg-white p-10 rounded-[3rem] shadow-2xl border border-purple-50 animate-fade-in relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-40 h-40 bg-purple-50 rounded-full -mr-20 -mt-20"></div>
-                    <div className="flex justify-between items-center mb-8 relative z-10">
-                        <h2 className="text-2xl font-black text-purple-900 flex items-center gap-3">
-                            <div className="p-2.5 bg-purple-100 rounded-2xl text-purple-600 shadow-inner"><svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
-                            ตั้งค่าพิกัดโรงเรียน
-                        </h2>
-                    </div>
+                <div className="max-w-lg mx-auto bg-white p-8 rounded-[2.5rem] shadow-2xl border animate-fade-in">
+                    <h2 className="text-2xl font-black text-purple-900 mb-6 flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 rounded-xl text-purple-600"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
+                        ตั้งค่าพิกัดโรงเรียน
+                    </h2>
 
-                    <div className="space-y-6 relative z-10">
-                        <div className="bg-purple-600 p-8 rounded-[2rem] shadow-2xl shadow-purple-200 border border-purple-400 group">
-                            <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.2em] mb-3 text-center">Automatic Location Setup</p>
-                            <button onClick={handleAdminGetLocation} disabled={isLocating} className="w-full bg-white hover:bg-purple-50 text-purple-700 font-black py-4.5 rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50">
-                                {isLocating ? <span className="animate-pulse">กำลังระบุพิกัดปัจจุบัน...</span> : 'ดึงพิกัดปัจจุบันเป็นจุดศูนย์กลาง'}
+                    <div className="space-y-6">
+                        <div className="bg-purple-600 p-6 rounded-2xl shadow-lg text-white">
+                            <p className="text-xs font-bold opacity-80 mb-3">ดึงตำแหน่งปัจจุบันอัตโนมัติ</p>
+                            <button onClick={handleAdminGetLocation} disabled={isLocating} className="w-full bg-white text-purple-700 font-black py-3 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50">
+                                {isLocating ? 'กำลังค้นหา...' : 'ดึงพิกัดที่ฉันยืนอยู่ตอนนี้'}
                             </button>
-                            <p className="text-[10px] text-purple-200 mt-4 text-center italic font-medium">* ยืน ณ จุดกึ่งกลางโรงเรียนแล้วกดปุ่มเพื่อตั้งค่า</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Latitude</label>
-                                <input type="number" step="0.000001" value={settings.schoolLat} onChange={e => onSaveSettings({ ...settings, schoolLat: parseFloat(e.target.value) })} className="w-full border-slate-200 rounded-2xl px-5 py-4 text-sm font-mono font-bold text-navy focus:ring-4 focus:ring-purple-100 shadow-inner bg-slate-50 transition-all" />
+                            <div>
+                                <label className="block text-xs font-black text-gray-400 uppercase mb-1">Latitude</label>
+                                <input type="number" step="0.000001" value={localSettings.schoolLat || ''} onChange={e => setLocalSettings({...localSettings, schoolLat: parseFloat(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-mono text-sm" />
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Longitude</label>
-                                <input type="number" step="0.000001" value={settings.schoolLng} onChange={e => onSaveSettings({ ...settings, schoolLng: parseFloat(e.target.value) })} className="w-full border-slate-200 rounded-2xl px-5 py-4 text-sm font-mono font-bold text-navy focus:ring-4 focus:ring-purple-100 shadow-inner bg-slate-50 transition-all" />
+                            <div>
+                                <label className="block text-xs font-black text-gray-400 uppercase mb-1">Longitude</label>
+                                <input type="number" step="0.000001" value={localSettings.schoolLng || ''} onChange={e => setLocalSettings({...localSettings, schoolLng: parseFloat(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-mono text-sm" />
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">ระยะรัศมีที่อนุญาต (เมตร)</label>
-                            <input type="number" value={settings.checkInRadius} onChange={e => onSaveSettings({ ...settings, checkInRadius: parseInt(e.target.value) })} className="w-full border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-navy focus:ring-4 focus:ring-purple-100 shadow-inner bg-slate-50 transition-all" />
+                        <div>
+                            <label className="block text-xs font-black text-gray-400 uppercase mb-1">ระยะรัศมีที่อนุญาต (เมตร)</label>
+                            <input type="number" value={localSettings.checkInRadius || ''} onChange={e => setLocalSettings({...localSettings, checkInRadius: parseInt(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-bold" />
                         </div>
+
+                        <button 
+                            onClick={handleSaveLocalSettings} 
+                            disabled={isSaving}
+                            className="w-full bg-purple-700 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-purple-800 transition-all disabled:opacity-50"
+                        >
+                            {isSaving ? 'กำลังบันทึกข้อมูล...' : 'บันทึกการตั้งค่า'}
+                        </button>
                     </div>
                 </div>
             )}
             
-            {/* Hidden Canvas for Capturing */}
             <canvas ref={canvasRef} className="hidden" />
         </div>
     );

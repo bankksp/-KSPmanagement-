@@ -44,57 +44,6 @@ function doPost(e) {
     const data = request.data;
     const uploadFolder = getUploadFolder();
     
-    // --- 1. Authentication & OTP ---
-
-    if (action === 'checkDuplicateAndSendOTP') {
-      const personnelSheet = getSheet(SHEET_NAMES.PERSONNEL);
-      const existingData = readSheet(personnelSheet);
-      
-      const isIdDup = existingData.some(p => String(p.idCard) === String(request.idCard));
-      const isEmailDup = existingData.some(p => String(p.email).toLowerCase() === String(request.email).toLowerCase());
-      
-      if (isIdDup) return responseJSON({ status: 'error', message: 'เลขบัตรประชาชนนี้เคยลงทะเบียนในระบบแล้ว' });
-      if (isEmailDup) return responseJSON({ status: 'error', message: 'อีเมลนี้เคยลงทะเบียนในระบบแล้ว' });
-
-      // Send OTP
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpSheet = getSheet(SHEET_NAMES.OTP_STORE);
-      otpSheet.appendRow([request.email, code, new Date().getTime()]);
-      
-      const subject = `รหัสยืนยันตัวตน (OTP) สำหรับลงทะเบียน - D-school`;
-      const htmlBody = `
-        <div style="font-family: sans-serif; padding: 30px; border: 1px solid #e2e8f0; border-radius: 24px; max-width: 450px; margin: auto; background-color: #f8fafc;">
-          <h2 style="color: #1e3a8a; text-align: center; margin-top: 0;">D-school</h2>
-          <p style="text-align: center; color: #64748b;">รหัสผ่านชั่วคราวเพื่อยืนยันอีเมลของท่านสำหรับเข้าใช้งาน D-school คือ:</p>
-          <div style="background: #ffffff; padding: 25px; border-radius: 20px; text-align: center; font-size: 42px; font-weight: 900; color: #2563eb; letter-spacing: 8px; border: 1px solid #e2e8f0; margin: 20px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-            ${code}
-          </div>
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">* รหัสมีอายุการใช้งาน 5 นาที</p>
-        </div>
-      `;
-      
-      try {
-        GmailApp.sendEmail(request.email, subject, "", { htmlBody: htmlBody });
-      } catch (mailError) {
-        return responseJSON({ status: 'error', message: 'ไม่สามารถส่งอีเมลได้: ' + mailError.toString() });
-      }
-      
-      return responseJSON({ status: 'success' });
-    }
-
-    if (action === 'verifyEmailCode') {
-      const otpSheet = getSheet(SHEET_NAMES.OTP_STORE);
-      const rows = otpSheet.getDataRange().getValues();
-      const now = new Date().getTime();
-      let isValid = false;
-      for (let i = rows.length - 1; i >= 1; i--) {
-        if (rows[i][0] === request.email && String(rows[i][1]) === String(request.code)) {
-          if (now - rows[i][2] < 300000) { isValid = true; break; }
-        }
-      }
-      return isValid ? responseJSON({ status: 'success' }) : responseJSON({ status: 'error', message: 'รหัสยืนยันไม่ถูกต้องหรือหมดอายุ' });
-    }
-
     if (action === 'login') {
       const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
       const identifier = String(request.identifier).toLowerCase();
@@ -102,14 +51,11 @@ function doPost(e) {
 
       if (!user) return responseJSON({ status: 'error', message: 'ไม่พบผู้ใช้งานในระบบ' });
       if (user.status === 'pending') return responseJSON({ status: 'error', message: 'บัญชีของท่านยังไม่ได้รับอนุมัติ' });
-      if (user.status === 'blocked') return responseJSON({ status: 'error', message: 'บัญชีของท่านถูกระงับ' });
       
       const actualPass = user.password || user.idCard;
       if (String(actualPass) === String(request.password)) return responseJSON({ status: 'success', data: user });
       return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
     }
-
-    // --- 2. Generic Actions Router ---
 
     if (action === 'getAllData') {
       const allData = {};
@@ -142,13 +88,11 @@ function routeGenericAction(action, request, uploadFolder) {
     'addPersonnel': SHEET_NAMES.PERSONNEL, 'updatePersonnel': SHEET_NAMES.PERSONNEL,
     'addStudent': SHEET_NAMES.STUDENTS, 'updateStudent': SHEET_NAMES.STUDENTS,
     'saveAcademicPlan': SHEET_NAMES.ACADEMIC_PLANS,
-    'updateAcademicPlanStatus': SHEET_NAMES.ACADEMIC_PLANS,
     'saveServiceRecord': SHEET_NAMES.SERVICE_RECORDS,
     'saveDutyRecord': SHEET_NAMES.DUTY_RECORDS,
     'saveLeaveRecord': SHEET_NAMES.LEAVE_RECORDS,
     'saveSupplyItem': SHEET_NAMES.SUPPLY_ITEMS,
     'saveSupplyRequest': SHEET_NAMES.SUPPLY_REQUESTS,
-    'updateSupplyRequestStatus': SHEET_NAMES.SUPPLY_REQUESTS,
     'saveDurableGood': SHEET_NAMES.DURABLE_GOODS,
     'saveCertificateRequest': SHEET_NAMES.CERTIFICATE_REQUESTS,
     'saveMaintenanceRequest': SHEET_NAMES.MAINTENANCE_REQUESTS,
@@ -188,7 +132,6 @@ function routeGenericAction(action, request, uploadFolder) {
   const sheet = getSheet(sheetName);
 
   if (action.startsWith('delete')) {
-    if (!ids || !Array.isArray(ids)) return responseJSON({ status: 'error', message: 'Missing IDs for deletion' });
     deleteRecords(sheet, ids);
     return responseJSON({ status: 'success' });
   }
@@ -201,50 +144,10 @@ function routeGenericAction(action, request, uploadFolder) {
   if (action.startsWith('add') || action.startsWith('update') || action.startsWith('save')) {
     const records = Array.isArray(data) ? data : [data];
     const results = records.map(r => saveRecord(sheet, r, uploadFolder));
-    
-    if (action === 'addReport') {
-      sendNotificationToRole('admin', "มีรายงานสถานะเรือนนอนใหม่", `โดย: ${data.reporterName}\nเรือน: ${data.dormitory}\nมา: ${data.presentCount} ป่วย: ${data.sickCount}`);
-    } else if (action === 'addPersonnel') {
-      sendNotificationToRole('admin', "มีการลงทะเบียนบุคลากรใหม่", `ชื่อ: ${data.personnelName}\nอีเมล: ${data.email}\nตำแหน่ง: ${data.position}`);
-    } else if (action === 'saveMaintenanceRequest' && !data.id) {
-      sendNotificationToRole('admin', "แจ้งซ่อมพัสดุใหม่", `รายการ: ${data.itemName}\nสถานที่: ${data.location}\nผู้แจ้ง: ${data.requesterName}`);
-    } else if (action === 'saveDocument') {
-      const recipientsIds = data.recipients || [];
-      const personnelList = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
-      recipientsIds.forEach(rid => {
-        const person = personnelList.find(p => String(p.id) === String(rid));
-        if (person && person.email) {
-          sendEmail(person.email, "คุณมีหนังสือ/คำสั่งใหม่", `เรื่อง: ${data.title}\nจาก: ${data.from}\nกรุณาเข้าสู่ระบบ D-school เพื่อตรวจสอบ`);
-        }
-      });
-    }
-
     return responseJSON({ status: 'success', data: Array.isArray(data) ? results : results[0] });
   }
 
   return responseJSON({ status: 'error', message: 'Action not fully implemented' });
-}
-
-function sendNotificationToRole(role, title, body) {
-  const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
-  const emails = personnel.filter(p => p.role === role).map(p => p.email).filter(e => e && e.includes('@'));
-  if (emails.length > 0) {
-    sendEmail(emails.join(','), title, body);
-  }
-}
-
-function sendEmail(to, subject, bodyText) {
-  try {
-    const htmlBody = `
-      <div style="font-family: 'Sarabun', sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-        <h2 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">${SCHOOL_NAME}</h2>
-        <p style="font-size: 16px; color: #334155;"><b>${subject}</b></p>
-        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6; white-space: pre-wrap; color: #475569;">${bodyText}</div>
-        <p style="font-size: 12px; color: #94a3b8; margin-top: 20px;">แจ้งเตือนอัตโนมัติจากระบบบริหารจัดการ D-school</p>
-      </div>
-    `;
-    GmailApp.sendEmail(to, `📢 แจ้งเตือน: ${subject}`, "", { htmlBody: htmlBody });
-  } catch(e) { console.error("Email fail", e); }
 }
 
 function getSheet(name) {
@@ -252,17 +155,6 @@ function getSheet(name) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
-    // Initialize headers based on sheet name
-    if (name === SHEET_NAMES.SETTINGS) {
-       sheet.appendRow(["schoolName", "schoolLogo", "themeColors", "dormitories", "positions", "academicYears", "studentClasses", "studentClassrooms", "googleScriptUrl", "adminPassword", "schoolLat", "schoolLng", "checkInRadius"]);
-    } else if (name === SHEET_NAMES.OTP_STORE) {
-       sheet.appendRow(["email", "code", "timestamp"]);
-    } else if (name === SHEET_NAMES.PERSONNEL) {
-       sheet.appendRow(["id", "personnelTitle", "personnelName", "position", "dob", "idCard", "email", "phone", "role", "status", "password"]);
-    }
-  } else if (sheet.getLastRow() === 0) {
-    // If sheet exists but is empty
-    if (name === SHEET_NAMES.OTP_STORE) sheet.appendRow(["email", "code", "timestamp"]);
   }
   return sheet;
 }
@@ -288,6 +180,7 @@ function readSheet(sheet) {
 }
 
 function saveRecord(sheet, dataObj, uploadFolder) {
+  // Handle file uploads
   for (const key in dataObj) {
     const val = dataObj[key];
     if (Array.isArray(val)) {
@@ -306,26 +199,51 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     }
   }
 
-  if (sheet.getLastRow() === 0) sheet.appendRow(Object.keys(dataObj));
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const idIndex = headers.indexOf('id');
-  let rowIndex = -1;
+  // Ensure headers exist and match object keys
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(Object.keys(dataObj));
+  }
   
-  if (sheet.getLastRow() > 1 && idIndex !== -1) {
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  // Check for missing headers and add them
+  const objKeys = Object.keys(dataObj);
+  let headersChanged = false;
+  objKeys.forEach(key => {
+    if (headers.indexOf(key) === -1) {
+      sheet.getRange(1, headers.length + 1).setValue(key);
+      headers.push(key);
+      headersChanged = true;
+    }
+  });
+  
+  if (headersChanged) {
+    headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  }
+
+  // Find row to update or append
+  let rowIndex = -1;
+  const idIndex = headers.indexOf('id');
+  
+  if (sheet.getName() === SHEET_NAMES.SETTINGS) {
+    if (sheet.getLastRow() > 1) rowIndex = 2;
+  } else if (idIndex !== -1 && sheet.getLastRow() > 1) {
     const ids = sheet.getRange(2, idIndex + 1, sheet.getLastRow() - 1, 1).getValues().flat();
     const matchIdx = ids.map(String).indexOf(String(dataObj.id));
     if (matchIdx !== -1) rowIndex = matchIdx + 2;
-  } else if (sheet.getName() === SHEET_NAMES.SETTINGS && sheet.getLastRow() > 1) {
-    rowIndex = 2; 
   }
 
   const rowData = headers.map(h => {
     const val = dataObj[h];
-    return (val !== null && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? '' : val);
+    if (val === undefined || val === null) return '';
+    return (typeof val === 'object') ? JSON.stringify(val) : val;
   });
 
-  if (rowIndex > 0) sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
-  else sheet.appendRow(rowData);
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
   return dataObj;
 }
 
@@ -333,10 +251,8 @@ function deleteRecords(sheet, ids) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const idIndex = headers.indexOf('id');
   if (idIndex === -1) return;
-
   const data = sheet.getDataRange().getValues();
   const idsToMatch = ids.map(String);
-  
   for (let i = data.length - 1; i >= 1; i--) {
     if (idsToMatch.includes(String(data[i][idIndex]))) {
       sheet.deleteRow(i + 1);

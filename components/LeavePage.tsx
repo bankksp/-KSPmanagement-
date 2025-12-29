@@ -8,7 +8,9 @@ import {
     isoToBuddhist, 
     normalizeDate, 
     toThaiNumerals,
-    formatThaiDateTime
+    formatThaiDateTime,
+    getDirectDriveImageSrc,
+    safeParseArray
 } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
@@ -31,6 +33,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [currentRecord, setCurrentRecord] = useState<Partial<LeaveRecord>>({});
     const [viewRecord, setViewRecord] = useState<LeaveRecord | null>(null);
+    const [openExportId, setOpenExportId] = useState<number | null>(null);
 
     // Filters
     const [searchName, setSearchName] = useState('');
@@ -86,10 +89,28 @@ const LeavePage: React.FC<LeavePageProps> = ({
                 daysCount: 1,
                 reason: '',
                 status: 'pending',
-                submissionDate: getCurrentThaiDate()
+                submissionDate: getCurrentThaiDate(),
+                files: []
             });
         }
         setIsModalOpen(true);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const newFiles = Array.from(e.target.files);
+            setCurrentRecord(prev => ({
+                ...prev,
+                files: [...(prev.files || []), ...newFiles]
+            }));
+        }
+    };
+
+    const handleRemoveFile = (index: number) => {
+        setCurrentRecord(prev => ({
+            ...prev,
+            files: (prev.files || []).filter((_, i) => i !== index)
+        }));
     };
 
     const handleSaveRecord = (e: React.FormEvent) => {
@@ -126,33 +147,29 @@ const LeavePage: React.FC<LeavePageProps> = ({
         alert(`ดำเนินการ${status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}เรียบร้อย`);
     };
 
-    const printMemorandum = (record: LeaveRecord) => {
-        const win = window.open('', '_blank');
-        if (!win) return;
-
-        win.document.write(`
+    const generateMemorandumHtml = (record: LeaveRecord) => {
+        return `
             <html>
                 <head>
                     <title>ใบลา - ${record.personnelName}</title>
                     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
                     <style>
                         @page { size: A4; margin: 2cm; }
-                        body { font-family: 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.5; color: black; }
-                        .header { text-align: center; position: relative; margin-bottom: 20px; }
-                        .garuda { width: 3cm; height: auto; margin-bottom: 10px; }
-                        .memo-title { font-size: 20pt; font-weight: bold; }
+                        body { font-family: 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.5; color: black; padding: 0; margin: 0; }
+                        .header { text-align: center; position: relative; margin-bottom: 30px; margin-top: 10px; }
+                        .memo-title { font-size: 24pt; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 20px; }
                         .meta-section { margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 5px; }
-                        .meta-row { display: flex; gap: 20px; }
+                        .meta-row { display: flex; gap: 20px; margin-bottom: 5px; }
                         .label { font-weight: bold; }
-                        .content-body { margin-top: 20px; text-indent: 2cm; text-align: justify; }
-                        .signature-block { margin-top: 50px; float: right; text-align: center; width: 50%; }
-                        .approver-section { margin-top: 150px; border-top: 1px dashed #ccc; padding-top: 20px; }
+                        .content-body { margin-top: 20px; text-indent: 2.5cm; text-align: justify; }
+                        .signature-block { margin-top: 50px; float: right; text-align: center; width: 60%; }
+                        .approver-section { margin-top: 150px; border-top: 1px dashed #666; padding-top: 20px; }
+                        .checkbox-box { display: inline-block; width: 15px; height: 15px; border: 1px solid black; text-align: center; line-height: 15px; font-size: 12pt; vertical-align: middle; }
                         .no-print { display: none; }
                     </style>
                 </head>
-                <body onload="window.print()">
+                <body>
                     <div class="header">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Garuda_Emb_of_Thailand_%28Insignia%29.svg/1200px-Garuda_Emb_of_Thailand_%28Insignia%29.svg.png" class="garuda" />
                         <div class="memo-title">บันทึกข้อความ</div>
                     </div>
                     <div class="meta-section">
@@ -161,7 +178,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
                         </div>
                         <div class="meta-row">
                             <span class="label">ที่</span> ........................................................... 
-                            <span class="label">วันที่</span> ${toThaiNumerals(formatThaiDate(record.submissionDate))}
+                            <span class="label" style="margin-left:auto;">วันที่</span> ${toThaiNumerals(formatThaiDate(record.submissionDate))}
                         </div>
                         <div class="meta-row">
                             <span class="label">เรื่อง</span> ขอ${record.type}
@@ -194,19 +211,42 @@ const LeavePage: React.FC<LeavePageProps> = ({
                         <p>......................................................................................................................................................................</p>
                         <br/>
                         <p><span class="label">คำสั่ง / ผลการพิจารณา</span></p>
-                        <p>[ ${record.status === 'approved' ? '✓' : ' '} ] อนุมัติ &nbsp;&nbsp; [ ${record.status === 'rejected' ? '✓' : ' '} ] ไม่อนุมัติ</p>
+                        <p><span class="checkbox-box">${record.status === 'approved' ? '✓' : ''}</span> อนุมัติ &nbsp;&nbsp; <span class="checkbox-box">${record.status === 'rejected' ? '✓' : ''}</span> ไม่อนุมัติ</p>
                         <br/>
                         <div class="signature-block">
                             <p>(ลงชื่อ)...........................................................</p>
                             <p>(${record.approverName || '...........................................................'})</p>
                             <p>ตำแหน่ง ผู้อำนวยการ${settings.schoolName}</p>
-                            <p>วันที่ ${toThaiNumerals(formatThaiDate(record.approvedDate || ''))}</p>
+                            <p>วันที่ ${record.approvedDate ? toThaiNumerals(formatThaiDate(record.approvedDate)) : '........./........./.............'}</p>
                         </div>
                     </div>
                 </body>
             </html>
-        `);
-        win.document.close();
+        `;
+    };
+
+    const handleExport = (record: LeaveRecord, type: 'print' | 'doc') => {
+        const html = generateMemorandumHtml(record);
+        setOpenExportId(null);
+
+        if (type === 'print') {
+            const win = window.open('', '_blank');
+            if (win) {
+                win.document.write(html);
+                win.document.write('<script>setTimeout(() => { window.print(); }, 500);</script>');
+                win.document.close();
+            }
+        } else {
+            const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ใบลา_${record.personnelName}_${record.id}.doc`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
     };
 
     const COLORS_LIST = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -219,7 +259,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
                     ระบบการลาบุคลากร
                 </h2>
                 <div className="flex gap-2">
-                    <button onClick={() => handleOpenModal()} className="bg-primary-blue text-white px-5 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2">
+                    <button onClick={() => handleOpenModal()} className="bg-primary-blue text-white px-5 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2 text-sm md:text-base">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                         ยื่นใบลา
                     </button>
@@ -327,7 +367,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
                                             <td className="p-3">{r.type}</td>
                                             <td className="p-3 text-xs">
                                                 {formatThaiDate(r.startDate)} - {formatThaiDate(r.endDate)}
-                                                <div className="text-[10px] text-gray-400">({r.session === 'full' ? 'เต็มวัน' : r.session === 'morning' ? 'ครึ่งวันเช้า' : 'ครึ่งวันบ่าย'})</div>
+                                                <div className="text-[10px] text-gray-400">({r.session === 'full' ? 'เต็มวัน' : r.session === 'morning' ? 'ครึ่งวันเช้า' : r.session === 'afternoon' ? 'ครึ่งวันบ่าย' : 'เต็มวัน'})</div>
                                             </td>
                                             <td className="p-3 text-center font-bold text-blue-600">{r.daysCount}</td>
                                             <td className="p-3 text-center">
@@ -337,10 +377,34 @@ const LeavePage: React.FC<LeavePageProps> = ({
                                             </td>
                                             <td className="p-3 text-center">
                                                 <div className="flex justify-center gap-1">
-                                                    <button onClick={() => { setViewRecord(r); setIsViewModalOpen(true); }} className="text-blue-500 hover:underline px-2">ดู</button>
-                                                    <button onClick={() => printMemorandum(r)} className="text-emerald-600 hover:underline px-2">ใบลา</button>
-                                                    {canEdit && <button onClick={() => handleOpenModal(r)} className="text-amber-500 hover:underline px-2">แก้</button>}
-                                                    {canDelete && <button onClick={() => onDelete([r.id])} className="text-red-500 hover:underline px-2">ลบ</button>}
+                                                    <button onClick={() => { setViewRecord(r); setIsViewModalOpen(true); }} className="text-blue-500 hover:text-blue-700 font-bold px-2 py-1 bg-blue-50 rounded">ดู</button>
+                                                    
+                                                    {/* Split Action for Print/Word */}
+                                                    <div className="relative inline-block text-left">
+                                                        <button 
+                                                            onClick={() => setOpenExportId(openExportId === r.id ? null : r.id)}
+                                                            className="text-emerald-600 hover:text-emerald-700 font-bold px-2 py-1 bg-emerald-50 rounded flex items-center gap-1"
+                                                        >
+                                                            ใบลา
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                        </button>
+                                                        
+                                                        {openExportId === r.id && (
+                                                            <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                                                                <button onClick={() => handleExport(r, 'print')} className="w-full text-left px-4 py-2 text-xs hover:bg-gray-100 flex items-center gap-2">
+                                                                    <svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                                    PDF / พิมพ์
+                                                                </button>
+                                                                <button onClick={() => handleExport(r, 'doc')} className="w-full text-left px-4 py-2 text-xs hover:bg-gray-100 flex items-center gap-2 border-t">
+                                                                    <svg className="w-3 h-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                    Word (.doc)
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {canEdit && <button onClick={() => handleOpenModal(r)} className="text-amber-500 hover:text-amber-700 font-bold px-2 py-1 bg-amber-50 rounded">แก้</button>}
+                                                    {canDelete && <button onClick={() => onDelete([r.id])} className="text-red-500 hover:text-red-700 font-bold px-2 py-1 bg-red-50 rounded">ลบ</button>}
                                                 </div>
                                             </td>
                                         </tr>
@@ -428,7 +492,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
             {/* MODALS */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col">
                         <div className="p-5 border-b bg-primary-blue text-white rounded-t-xl flex justify-between items-center">
                             <h3 className="text-xl font-bold">{currentRecord.id ? 'แก้ไขใบลา' : 'ยื่นใบขออนุญาตลา'}</h3>
                             <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 rounded-full p-1">&times;</button>
@@ -472,6 +536,27 @@ const LeavePage: React.FC<LeavePageProps> = ({
                                     <input type="tel" value={currentRecord.contactPhone} onChange={e => setCurrentRecord({...currentRecord, contactPhone: e.target.value})} className="w-full border rounded-lg px-3 py-2" />
                                 </div>
                             </div>
+
+                            {/* File Upload Section */}
+                            <div className="border-t pt-4">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">แนบไฟล์เอกสาร/รูปภาพ (เช่น ใบรับรองแพทย์)</label>
+                                <input 
+                                    type="file" 
+                                    multiple 
+                                    accept="image/*,application/pdf" 
+                                    onChange={handleFileChange} 
+                                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" 
+                                />
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {(currentRecord.files || []).map((file, idx) => (
+                                        <div key={idx} className="bg-gray-100 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border">
+                                            <span className="truncate max-w-[150px]">{file instanceof File ? file.name : 'ไฟล์แนบ'}</span>
+                                            <button type="button" onClick={() => handleRemoveFile(idx)} className="text-red-500 font-bold hover:text-red-700">&times;</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="p-4 bg-blue-50 rounded-lg flex items-center justify-between border border-blue-100">
                                 <span className="text-blue-800 font-bold">สรุปวันลา:</span>
                                 <span className="text-xl font-black text-blue-600">
@@ -498,12 +583,12 @@ const LeavePage: React.FC<LeavePageProps> = ({
 
             {isViewModalOpen && viewRecord && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg animate-fade-in-up max-h-[90vh] flex flex-col">
                         <div className={`p-5 text-white rounded-t-xl flex justify-between items-center ${viewRecord.status === 'approved' ? 'bg-green-600' : viewRecord.status === 'rejected' ? 'bg-red-600' : 'bg-amber-600'}`}>
                             <h3 className="text-xl font-bold">รายละเอียดการลา</h3>
-                            <button onClick={() => setIsViewModalOpen(false)} className="text-white">&times;</button>
+                            <button onClick={() => setIsViewModalOpen(false)} className="text-white hover:bg-white/20 rounded-full p-1">&times;</button>
                         </div>
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 overflow-y-auto">
                             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border">
                                 <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500">
                                     {viewRecord.personnelName.charAt(0)}
@@ -518,6 +603,34 @@ const LeavePage: React.FC<LeavePageProps> = ({
                                 <div><p className="text-gray-400 font-bold uppercase text-[10px]">จำนวนวัน</p><p className="font-bold text-blue-600 text-lg">{viewRecord.daysCount} วัน</p></div>
                                 <div className="col-span-2"><p className="text-gray-400 font-bold uppercase text-[10px]">ช่วงเวลา</p><p className="font-medium">{formatThaiDate(viewRecord.startDate)} ถึง {formatThaiDate(viewRecord.endDate)} ({viewRecord.session === 'full' ? 'เต็มวัน' : 'ครึ่งวัน'})</p></div>
                                 <div className="col-span-2"><p className="text-gray-400 font-bold uppercase text-[10px]">เหตุผล</p><p className="font-medium bg-gray-50 p-2 rounded">{viewRecord.reason}</p></div>
+                                
+                                {/* Attached Files Section */}
+                                {safeParseArray(viewRecord.files).length > 0 && (
+                                    <div className="col-span-2">
+                                        <p className="text-gray-400 font-bold uppercase text-[10px] mb-2">เอกสารแนบ / หลักฐาน</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {safeParseArray(viewRecord.files).map((file, idx) => {
+                                                const url = getDirectDriveImageSrc(file);
+                                                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url) || url.includes('googleusercontent.com');
+                                                
+                                                return (
+                                                    <div key={idx} className="group relative">
+                                                        {isImage ? (
+                                                            <a href={url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:ring-2 hover:ring-primary-blue transition-all">
+                                                                <img src={url} alt="attachment" className="w-full h-full object-cover" />
+                                                            </a>
+                                                        ) : (
+                                                            <a href={url} target="_blank" rel="noreferrer" className="flex items-center justify-center w-16 h-16 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 transition-all shadow-sm">
+                                                                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {viewRecord.comment && <div className="col-span-2"><p className="text-red-400 font-bold uppercase text-[10px]">หมายเหตุจากผู้อนุมัติ</p><p className="font-bold text-red-600">{viewRecord.comment}</p></div>}
                             </div>
                             <div className="pt-4 border-t flex flex-col items-center gap-2">
@@ -528,7 +641,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
                             </div>
                         </div>
                         <div className="p-4 bg-gray-50 border-t rounded-b-xl flex justify-center">
-                            <button onClick={() => setIsViewModalOpen(false)} className="px-10 py-2 bg-gray-200 font-bold rounded-lg hover:bg-gray-300">ปิด</button>
+                            <button onClick={() => setIsViewModalOpen(false)} className="px-10 py-2 bg-gray-200 font-bold rounded-lg hover:bg-gray-300 text-gray-700">ปิด</button>
                         </div>
                     </div>
                 </div>
