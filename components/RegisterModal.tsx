@@ -75,7 +75,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
         try {
             const response = await postToGoogleScript({ 
                 action: 'verifyEmailCode', 
-                email: formData.email,
+                email: formData.email, 
                 code: otpCode
             });
             if (response.status === 'success') {
@@ -122,7 +122,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
                 <div className="p-8 border-b bg-gray-50 flex justify-between items-center">
                     <div>
                         <h3 className="text-2xl font-bold text-navy">ลงทะเบียนบุคลากร</h3>
-                        <p className="text-sm text-gray-400 mt-1">ยืนยันตัวตนผ่าน Gmail เพื่อเริ่มต้นการใช้งาน</p>
+                        <p className="text-sm text-gray-400 mt-1">ยืนยันตัวตนผ่าน Gmail เพื่อเริ่มต้นการใช้งาน D-school</p>
                     </div>
                     <button onClick={onClose} className="text-gray-300 hover:text-gray-500 transition-colors text-3xl">&times;</button>
                 </div>

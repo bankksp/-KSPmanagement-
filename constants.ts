@@ -33,12 +33,14 @@ export const LEARNING_AREAS = [
   "กิจกรรมพัฒนาผู้เรียน"
 ];
 
-// Updated URL based on user request
+// โปรแกรมลายเซ็น (Fixed)
+export const PROGRAM_LOGO = 'https://img5.pic.in.th/file/secure-sv1/Blue-and-White-Modern-Gradient-D-Logo.png';
+
 export const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPULly51wnfwG5MgS2VItYEt9Olp1RXBUmdSk8yvsgMViMr5u4iTNVZ6BlNcAheen9CA/exec';
 
 export const DEFAULT_SETTINGS: Settings = {
     schoolName: 'โรงเรียนกาฬสินธุ์ปัญญานุกูล',
-    schoolLogo: 'https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png', // Default URL
+    schoolLogo: 'https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png', 
     themeColors: {
         primary: '#3B82F6',
         primaryHover: '#2563EB',
@@ -52,7 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
     adminPassword: 'ksp',
     schoolLat: 16.4322,
     schoolLng: 103.5061,
-    checkInRadius: 200 // Meters
+    checkInRadius: 200 
 };
 
 export const THAI_PROVINCES = [
@@ -66,12 +68,10 @@ export const THAI_PROVINCES = [
     "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์", "อุทัยธานี", "อุบลราชธานี"
 ].sort();
 
-// --- Nutrition Constants ---
-
 export const NUTRITION_STANDARDS: Record<NutritionTargetGroup, { calories: number, protein: number, fat: number, carbs: number }> = {
-    kindergarten: { calories: 1200, protein: 35, fat: 40, carbs: 175 }, // Approx 3-5 years
-    primary: { calories: 1600, protein: 45, fat: 53, carbs: 230 }, // Approx 6-12 years
-    secondary: { calories: 2100, protein: 60, fat: 70, carbs: 300 } // Approx 13-18 years
+    kindergarten: { calories: 1200, protein: 35, fat: 40, carbs: 175 },
+    primary: { calories: 1600, protein: 45, fat: 53, carbs: 230 },
+    secondary: { calories: 2100, protein: 60, fat: 70, carbs: 300 }
 };
 
 export const DEFAULT_INGREDIENTS: Ingredient[] = [

@@ -135,7 +135,7 @@ const App: React.FC = () => {
     
     // Auth Check on Mount
     useEffect(() => {
-        const storedUser = localStorage.getItem('ksp_user');
+        const storedUser = localStorage.getItem('dschool_user');
         if (storedUser) {
             try {
                 const user = JSON.parse(storedUser);
@@ -145,7 +145,7 @@ const App: React.FC = () => {
                 setCurrentUser(user);
                 setIsAuthenticated(true);
             } catch (e) {
-                localStorage.removeItem('ksp_user');
+                localStorage.removeItem('dschool_user');
                 setIsAuthenticated(false);
             }
         } else {
@@ -195,7 +195,7 @@ const App: React.FC = () => {
                 const updatedMe = fetchedPersonnel.find(p => p.id === currentUser.id);
                 if (updatedMe) {
                     setCurrentUser(prev => ({ ...prev, ...updatedMe }));
-                    localStorage.setItem('ksp_user', JSON.stringify({ ...currentUser, ...updatedMe }));
+                    localStorage.setItem('dschool_user', JSON.stringify({ ...currentUser, ...updatedMe }));
                 }
             }
 
@@ -337,20 +337,20 @@ const App: React.FC = () => {
         if (normalizeId(user.idCard) === '1469900181659') user.role = 'admin';
         setCurrentUser(user);
         setIsAuthenticated(true);
-        localStorage.setItem('ksp_user', JSON.stringify(user));
+        localStorage.setItem('dschool_user', JSON.stringify(user));
     };
 
     const handleSessionLogin = (user: Personnel, rememberMe: boolean) => {
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
         if (normalizeId(user.idCard) === '1469900181659') user.role = 'admin';
         setCurrentUser(user);
-        if (rememberMe) localStorage.setItem('ksp_user', JSON.stringify(user));
+        if (rememberMe) localStorage.setItem('dschool_user', JSON.stringify(user));
     };
 
     const handleLogout = () => {
         setCurrentUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem('ksp_user');
+        localStorage.removeItem('dschool_user');
         setCurrentPage('stats');
         setReports([]); setStudents([]); setPersonnel([]);
     };
@@ -421,7 +421,7 @@ const App: React.FC = () => {
                 setPersonnel(prev => prev.map(p => String(p.id) === String(finalP[0].id) ? finalP[0] : p));
                 if(currentUser && String(currentUser.id) === String(finalP[0].id)) {
                     setCurrentUser(finalP[0]);
-                    localStorage.setItem('ksp_user', JSON.stringify(finalP[0]));
+                    localStorage.setItem('dschool_user', JSON.stringify(finalP[0]));
                 }
             } else setPersonnel(prev => [...prev, ...finalP]);
             handleClosePersonnelModal();

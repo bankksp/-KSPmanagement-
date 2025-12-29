@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { getFirstImageSource } from '../utils';
+import { getDirectDriveImageSrc, getFirstImageSource } from '../utils';
 import { Personnel, Page } from '../types';
+import { PROGRAM_LOGO } from '../constants';
 
 interface HeaderProps {
     onReportClick: () => void;
@@ -20,7 +21,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ 
     onNavigate, currentUser, onLoginClick, onLogoutClick,
-    onToggleSidebar, onToggleDesktopSidebar
+    onToggleSidebar, onToggleDesktopSidebar, schoolName, schoolLogo
 }) => {
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -43,11 +44,10 @@ const Header: React.FC<HeaderProps> = ({
 
     return (
         <header className="w-full px-4 md:px-6 py-4 flex justify-between items-center z-40 bg-transparent no-print">
-            {/* Left: Sidebar Toggle */}
-            <div className="flex items-center">
+            {/* Left: Sidebar Toggle & System Logo */}
+            <div className="flex items-center gap-4">
                 <button
                     onClick={() => {
-                        // Toggle logic handled by App.tsx props
                         if (window.innerWidth < 1024) {
                             if (onToggleSidebar) onToggleSidebar();
                         } else {
@@ -61,6 +61,15 @@ const Header: React.FC<HeaderProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                 </button>
+
+                {/* Sub-Brand Identity */}
+                <div className="hidden sm:flex items-center gap-2 bg-white/50 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/50 shadow-sm cursor-pointer hover:bg-white transition-all" onClick={() => onNavigate('stats')}>
+                    <img src={PROGRAM_LOGO} className="w-6 h-6 object-contain" alt="D" />
+                    <div className="flex flex-col leading-none">
+                        <span className="text-[11px] font-black text-navy uppercase tracking-tighter">D-school</span>
+                        <span className="text-[8px] text-gray-400 font-bold uppercase">Management</span>
+                    </div>
+                </div>
             </div>
 
             {/* Right: User Profile / Login */}
@@ -82,13 +91,6 @@ const Header: React.FC<HeaderProps> = ({
                                         alt="User" 
                                         className="w-full h-full object-cover"
                                         referrerPolicy="no-referrer"
-                                        onError={(e) => {
-                                            const target = e.currentTarget;
-                                            target.style.display = 'none';
-                                            if (target.parentElement) {
-                                                target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-sm font-bold text-gray-400">${currentUser.personnelName.charAt(0)}</div>`;
-                                            }
-                                        }}
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-full text-sm font-bold text-gray-400">{currentUser.personnelName.charAt(0)}</div>

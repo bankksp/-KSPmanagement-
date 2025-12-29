@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Page, Personnel } from '../types';
 import { getDirectDriveImageSrc } from '../utils';
+import { PROGRAM_LOGO } from '../constants';
 
 interface SidebarProps {
     onNavigate: (page: Page) => void;
@@ -19,7 +20,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     onNavigate, currentPage, schoolName, schoolLogo, 
     currentUser, personnel, isOpen, onCloseMobile, isDesktopOpen
 }) => {
-    const [expandedMenu, setExpandedMenu] = useState<string | null>('general');
+    const [expandedMenu, setExpandedMenu] = useState<string | null>('studentAffairs');
 
     const pendingCount = personnel.filter(p => p.status === 'pending').length;
 
@@ -28,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             key: 'main',
             label: 'ภาพรวม',
             items: [
-                { label: 'หน้าแรก (Dashboard)', page: 'stats' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg> },
+                { label: 'หน้าแรก (Dashboard)', page: 'stats' as Page, icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg> },
             ]
         },
         {
@@ -94,11 +95,12 @@ const Sidebar: React.FC<SidebarProps> = ({
             )}
 
             <div className={`
-                fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out
+                fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out flex flex-col
                 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                 ${isDesktopOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'}
             `}>
-                <div className="p-6 flex flex-col items-center justify-center border-b border-gray-100">
+                {/* Sidebar Header: School Brand */}
+                <div className="p-6 flex flex-col items-center justify-center border-b border-gray-100 shrink-0">
                     <div className="relative group cursor-pointer" onClick={() => { onNavigate('stats'); onCloseMobile(); }}>
                         <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-xl group-hover:bg-blue-400/30 transition-all"></div>
                         <img 
@@ -112,7 +114,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <p className="text-xs text-gray-500 font-medium mt-1">ระบบบริหารจัดการสถานศึกษา</p>
                 </div>
 
-                <nav className="p-4 overflow-y-auto h-[calc(100%-240px)] custom-scrollbar space-y-1">
+                {/* Sidebar Navigation */}
+                <nav className="p-4 overflow-y-auto flex-grow custom-scrollbar space-y-1">
                     {menuStructure.map(group => {
                         const isExpanded = expandedMenu === group.key || group.key === 'main';
                         return (
@@ -158,18 +161,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                     })}
                 </nav>
 
-                <div className="absolute bottom-0 left-0 w-full p-4 border-t border-gray-100 bg-white/50 backdrop-blur-md">
+                {/* Sidebar Footer: Program Branding Signature */}
+                <div className="shrink-0 p-4 border-t border-gray-100 bg-gray-50/50 backdrop-blur-md">
                      {currentUser?.role === 'admin' && (
                         <button
                             onClick={() => { onNavigate('admin'); onCloseMobile(); }}
-                            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 mb-2 ${currentPage === 'admin' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 mb-4 ${currentPage === 'admin' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                         >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                             ตั้งค่าระบบ
                         </button>
                     )}
-                    <div className="text-center">
-                        <p className="text-[10px] text-gray-400">พัฒนาโดย ครูนันทพัทธ์ แสงสุดตา</p>
+                    
+                    {/* FIXED PROGRAM SIGNATURE */}
+                    <div className="flex flex-col items-center justify-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                        <img src={PROGRAM_LOGO} className="h-6 w-auto grayscale contrast-125" alt="D-school" />
+                        <div className="text-center">
+                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest leading-none">Powered by D-school</p>
+                            <p className="text-[8px] text-gray-400 font-bold mt-0.5">© 2025 All Rights Reserved</p>
+                        </div>
                     </div>
                 </div>
             </div>

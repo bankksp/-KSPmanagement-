@@ -1,9 +1,9 @@
 
 /**
- * KSP Management System - Backend Script (Version 2025.18 - Added Duty Records)
+ * D-school Management System - Backend Script
  */
 
-const FOLDER_NAME = "KSP_Management_System_Uploads"; 
+const FOLDER_NAME = "D-school_Uploads"; 
 const SCHOOL_NAME = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
 
 const SHEET_NAMES = {
@@ -60,11 +60,11 @@ function doPost(e) {
       const otpSheet = getSheet(SHEET_NAMES.OTP_STORE);
       otpSheet.appendRow([request.email, code, new Date().getTime()]);
       
-      const subject = `รหัสยืนยันตัวตน (OTP) สำหรับลงทะเบียน - ${SCHOOL_NAME}`;
+      const subject = `รหัสยืนยันตัวตน (OTP) สำหรับลงทะเบียน - D-school`;
       const htmlBody = `
         <div style="font-family: sans-serif; padding: 30px; border: 1px solid #e2e8f0; border-radius: 24px; max-width: 450px; margin: auto; background-color: #f8fafc;">
-          <h2 style="color: #1e3a8a; text-align: center; margin-top: 0;">KSP Management</h2>
-          <p style="text-align: center; color: #64748b;">รหัสผ่านชั่วคราวเพื่อยืนยันอีเมลของท่านคือ:</p>
+          <h2 style="color: #1e3a8a; text-align: center; margin-top: 0;">D-school</h2>
+          <p style="text-align: center; color: #64748b;">รหัสผ่านชั่วคราวเพื่อยืนยันอีเมลของท่านสำหรับเข้าใช้งาน D-school คือ:</p>
           <div style="background: #ffffff; padding: 25px; border-radius: 20px; text-align: center; font-size: 42px; font-weight: 900; color: #2563eb; letter-spacing: 8px; border: 1px solid #e2e8f0; margin: 20px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
             ${code}
           </div>
@@ -212,7 +212,7 @@ function routeGenericAction(action, request, uploadFolder) {
       recipientsIds.forEach(rid => {
         const person = personnelList.find(p => String(p.id) === String(rid));
         if (person && person.email) {
-          sendEmail(person.email, "คุณมีหนังสือ/คำสั่งใหม่", `เรื่อง: ${data.title}\nจาก: ${data.from}\nกรุณาเข้าสู่ระบบเพื่อตรวจสอบ`);
+          sendEmail(person.email, "คุณมีหนังสือ/คำสั่งใหม่", `เรื่อง: ${data.title}\nจาก: ${data.from}\nกรุณาเข้าสู่ระบบ D-school เพื่อตรวจสอบ`);
         }
       });
     }
@@ -238,7 +238,7 @@ function sendEmail(to, subject, bodyText) {
         <h2 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">${SCHOOL_NAME}</h2>
         <p style="font-size: 16px; color: #334155;"><b>${subject}</b></p>
         <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6; white-space: pre-wrap; color: #475569;">${bodyText}</div>
-        <p style="font-size: 12px; color: #94a3b8; margin-top: 20px;">แจ้งเตือนอัตโนมัติจากระบบบริหารจัดการ KSP Management</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-top: 20px;">แจ้งเตือนอัตโนมัติจากระบบบริหารจัดการ D-school</p>
       </div>
     `;
     MailApp.sendEmail({ to: to, subject: `📢 แจ้งเตือน: ${subject}`, htmlBody: htmlBody });
