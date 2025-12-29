@@ -34,8 +34,9 @@ import BudgetPlanningPage from './components/BudgetPlanningPage';
 import LandingPage from './components/LandingPage';
 import NutritionPage from './components/NutritionPage';
 import DutyPage from './components/DutyPage';
+import LeavePage from './components/LeavePage';
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript } from './utils';
 
@@ -74,6 +75,9 @@ const App: React.FC = () => {
 
     // Duty Records state
     const [dutyRecords, setDutyRecords] = useState<DutyRecord[]>([]);
+    
+    // Leave Records state
+    const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
 
     // Academic Plan state
     const [academicPlans, setAcademicPlans] = useState<AcademicPlan[]>([]);
@@ -202,6 +206,7 @@ const App: React.FC = () => {
             setStudentAttendance(data.studentAttendance || []);
             setPersonnelAttendance(data.personnelAttendance || []);
             setDutyRecords(data.dutyRecords || []);
+            setLeaveRecords(data.leaveRecords || []);
             setAcademicPlans(data.academicPlans || []);
             setSupplyItems(data.supplyItems || []);
             setSupplyRequests(data.supplyRequests || []);
@@ -604,6 +609,19 @@ const App: React.FC = () => {
                         isSaving={isSaving}
                     />
                 ) : null;
+            case 'personnel_leave':
+                return currentUser ? (
+                    <LeavePage 
+                        currentUser={currentUser}
+                        records={leaveRecords}
+                        onSave={(r) => handleGenericSave('saveLeaveRecord', r, setLeaveRecords)}
+                        onDelete={(ids) => handleGenericDelete('deleteLeaveRecords', ids, setLeaveRecords)}
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
+                        isSaving={isSaving}
+                        personnel={personnel}
+                    />
+                ) : null;
             case 'reports':
                 return <ReportPage
                             reports={reports}
@@ -878,7 +896,9 @@ const App: React.FC = () => {
             />
 
             <RegisterModal 
+                /* Fix: Changed isRegisterOpen to isRegisterModalOpen */
                 isOpen={isRegisterModalOpen} 
+                /* Fix: Changed setIsRegisterOpen to setIsRegisterModalOpen */
                 onClose={() => setIsRegisterModalOpen(false)} 
                 onRegister={handleRegister} 
                 positions={settings.positions} 

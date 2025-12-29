@@ -52,7 +52,6 @@ export const formatOnlyTime = (timeStr: string | undefined): string => {
  */
 export const getDriveId = (url: any): string | null => {
     if (!url || typeof url !== 'string') return null;
-    // Aggressively clean the URL from quotes, brackets, and escapes
     const cleanUrl = url.trim().replace(/[\[\]"'\\]/g, '');
     const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
                   cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
@@ -61,7 +60,6 @@ export const getDriveId = (url: any): string | null => {
 
 /**
  * URL for embedding images or small previews.
- * Uses the lh3 endpoint which is often more reliable for direct display than uc?id.
  */
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -71,12 +69,9 @@ export const getDirectDriveImageSrc = (url: string | File | undefined | null): s
     
     const id = getDriveId(url);
     if (id) {
-        // Using lh3.googleusercontent.com for better cross-origin support
         return `https://lh3.googleusercontent.com/d/${id}`;
     }
     
-    // If not a drive link, return as is (could be base64 or other URL)
-    // Clean string from potential JSON artifacts like brackets or escaped quotes
     return String(url).trim().replace(/[\[\]"\\]/g, '').replace(/^'|'$/g, '');
 };
 
@@ -95,7 +90,7 @@ export const getDriveDownloadUrl = (url: string | File | undefined | null): stri
 };
 
 /**
- * URL for opening the file in Google Drive's native viewer (Safe against 403 Forbidden).
+ * URL for opening the file in Google Drive's native viewer.
  */
 export const getDriveViewUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -109,7 +104,7 @@ export const getDriveViewUrl = (url: string | File | undefined | null): string =
 };
 
 /**
- * Gets a preview URL for Google Drive documents (like PDFs) suitable for iframes.
+ * Gets a preview URL for Google Drive documents.
  */
 export const getDrivePreviewUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
@@ -126,22 +121,15 @@ export const getDrivePreviewUrl = (url: string | File | undefined | null): strin
 
 export const getFirstImageSource = (source: any): string | null => {
     if (!source) return null;
-    
-    // Handle array directly
     if (Array.isArray(source)) {
         if (source.length === 0) return null;
         return getDirectDriveImageSrc(source[0]);
     }
-    
-    // Handle string (which might be a stringified array or double-quoted JSON from Sheets)
     if (typeof source === 'string') {
         let trimmed = source.trim();
-        
-        // Remove leading/trailing quotes if the entire string is wrapped like ""[...]""
         while (trimmed.startsWith('"') && trimmed.endsWith('"')) {
             trimmed = trimmed.substring(1, trimmed.length - 1).trim();
         }
-
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
             try {
                 const parsed = JSON.parse(trimmed);
@@ -149,14 +137,12 @@ export const getFirstImageSource = (source: any): string | null => {
                     return getDirectDriveImageSrc(parsed[0]);
                 }
             } catch (e) {
-                // Manual fallback: extract first string between quotes inside brackets
                 const match = trimmed.match(/"([^"]+)"/);
                 if (match) return getDirectDriveImageSrc(match[1]);
             }
         }
         return getDirectDriveImageSrc(trimmed);
     }
-    
     return null;
 };
 
@@ -165,15 +151,12 @@ export const safeParseArray = (input: any): any[] => {
     if (Array.isArray(input)) return input;
     if (typeof input === 'string') {
         let clean = input.trim();
-        // Remove double-quoted artifacts
         while (clean.startsWith('"') && clean.endsWith('"')) {
             clean = clean.substring(1, clean.length - 1).trim();
         }
         if (clean.startsWith('[') && clean.endsWith(']')) {
             try {
-               if (clean.includes("'")) {
-                   clean = clean.replace(/'/g, '"');
-               }
+               if (clean.includes("'")) clean = clean.replace(/'/g, '"');
                const parsed = JSON.parse(clean);
                if (Array.isArray(parsed)) return parsed;
             } catch(e) {}
@@ -192,16 +175,21 @@ export const normalizeDate = (input: any): Date | null => {
     
     const str = String(input).trim();
     
-    // 1. Check ISO format or date-time with 'T'
+    // Check ISO format or date-time with 'T' (e.g. 2568-12-28T...)
     if (str.includes('T') || str.match(/^\d{4}-\d{2}-\d{2}/)) {
         const datePart = str.split('T')[0];
-        const [y, m, d] = datePart.split(/[-/]/).map(Number);
+        const parts = datePart.split(/[-/]/).map(Number);
         
-        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-            // Adjust Buddhist year to Gregorian if > 2400
-            const actualYear = y > 2400 ? y - 543 : y;
-            const dateObj = new Date(actualYear, m - 1, d);
-            
+        if (parts.length === 3) {
+            let y = parts[0], m = parts[1], d = parts[2];
+            // If year is the first part (ISO)
+            if (y > 2400) y -= 543;
+            // Handle case where it might be DD-MM-YYYY
+            if (y < 31 && d > 2400) {
+                const temp = y; y = d - 543; d = temp;
+            }
+
+            const dateObj = new Date(y, m - 1, d);
             if (str.includes('T')) {
                 const timeStr = str.split('T')[1];
                 const timeMatch = timeStr.match(/(\d{2}):(\d{2})/);
@@ -209,18 +197,19 @@ export const normalizeDate = (input: any): Date | null => {
                     dateObj.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]));
                 }
             }
-            return dateObj;
+            return isNaN(dateObj.getTime()) ? null : dateObj;
         }
     }
     
-    // 2. Check Thai format (DD/MM/YYYY)
+    // Check Thai format (DD/MM/YYYY)
     const parts = str.split('/');
     if (parts.length === 3) {
         const d = parseInt(parts[0]);
         const m = parseInt(parts[1]) - 1;
         let y = parseInt(parts[2]);
         if (y > 2400) y -= 543;
-        return new Date(y, m, d);
+        const dateObj = new Date(y, m, d);
+        return isNaN(dateObj.getTime()) ? null : dateObj;
     }
     
     return null;
@@ -233,7 +222,7 @@ export const formatThaiDate = (dateString: string | undefined): string => {
     const d = date.getDate();
     const m = date.getMonth();
     const y = date.getFullYear() + 543;
-    return `${d} ${THAI_MONTHS[m]} ${y}`;
+    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}`;
 };
 
 export const formatThaiDateTime = (dateStr: string, timeStr?: string): string => {
@@ -254,10 +243,10 @@ export const formatThaiDateTime = (dateStr: string, timeStr?: string): string =>
 
     let timePart = '';
     if (hourStr && minuteStr && (hourStr !== '00' || minuteStr !== '00')) {
-        timePart = ` เวลา ${hourStr}:${minuteStr} น.`;
+        timePart = ` ${hourStr}:${minuteStr} น.`;
     }
     
-    return `${d} ${THAI_MONTHS[m]} ${y}${timePart}`;
+    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}${timePart}`;
 };
 
 export const prepareDataForApi = async (data: any) => {

@@ -146,6 +146,8 @@ export interface Settings {
     schoolLat?: number;
     schoolLng?: number;
     checkInRadius?: number;
+    leaveTypes?: string[];
+    leaveApproverIds?: number[];
 }
 
 export type TimePeriod = 'morning' | 'lunch' | 'evening';
@@ -388,6 +390,29 @@ export interface MealPlan {
     totalCarbs: number;
 }
 
+export type LeaveStatus = 'pending' | 'approved' | 'rejected';
+export type LeaveSession = 'full' | 'morning' | 'afternoon';
+
+export interface LeaveRecord {
+    id: number;
+    personnelId: number;
+    personnelName: string;
+    position: string;
+    type: string; // e.g., ลาป่วย, ลากิจ
+    startDate: string;
+    endDate: string;
+    session: LeaveSession;
+    daysCount: number;
+    reason: string;
+    contactAddress?: string;
+    contactPhone?: string;
+    status: LeaveStatus;
+    submissionDate: string;
+    approverName?: string;
+    approvedDate?: string;
+    comment?: string;
+}
+
 export type Page = 
     | 'stats' 
     | 'attendance' 
@@ -396,6 +421,7 @@ export type Page =
     | 'students' 
     | 'personnel' 
     | 'personnel_duty'
+    | 'personnel_leave'
     | 'admin' 
     | 'profile'
     | 'academic_plans'

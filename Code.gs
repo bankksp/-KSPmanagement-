@@ -14,6 +14,7 @@ const SHEET_NAMES = {
   STUDENT_ATTENDANCE: "StudentAttendance",
   PERSONNEL_ATTENDANCE: "PersonnelAttendance",
   DUTY_RECORDS: "DutyRecords",
+  LEAVE_RECORDS: "LeaveRecords",
   ACADEMIC_PLANS: "AcademicPlans",
   SERVICE_RECORDS: "ServiceRecords",
   SUPPLY_ITEMS: "SupplyItems",
@@ -71,7 +72,13 @@ function doPost(e) {
           <p style="font-size: 12px; color: #94a3b8; text-align: center;">* รหัสมีอายุการใช้งาน 5 นาที</p>
         </div>
       `;
-      MailApp.sendEmail({ to: request.email, subject: subject, htmlBody: htmlBody });
+      
+      try {
+        GmailApp.sendEmail(request.email, subject, "", { htmlBody: htmlBody });
+      } catch (mailError) {
+        return responseJSON({ status: 'error', message: 'ไม่สามารถส่งอีเมลได้: ' + mailError.toString() });
+      }
+      
       return responseJSON({ status: 'success' });
     }
 
@@ -85,7 +92,7 @@ function doPost(e) {
           if (now - rows[i][2] < 300000) { isValid = true; break; }
         }
       }
-      return isValid ? responseJSON({ status: 'success' }) : responseJSON({ status: 'error', message: 'Invalid or expired code' });
+      return isValid ? responseJSON({ status: 'success' }) : responseJSON({ status: 'error', message: 'รหัสยืนยันไม่ถูกต้องหรือหมดอายุ' });
     }
 
     if (action === 'login') {
@@ -130,9 +137,7 @@ function routeGenericAction(action, request, uploadFolder) {
   const data = request.data;
   const ids = request.ids;
   
-  // Mapping of common actions to sheet names
   const actionToSheetMap = {
-    // Save/Update
     'addReport': SHEET_NAMES.REPORTS, 'updateReport': SHEET_NAMES.REPORTS,
     'addPersonnel': SHEET_NAMES.PERSONNEL, 'updatePersonnel': SHEET_NAMES.PERSONNEL,
     'addStudent': SHEET_NAMES.STUDENTS, 'updateStudent': SHEET_NAMES.STUDENTS,
@@ -140,6 +145,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'updateAcademicPlanStatus': SHEET_NAMES.ACADEMIC_PLANS,
     'saveServiceRecord': SHEET_NAMES.SERVICE_RECORDS,
     'saveDutyRecord': SHEET_NAMES.DUTY_RECORDS,
+    'saveLeaveRecord': SHEET_NAMES.LEAVE_RECORDS,
     'saveSupplyItem': SHEET_NAMES.SUPPLY_ITEMS,
     'saveSupplyRequest': SHEET_NAMES.SUPPLY_REQUESTS,
     'updateSupplyRequestStatus': SHEET_NAMES.SUPPLY_REQUESTS,
@@ -156,13 +162,12 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveMealPlan': SHEET_NAMES.MEAL_PLANS,
     'saveIngredient': SHEET_NAMES.INGREDIENTS,
     'updateSettings': SHEET_NAMES.SETTINGS,
-    
-    // Delete
     'deleteReports': SHEET_NAMES.REPORTS,
     'deleteStudents': SHEET_NAMES.STUDENTS,
     'deletePersonnel': SHEET_NAMES.PERSONNEL,
     'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
     'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS,
+    'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS,
     'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
     'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
     'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
@@ -182,14 +187,12 @@ function routeGenericAction(action, request, uploadFolder) {
 
   const sheet = getSheet(sheetName);
 
-  // Handle Deletion
   if (action.startsWith('delete')) {
     if (!ids || !Array.isArray(ids)) return responseJSON({ status: 'error', message: 'Missing IDs for deletion' });
     deleteRecords(sheet, ids);
     return responseJSON({ status: 'success' });
   }
 
-  // Handle Saving
   if (action === 'updateSettings') {
     const result = saveRecord(sheet, data, uploadFolder);
     return responseJSON({ status: 'success', data: result });
@@ -199,7 +202,6 @@ function routeGenericAction(action, request, uploadFolder) {
     const records = Array.isArray(data) ? data : [data];
     const results = records.map(r => saveRecord(sheet, r, uploadFolder));
     
-    // Specialized Notifications
     if (action === 'addReport') {
       sendNotificationToRole('admin', "มีรายงานสถานะเรือนนอนใหม่", `โดย: ${data.reporterName}\nเรือน: ${data.dormitory}\nมา: ${data.presentCount} ป่วย: ${data.sickCount}`);
     } else if (action === 'addPersonnel') {
@@ -241,7 +243,7 @@ function sendEmail(to, subject, bodyText) {
         <p style="font-size: 12px; color: #94a3b8; margin-top: 20px;">แจ้งเตือนอัตโนมัติจากระบบบริหารจัดการ D-school</p>
       </div>
     `;
-    MailApp.sendEmail({ to: to, subject: `📢 แจ้งเตือน: ${subject}`, htmlBody: htmlBody });
+    GmailApp.sendEmail(to, `📢 แจ้งเตือน: ${subject}`, "", { htmlBody: htmlBody });
   } catch(e) { console.error("Email fail", e); }
 }
 
@@ -250,10 +252,17 @@ function getSheet(name) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
-    // Add default headers if creating new
+    // Initialize headers based on sheet name
     if (name === SHEET_NAMES.SETTINGS) {
        sheet.appendRow(["schoolName", "schoolLogo", "themeColors", "dormitories", "positions", "academicYears", "studentClasses", "studentClassrooms", "googleScriptUrl", "adminPassword", "schoolLat", "schoolLng", "checkInRadius"]);
+    } else if (name === SHEET_NAMES.OTP_STORE) {
+       sheet.appendRow(["email", "code", "timestamp"]);
+    } else if (name === SHEET_NAMES.PERSONNEL) {
+       sheet.appendRow(["id", "personnelTitle", "personnelName", "position", "dob", "idCard", "email", "phone", "role", "status", "password"]);
     }
+  } else if (sheet.getLastRow() === 0) {
+    // If sheet exists but is empty
+    if (name === SHEET_NAMES.OTP_STORE) sheet.appendRow(["email", "code", "timestamp"]);
   }
   return sheet;
 }
@@ -279,7 +288,6 @@ function readSheet(sheet) {
 }
 
 function saveRecord(sheet, dataObj, uploadFolder) {
-  // Handle file uploads
   for (const key in dataObj) {
     const val = dataObj[key];
     if (Array.isArray(val)) {
@@ -308,7 +316,7 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     const matchIdx = ids.map(String).indexOf(String(dataObj.id));
     if (matchIdx !== -1) rowIndex = matchIdx + 2;
   } else if (sheet.getName() === SHEET_NAMES.SETTINGS && sheet.getLastRow() > 1) {
-    rowIndex = 2; // Always update second row for settings
+    rowIndex = 2; 
   }
 
   const rowData = headers.map(h => {
