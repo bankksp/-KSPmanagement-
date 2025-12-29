@@ -143,6 +143,9 @@ export interface Settings {
     serviceLocations?: string[]; 
     projectGroups?: string[]; 
     projectManagerIds?: number[]; 
+    schoolLat?: number;
+    schoolLng?: number;
+    checkInRadius?: number;
 }
 
 export type TimePeriod = 'morning' | 'lunch' | 'evening';
@@ -165,6 +168,20 @@ export interface PersonnelAttendance {
     status: AttendanceStatus;
     dressCode?: 'tidy' | 'untidy';
     note?: string;
+}
+
+export interface DutyRecord {
+    id: number;
+    date: string;
+    time: string;
+    personnelId: number;
+    personnelName: string;
+    type: 'check_in' | 'check_out';
+    latitude: number;
+    longitude: number;
+    distance: number;
+    image?: string | File;
+    status: 'within_range' | 'out_of_range';
 }
 
 export type PlanStatus = 'pending' | 'approved' | 'needs_edit';
@@ -378,6 +395,7 @@ export type Page =
     | 'reports' 
     | 'students' 
     | 'personnel' 
+    | 'personnel_duty'
     | 'admin' 
     | 'profile'
     | 'academic_plans'

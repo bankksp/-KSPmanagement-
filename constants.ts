@@ -49,7 +49,10 @@ export const DEFAULT_SETTINGS: Settings = {
     studentClasses: STUDENT_CLASSES,
     studentClassrooms: STUDENT_CLASSROOMS,
     googleScriptUrl: GOOGLE_SCRIPT_URL,
-    adminPassword: 'ksp'
+    adminPassword: 'ksp',
+    schoolLat: 16.4322,
+    schoolLng: 103.5061,
+    checkInRadius: 200 // Meters
 };
 
 export const THAI_PROVINCES = [

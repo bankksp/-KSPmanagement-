@@ -33,8 +33,9 @@ import ConstructionPage from './components/ConstructionPage';
 import BudgetPlanningPage from './components/BudgetPlanningPage';
 import LandingPage from './components/LandingPage';
 import NutritionPage from './components/NutritionPage';
+import DutyPage from './components/DutyPage';
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript } from './utils';
 
@@ -70,6 +71,9 @@ const App: React.FC = () => {
     // Attendance states
     const [studentAttendance, setStudentAttendance] = useState<StudentAttendance[]>([]);
     const [personnelAttendance, setPersonnelAttendance] = useState<PersonnelAttendance[]>([]);
+
+    // Duty Records state
+    const [dutyRecords, setDutyRecords] = useState<DutyRecord[]>([]);
 
     // Academic Plan state
     const [academicPlans, setAcademicPlans] = useState<AcademicPlan[]>([]);
@@ -197,6 +201,7 @@ const App: React.FC = () => {
 
             setStudentAttendance(data.studentAttendance || []);
             setPersonnelAttendance(data.personnelAttendance || []);
+            setDutyRecords(data.dutyRecords || []);
             setAcademicPlans(data.academicPlans || []);
             setSupplyItems(data.supplyItems || []);
             setSupplyRequests(data.supplyRequests || []);
@@ -587,6 +592,18 @@ const App: React.FC = () => {
                             isSaving={isSaving}
                             currentUser={currentUser}
                         />;
+            case 'personnel_duty':
+                return currentUser ? (
+                    <DutyPage 
+                        currentUser={currentUser}
+                        records={dutyRecords}
+                        onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)}
+                        onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)}
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
+                        isSaving={isSaving}
+                    />
+                ) : null;
             case 'reports':
                 return <ReportPage
                             reports={reports}

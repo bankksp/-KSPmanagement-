@@ -1,6 +1,6 @@
 
 /**
- * KSP Management System - Backend Script (Version 2025.17 - Full Router Implementation)
+ * KSP Management System - Backend Script (Version 2025.18 - Added Duty Records)
  */
 
 const FOLDER_NAME = "KSP_Management_System_Uploads"; 
@@ -13,6 +13,7 @@ const SHEET_NAMES = {
   SETTINGS: "Settings",
   STUDENT_ATTENDANCE: "StudentAttendance",
   PERSONNEL_ATTENDANCE: "PersonnelAttendance",
+  DUTY_RECORDS: "DutyRecords",
   ACADEMIC_PLANS: "AcademicPlans",
   SERVICE_RECORDS: "ServiceRecords",
   SUPPLY_ITEMS: "SupplyItems",
@@ -138,6 +139,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveAcademicPlan': SHEET_NAMES.ACADEMIC_PLANS,
     'updateAcademicPlanStatus': SHEET_NAMES.ACADEMIC_PLANS,
     'saveServiceRecord': SHEET_NAMES.SERVICE_RECORDS,
+    'saveDutyRecord': SHEET_NAMES.DUTY_RECORDS,
     'saveSupplyItem': SHEET_NAMES.SUPPLY_ITEMS,
     'saveSupplyRequest': SHEET_NAMES.SUPPLY_REQUESTS,
     'updateSupplyRequestStatus': SHEET_NAMES.SUPPLY_REQUESTS,
@@ -160,6 +162,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'deleteStudents': SHEET_NAMES.STUDENTS,
     'deletePersonnel': SHEET_NAMES.PERSONNEL,
     'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
+    'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS,
     'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
     'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
     'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
@@ -249,7 +252,7 @@ function getSheet(name) {
     sheet = ss.insertSheet(name);
     // Add default headers if creating new
     if (name === SHEET_NAMES.SETTINGS) {
-       sheet.appendRow(["schoolName", "schoolLogo", "themeColors", "dormitories", "positions", "academicYears", "studentClasses", "studentClassrooms", "googleScriptUrl", "adminPassword"]);
+       sheet.appendRow(["schoolName", "schoolLogo", "themeColors", "dormitories", "positions", "academicYears", "studentClasses", "studentClassrooms", "googleScriptUrl", "adminPassword", "schoolLat", "schoolLng", "checkInRadius"]);
     }
   }
   return sheet;
