@@ -17,11 +17,13 @@ interface HeaderProps {
     onToggleSidebar?: () => void;
     isDesktopSidebarOpen?: boolean;
     onToggleDesktopSidebar?: () => void;
+    isSyncing?: boolean; // New prop for background sync feedback
 }
 
 const Header: React.FC<HeaderProps> = ({ 
     onNavigate, currentUser, onLoginClick, onLogoutClick,
-    onToggleSidebar, onToggleDesktopSidebar, schoolName, schoolLogo
+    onToggleSidebar, onToggleDesktopSidebar, schoolName, schoolLogo,
+    isSyncing = false
 }) => {
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,16 @@ const Header: React.FC<HeaderProps> = ({
                         <span className="text-[8px] text-gray-400 font-bold uppercase">Management</span>
                     </div>
                 </div>
+
+                {/* Subtle Sync Indicator */}
+                {isSyncing && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-pulse">
+                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span className="text-[10px] font-bold uppercase tracking-wide">Syncing</span>
+                    </div>
+                )}
             </div>
 
             {/* Right: User Profile / Login */}
@@ -128,7 +140,7 @@ const Header: React.FC<HeaderProps> = ({
                         onClick={onLoginClick}
                         className="bg-white text-navy border border-gray-200 hover:bg-primary-blue hover:text-white hover:border-primary-blue px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2"
                     >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" /></svg>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                         เข้าสู่ระบบ
                     </button>
                 )}

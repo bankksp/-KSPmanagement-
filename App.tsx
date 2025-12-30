@@ -44,8 +44,10 @@ const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('stats');
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false); // Subtle sync indicator
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [hasInitialData, setHasInitialData] = useState(false);
     
     // Sidebar States
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile
@@ -107,10 +109,10 @@ const App: React.FC = () => {
     // Home Visit State
     const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
 
-    // SDQ State (New)
+    // SDQ State
     const [sdqRecords, setSdqRecords] = useState<SDQRecord[]>([]);
 
-    // Nutrition State (New)
+    // Nutrition State
     const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>(DEFAULT_INGREDIENTS);
 
@@ -161,7 +163,9 @@ const App: React.FC = () => {
     const fetchData = useCallback(async (isBackground: boolean = false) => {
         if (!isAuthenticated) return;
 
-        if (!isBackground) {
+        if (isBackground) {
+            setIsSyncing(true);
+        } else if (!hasInitialData) {
             setIsLoading(true);
             setFetchError(null);
         }
@@ -194,7 +198,7 @@ const App: React.FC = () => {
 
             setPersonnel(fetchedPersonnel);
 
-            // Sync currentUser with newest fetched data if applicable
+            // Sync currentUser
             if (currentUser) {
                 const updatedMe = fetchedPersonnel.find(p => p.id === currentUser.id);
                 if (updatedMe) {
@@ -266,9 +270,11 @@ const App: React.FC = () => {
             if (data.settings) {
                 setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
             }
+            
+            setHasInitialData(true);
 
         } catch (error: any) {
-            console.error("Failed to fetch data from Google Script:", error);
+            console.error("Failed to fetch data:", error);
             if (!isBackground) {
                 if (error.message && (error.message.includes("Unauthorized") || error.message.includes("Session expired"))) {
                     handleLogout();
@@ -278,13 +284,11 @@ const App: React.FC = () => {
                 }
             }
         } finally {
-            if (!isBackground) {
-                setIsLoading(false);
-            }
+            setIsLoading(false);
+            setIsSyncing(false);
         }
-    }, [isAuthenticated, currentUser?.id]);
+    }, [isAuthenticated, currentUser?.id, hasInitialData]);
 
-    // Check UI busy
     const isUIBusy = useMemo(() => {
         return isReportModalOpen || 
                isStudentModalOpen || 
@@ -336,7 +340,6 @@ const App: React.FC = () => {
         } catch (error) { console.error(error); alert('เกิดข้อผิดพลาด'); } finally { setIsSaving(false); }
     };
 
-    // Auth Handlers
     const handleLoginSuccess = (user: Personnel) => {
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
         if (normalizeId(user.idCard) === '1469900181659') user.role = 'admin';
@@ -355,6 +358,7 @@ const App: React.FC = () => {
     const handleLogout = () => {
         setCurrentUser(null);
         setIsAuthenticated(false);
+        setHasInitialData(false);
         localStorage.removeItem('dschool_user');
         setCurrentPage('stats');
         setReports([]); setStudents([]); setPersonnel([]);
@@ -365,7 +369,6 @@ const App: React.FC = () => {
         setIsRegisterModalOpen(false);
     };
 
-    // --- Entity Handlers ---
     const handleSaveReport = async (report: Report) => { 
         setIsSaving(true);
         try {
@@ -486,7 +489,6 @@ const App: React.FC = () => {
         } catch(e) { alert('Error deleting: ' + e); }
     };
 
-    // Helper functions for modal toggles
     const handleOpenReportModal = () => { setEditingReport(null); setIsReportModalOpen(true); };
     const handleCloseReportModal = () => { setIsReportModalOpen(false); setEditingReport(null); };
     const handleViewReport = (r: Report) => setViewingReport(r);
@@ -505,18 +507,17 @@ const App: React.FC = () => {
     const handleCloseViewPersonnelModal = () => setViewingPersonnel(null);
     const handleEditPersonnel = (p: Personnel) => { setEditingPersonnel(p); setIsPersonnelModalOpen(true); };
 
-    // Render Main Content based on Page
     const renderPage = () => {
-        if (isLoading) {
+        if (isLoading && !hasInitialData) {
              return (
                 <div className="flex flex-col justify-center items-center h-full">
                     <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary-blue mb-4"></div>
-                    <p className="text-xl text-secondary-gray font-medium">กำลังโหลดข้อมูล...</p>
+                    <p className="text-xl text-secondary-gray font-medium">กำลังเตรียมข้อมูล...</p>
                 </div>
             )
         }
 
-        if (fetchError) {
+        if (fetchError && !hasInitialData) {
              return (
                  <div className="flex flex-col justify-center items-center h-full text-center p-8">
                     <div className="bg-red-100 p-4 rounded-full mb-4">
@@ -526,7 +527,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800 mb-2">ไม่สามารถดึงข้อมูลได้</h3>
                     <p className="text-gray-600 mb-6 max-w-md">{fetchError}</p>
-                    <button onClick={() => window.location.reload()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow transition">
+                    <button onClick={() => fetchData()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow transition">
                         ลองใหม่อีกครั้ง
                     </button>
                 </div>
@@ -823,7 +824,6 @@ const App: React.FC = () => {
         }
     };
 
-    // --- MAIN RENDER ---
     if (!isAuthenticated) {
         return (
             <LandingPage 
@@ -840,7 +840,7 @@ const App: React.FC = () => {
             return;
         }
         setCurrentPage(page);
-        setIsSidebarOpen(false); // Close mobile sidebar on nav
+        setIsSidebarOpen(false); 
     };
 
     return (
@@ -873,6 +873,7 @@ const App: React.FC = () => {
                     onToggleSidebar={() => setIsSidebarOpen(true)}
                     isDesktopSidebarOpen={isDesktopSidebarOpen}
                     onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
+                    isSyncing={isSyncing}
                 />
                 
                 <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
@@ -896,9 +897,7 @@ const App: React.FC = () => {
             />
 
             <RegisterModal 
-                /* Fix: Changed isRegisterOpen to isRegisterModalOpen */
                 isOpen={isRegisterModalOpen} 
-                /* Fix: Changed setIsRegisterOpen to setIsRegisterModalOpen */
                 onClose={() => setIsRegisterModalOpen(false)} 
                 onRegister={handleRegister} 
                 positions={settings.positions} 

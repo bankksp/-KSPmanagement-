@@ -198,7 +198,7 @@ const DutyPage: React.FC<DutyPageProps> = ({
         <div className="space-y-6 animate-fade-in font-sarabun pb-10">
             <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 no-print border border-gray-100">
                 <button onClick={() => setActiveTab('checkin')} className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'checkin' ? 'bg-primary-blue text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>
-                    บันทึกปฏิบัติหน้าที่
+                    ลงเวลาปฏิบัติงาน
                 </button>
                 <button onClick={() => setActiveTab('list')} className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'list' ? 'bg-primary-blue text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>
                     ประวัติปฏิบัติหน้าที่
@@ -298,11 +298,16 @@ const DutyPage: React.FC<DutyPageProps> = ({
                                                 {r.image ? <img src={getDirectDriveImageSrc(r.image as string)} className="w-full h-full object-cover" /> : null}
                                             </div>
                                         </td>
-                                        <td className="p-4"><b>{r.date}</b><br/>{formatOnlyTime(r.time)} น.</td>
+                                        <td className="p-4">
+                                            <div className="flex flex-col text-xs md:text-sm">
+                                                <span className="font-medium text-gray-500 leading-tight mb-1">{formatThaiDate(r.date)}</span>
+                                                <span className="font-bold text-navy">{formatOnlyTime(r.time)} น.</span>
+                                            </div>
+                                        </td>
                                         <td className="p-4 font-bold">{r.personnelName}</td>
-                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.type === 'check_in' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน'}</span></td>
+                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.type === 'check_in' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-rose-100 text-rose-600 border border-rose-200'}`}>{r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน'}</span></td>
                                         <td className="p-4">{r.distance} ม.</td>
-                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.status === 'within_range' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>{r.status === 'within_range' ? 'ในเขต' : 'นอกเขต'}</span></td>
+                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.status === 'within_range' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>{r.status === 'within_range' ? 'ในเขต' : 'นอกเขต'}</span></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -328,17 +333,17 @@ const DutyPage: React.FC<DutyPageProps> = ({
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-black text-gray-400 uppercase mb-1">Latitude</label>
+                                <label className="block text-gray-400 text-[10px] font-black uppercase mb-1 tracking-widest">Latitude</label>
                                 <input type="number" step="0.000001" value={localSettings.schoolLat || ''} onChange={e => setLocalSettings({...localSettings, schoolLat: parseFloat(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-mono text-sm" />
                             </div>
                             <div>
-                                <label className="block text-xs font-black text-gray-400 uppercase mb-1">Longitude</label>
+                                <label className="block text-gray-400 text-[10px] font-black uppercase mb-1 tracking-widest">Longitude</label>
                                 <input type="number" step="0.000001" value={localSettings.schoolLng || ''} onChange={e => setLocalSettings({...localSettings, schoolLng: parseFloat(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-mono text-sm" />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-black text-gray-400 uppercase mb-1">ระยะรัศมีที่อนุญาต (เมตร)</label>
+                            <label className="block text-gray-400 text-[10px] font-black uppercase mb-1 tracking-widest">ระยะรัศมีที่อนุญาต (เมตร)</label>
                             <input type="number" value={localSettings.checkInRadius || ''} onChange={e => setLocalSettings({...localSettings, checkInRadius: parseInt(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-bold" />
                         </div>
 
