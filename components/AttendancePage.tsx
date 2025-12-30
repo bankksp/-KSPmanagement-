@@ -41,8 +41,16 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     const [localAttendance, setLocalAttendance] = useState<Record<number, AttendanceStatus>>({});
 
     const enabledPeriods = useMemo(() => {
-        return (settings?.attendancePeriods || DEFAULT_ATTENDANCE_PERIODS).filter(p => p.enabled);
+        const periods = (settings?.attendancePeriods || DEFAULT_ATTENDANCE_PERIODS).filter(p => p.enabled);
+        return periods.length > 0 ? periods : DEFAULT_ATTENDANCE_PERIODS;
     }, [settings]);
+
+    // Update selectedPeriod if current one is not in enabled list
+    useEffect(() => {
+        if (!enabledPeriods.find(p => p.id === selectedPeriod)) {
+            setSelectedPeriod(enabledPeriods[0].id as TimePeriod);
+        }
+    }, [enabledPeriods, selectedPeriod]);
 
     const isSameDay = (date1: string, date2: string) => {
         if (!date1 || !date2) return false;
@@ -408,23 +416,53 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                 {subTab === 'checkin' && (
                     <div className="animate-fade-in">
                         {!selectedClassroom ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-                                {Array.from(new Set(students.map(s => s.studentClass))).sort().map(room => (
-                                    <button 
-                                        key={room} 
-                                        onClick={() => setSelectedClassroom(room)}
-                                        className="p-6 rounded-[2rem] border-2 border-gray-100 hover:border-blue-400 hover:bg-blue-50 transition-all flex flex-col items-center gap-3 shadow-sm group active:scale-95"
-                                    >
-                                        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                            <div className="space-y-8">
+                                {/* ขั้นตอนที่ 1: เลือกช่วงเวลา */}
+                                <div className="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6 shadow-inner">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-4 bg-white rounded-2xl text-blue-600 shadow-sm">
+                                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                         </div>
-                                        <h4 className="font-black text-navy text-lg">{room}</h4>
-                                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Select Room</p>
-                                    </button>
-                                ))}
+                                        <div>
+                                            <h4 className="text-xl font-black text-navy">ขั้นตอนที่ 1: เลือกคาบ/ช่วงเวลา</h4>
+                                            <p className="text-sm text-gray-500 font-bold">ระบุช่วงเวลาที่คุณต้องการทำการเช็คชื่อ</p>
+                                        </div>
+                                    </div>
+                                    <select 
+                                        value={selectedPeriod}
+                                        onChange={(e) => setSelectedPeriod(e.target.value as TimePeriod)}
+                                        className="w-full md:w-72 px-6 py-4 bg-white border-2 border-blue-200 rounded-2xl font-black text-navy focus:ring-4 focus:ring-blue-100 outline-none shadow-sm text-lg transition-all"
+                                    >
+                                        {enabledPeriods.map(p => (
+                                            <option key={p.id} value={p.id}>{p.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h4 className="text-lg font-black text-navy px-2 flex items-center gap-2">
+                                        <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+                                        ขั้นตอนที่ 2: เลือกชั้น/ห้องเรียน
+                                    </h4>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+                                        {Array.from(new Set(students.map(s => s.studentClass))).sort().map(room => (
+                                            <button 
+                                                key={room} 
+                                                onClick={() => setSelectedClassroom(room)}
+                                                className="p-6 rounded-[2.5rem] border-2 border-gray-100 bg-white hover:border-blue-400 hover:bg-blue-50 transition-all flex flex-col items-center gap-3 shadow-sm group active:scale-95"
+                                            >
+                                                <div className="p-4 bg-blue-100 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                                </div>
+                                                <h4 className="font-black text-navy text-xl">{room}</h4>
+                                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Select Room</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         ) : (
-                            <div className="animate-slide-up bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-2xl">
+                            <div className="animate-slide-up bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-2xl">
                                 <div className="p-6 bg-navy text-white flex justify-between items-center">
                                     <div className="flex items-center gap-4">
                                         <button onClick={() => setSelectedClassroom(null)} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
@@ -432,7 +470,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
                                         </button>
                                         <div>
                                             <h3 className="text-xl font-black">ชั้น {selectedClassroom}</h3>
-                                            <p className="text-xs opacity-70">กำลังบันทึกข้อมูล: {selectedDate} | คาบ: {enabledPeriods.find(p=>p.id===selectedPeriod)?.label}</p>
+                                            <p className="text-xs opacity-70">กำลังบันทึกข้อมูล: {selectedDate} | คาบ: <span className="text-yellow-400 font-black">{enabledPeriods.find(p=>p.id===selectedPeriod)?.label}</span></p>
                                         </div>
                                     </div>
                                     <button onClick={() => { const newMap = {...localAttendance}; students.filter(s => (s.studentClass || 'ไม่ระบุ') === selectedClassroom).forEach(s => newMap[s.id] = 'present'); setLocalAttendance(newMap); }} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all">มาทั้งหมด</button>
