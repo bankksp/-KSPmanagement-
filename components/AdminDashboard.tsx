@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Settings } from '../types';
+import { Settings, AttendancePeriodConfig } from '../types';
 import { getDirectDriveImageSrc } from '../utils';
 
 interface AdminDashboardProps {
@@ -9,7 +10,7 @@ interface AdminDashboardProps {
     isSaving: boolean;
 }
 
-type AdminTab = 'general' | 'appearance' | 'lists' | 'system';
+type AdminTab = 'general' | 'appearance' | 'lists' | 'attendance' | 'system';
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExit, isSaving }) => {
     const [activeTab, setActiveTab] = useState<AdminTab>('general');
@@ -49,6 +50,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
     
+    const togglePeriod = (id: string) => {
+        const periods = [...(localSettings.attendancePeriods || [])];
+        const idx = periods.findIndex(p => p.id === id);
+        if (idx !== -1) {
+            periods[idx] = { ...periods[idx], enabled: !periods[idx].enabled };
+            setLocalSettings(prev => ({ ...prev, attendancePeriods: periods }));
+        }
+    };
+
     const handleAddItem = (
         key: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms', 
         valueKey: 'dormitory' | 'position' | 'academicYear' | 'studentClass' | 'studentClassroom'
@@ -169,6 +179,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                         <ListEditor title="ปีการศึกษา" items={localSettings.academicYears} itemKey="academicYears" valueKey="academicYear" />
                     </div>
                 );
+            case 'attendance':
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
+                            <h3 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
+                                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                ตั้งค่าช่วงเวลาการเช็คชื่อ
+                            </h3>
+                            <p className="text-sm text-gray-500 mb-6">เปิด/ปิด ช่วงเวลาที่ต้องการให้แสดงในระบบเช็คชื่อนักเรียนและบุคลากร</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {(localSettings.attendancePeriods || []).map(p => (
+                                    <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => togglePeriod(p.id)}
+                                        className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${p.enabled ? 'bg-white border-blue-500 text-blue-700 shadow-md ring-4 ring-blue-50' : 'bg-gray-50 border-gray-200 text-gray-400 opacity-60'}`}
+                                    >
+                                        <span className="font-bold">{p.label}</span>
+                                        <div className={`w-10 h-5 rounded-full relative transition-colors ${p.enabled ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${p.enabled ? 'translate-x-5.5' : 'translate-x-0.5'}`} style={{left: 0}}></div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
             case 'system':
                 return (
                     <div className="space-y-6">
@@ -188,16 +225,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
     };
     
     return (
-        <div className="bg-white p-6 rounded-xl shadow-lg">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-gray-100">
             <div className="flex flex-col md:flex-row gap-8">
                 {/* Sidebar */}
                 <aside className="md:w-1/4">
-                    <h2 className="text-xl font-bold text-navy mb-4">เมนูตั้งค่า</h2>
-                    <nav className="space-y-2">
-                        {(['general', 'appearance', 'lists', 'system'] as AdminTab[]).map(tab => {
-                            const labels: Record<AdminTab, string> = { general: 'ทั่วไป', appearance: 'หน้าตาเว็บ', lists: 'รายการข้อมูล', system: 'ระบบ' };
+                    <h2 className="text-xl font-bold text-navy mb-6 px-4">เมนูตั้งค่า</h2>
+                    <nav className="space-y-1">
+                        {(['general', 'appearance', 'lists', 'attendance', 'system'] as AdminTab[]).map(tab => {
+                            const labels: Record<AdminTab, string> = { general: 'ทั่วไป', appearance: 'หน้าตาเว็บ', lists: 'จัดการข้อมูล', attendance: 'เช็คชื่อ', system: 'ระบบ' };
                             return (
-                                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${activeTab === tab ? 'bg-accent-blue text-primary-blue font-semibold' : 'hover:bg-gray-100'}`}>
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-3 rounded-2xl transition-all ${activeTab === tab ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-200' : 'text-gray-500 hover:bg-gray-100'}`}>
                                     {labels[tab]}
                                 </button>
                             )
@@ -206,10 +243,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                 </aside>
                 {/* Main Content */}
                 <main className="md:w-3/4">
-                    <div className="mb-6 pb-4 border-b">
-                         <h2 className="text-2xl font-bold text-navy">
+                    <div className="mb-8 pb-4 border-b">
+                         <h2 className="text-2xl font-black text-navy">
                              {
-                                {general: 'ตั้งค่าทั่วไป', appearance: 'ปรับแต่งหน้าตาเว็บ', lists: 'จัดการรายการข้อมูล', system: 'ตั้งค่าระบบ'}[activeTab]
+                                {general: 'ตั้งค่าทั่วไป', appearance: 'ปรับแต่งหน้าตาเว็บ', lists: 'จัดการรายการข้อมูล', attendance: 'ตั้งค่าระบบเช็คชื่อ', system: 'ตั้งค่าระบบ'}[activeTab]
                              }
                         </h2>
                     </div>
@@ -218,15 +255,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                     </div>
                 </main>
             </div>
-            <div className="mt-8 pt-4 border-t flex justify-end items-center space-x-3">
-                <button type="button" onClick={onExit} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
-                    ออกจากหน้าตั้งค่า
+            <div className="mt-12 pt-6 border-t flex justify-end items-center space-x-3">
+                <button type="button" onClick={onExit} className="bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold py-2.5 px-6 rounded-2xl transition-all">
+                    ยกเลิก
                 </button>
                 <button 
                     type="button" 
                     onClick={() => onSave(localSettings)} 
                     disabled={isSaving}
-                    className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-10 rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50"
                 >
                     {isSaving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
                 </button>

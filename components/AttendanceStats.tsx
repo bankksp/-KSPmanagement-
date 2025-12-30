@@ -1,5 +1,6 @@
+
 import React, { useMemo } from 'react';
-import { StudentAttendance, PersonnelAttendance, Student, Personnel } from '../types';
+import { StudentAttendance, PersonnelAttendance, Student, Personnel, TimePeriod } from '../types';
 
 interface CalculatedStats {
     studentStats: {
@@ -85,8 +86,9 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
         if (stats) return stats;
 
         // Fallback calculation if stats prop isn't passed
-        const periods = ['morning', 'lunch', 'evening'] as const;
-        const periodNames = { morning: 'เช้า', lunch: 'กลางวัน', evening: 'เย็น' };
+        // Fix: Use correct TimePeriod literals to avoid unintentional type comparison error
+        const periods = ['morning_act', 'lunch_act', 'evening_act'] as TimePeriod[];
+        const periodNames: Record<string, string> = { morning_act: 'เช้า', lunch_act: 'กลางวัน', evening_act: 'เย็น' };
 
         const studentStats = periods.map(period => {
             const records = studentAttendance.filter(r => r.date === selectedDate && r.period === period);

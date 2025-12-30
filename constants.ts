@@ -1,5 +1,5 @@
 
-import { Settings, Ingredient, NutritionTargetGroup } from "./types";
+import { Settings, Ingredient, NutritionTargetGroup, AttendancePeriodConfig } from "./types";
 
 export const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (2560 + i).toString());
 
@@ -37,6 +37,18 @@ export const LEARNING_AREAS = [
   "กิจกรรมพัฒนาผู้เรียน"
 ];
 
+export const DEFAULT_ATTENDANCE_PERIODS: AttendancePeriodConfig[] = [
+    { id: 'morning_act', label: 'กิจกรรมเช้า', enabled: true },
+    { id: 'p1', label: 'ชั่วโมงที่ 1', enabled: true },
+    { id: 'p2', label: 'ชั่วโมงที่ 2', enabled: true },
+    { id: 'p3', label: 'ชั่วโมงที่ 3', enabled: true },
+    { id: 'lunch_act', label: 'กิจกรรมเที่ยง', enabled: true },
+    { id: 'p4', label: 'ชั่วโมงที่ 4', enabled: true },
+    { id: 'p5', label: 'ชั่วโมงที่ 5', enabled: true },
+    { id: 'p6', label: 'ชั่วโมงที่ 6', enabled: true },
+    { id: 'evening_act', label: 'กิจกรรมเย็น', enabled: true },
+];
+
 // โปรแกรมลายเซ็น (Fixed)
 export const PROGRAM_LOGO = 'https://img5.pic.in.th/file/secure-sv1/Blue-and-White-Modern-Gradient-D-Logo.png';
 
@@ -60,7 +72,8 @@ export const DEFAULT_SETTINGS: Settings = {
     schoolLng: 103.5061,
     checkInRadius: 200,
     leaveTypes: LEAVE_TYPES,
-    leaveApproverIds: []
+    leaveApproverIds: [],
+    attendancePeriods: DEFAULT_ATTENDANCE_PERIODS
 };
 
 export const THAI_PROVINCES = [

@@ -395,16 +395,48 @@ const App: React.FC = () => {
 
     const deletePersonnel = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deletePersonnel', ids }); setPersonnel(prev => prev.filter(p => !ids.map(String).includes(String(p.id)))); } catch(e) { alert('Error'); } };
 
-    const handleSaveAttendance = async (t: any, d: any) => { 
+    const handleSaveAttendance = async (t: 'student' | 'personnel', d: any) => { 
         setIsSaving(true);
         try {
             const action = t === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
             const response = await postToGoogleScript({ action, data: d });
-            const saved = response.data;
-            if(t==='student') setStudentAttendance(prev => { const ids = new Set(saved.map((x:any)=>x.id)); return [...prev.filter(r=>!ids.has(r.id)), ...saved]; });
-            else setPersonnelAttendance(prev => { const ids = new Set(saved.map((x:any)=>x.id)); return [...prev.filter(r=>!ids.has(r.id)), ...saved]; });
-        } catch(e) { alert('Error'); } finally { setIsSaving(false); }
+            const saved = Array.isArray(response.data) ? response.data : [response.data];
+            
+            if(t === 'student') {
+                setStudentAttendance(prev => {
+                    const ids = new Set(saved.map((x:any) => x.id));
+                    return [...prev.filter(r => !ids.has(r.id)), ...saved];
+                });
+            } else {
+                setPersonnelAttendance(prev => {
+                    const ids = new Set(saved.map((x:any) => x.id));
+                    return [...prev.filter(r => !ids.has(r.id)), ...saved];
+                });
+            }
+            alert('บันทึกข้อมูลเรียบร้อย');
+        } catch(e) { 
+            console.error(e);
+            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        } finally { 
+            setIsSaving(false); 
+        }
     }; 
+
+    const handleDeleteAttendance = async (t: 'student' | 'personnel', ids: string[]) => {
+        if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลประวัติการเช็คชื่อรายการนี้?')) return;
+        try {
+            const action = t === 'student' ? 'deleteStudentAttendance' : 'deletePersonnelAttendance';
+            await postToGoogleScript({ action, ids });
+            if(t === 'student') {
+                setStudentAttendance(prev => prev.filter(r => !ids.includes(r.id)));
+            } else {
+                setPersonnelAttendance(prev => prev.filter(r => !ids.includes(r.id)));
+            }
+            alert('ลบข้อมูลเรียบร้อย');
+        } catch(e) {
+            alert('เกิดข้อผิดพลาดในการลบข้อมูล');
+        }
+    };
 
     const handleSaveAcademicPlan = async (p: AcademicPlan) => { 
         setIsSaving(true);
@@ -534,26 +566,28 @@ const App: React.FC = () => {
                             mode="student"
                             students={students}
                             personnel={personnel}
-                            dormitories={settings.dormitories}
                             studentAttendance={studentAttendance}
                             personnelAttendance={personnelAttendance}
                             onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
                             onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
+                            onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)}
                             isSaving={isSaving}
                             currentUser={currentUser}
+                            settings={settings}
                         />;
             case 'attendance_personnel':
                 return <AttendancePage
                             mode="personnel"
                             students={students}
                             personnel={personnel}
-                            dormitories={settings.dormitories}
                             studentAttendance={studentAttendance}
                             personnelAttendance={personnelAttendance}
                             onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
                             onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
+                            onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)}
                             isSaving={isSaving}
                             currentUser={currentUser}
+                            settings={settings}
                         />;
             case 'personnel_duty':
                 return currentUser ? (

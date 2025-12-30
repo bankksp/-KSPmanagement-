@@ -105,6 +105,8 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveSDQRecord': SHEET_NAMES.SDQ_RECORDS,
     'saveMealPlan': SHEET_NAMES.MEAL_PLANS,
     'saveIngredient': SHEET_NAMES.INGREDIENTS,
+    'saveStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
+    'savePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
     'updateSettings': SHEET_NAMES.SETTINGS,
     'deleteReports': SHEET_NAMES.REPORTS,
     'deleteStudents': SHEET_NAMES.STUDENTS,
@@ -123,7 +125,9 @@ function routeGenericAction(action, request, uploadFolder) {
     'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
     'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS,
     'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
-    'deleteIngredients': SHEET_NAMES.INGREDIENTS
+    'deleteIngredients': SHEET_NAMES.INGREDIENTS,
+    'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
+    'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE
   };
 
   const sheetName = actionToSheetMap[action];

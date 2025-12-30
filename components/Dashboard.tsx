@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance, DormitoryStat, HomeVisit } from '../types';
+import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance, DormitoryStat, HomeVisit, TimePeriod } from '../types';
 import ReportChart from './ReportChart';
 import InfirmaryChart from './InfirmaryChart';
 import AttendanceStats from './AttendanceStats';
@@ -106,8 +106,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     
     // Attendance Stats
     const attendanceStatsData = useMemo(() => {
-        const periods = ['morning', 'lunch', 'evening'] as const;
-        const periodNames = { morning: 'เช้า', lunch: 'กลางวัน', evening: 'เย็น' };
+        // Fix: Ensure comparison values match TimePeriod type to avoid unintentional type comparison error.
+        const periods = ['morning_act', 'lunch_act', 'evening_act'] as TimePeriod[];
+        const periodNames: Record<string, string> = { morning_act: 'เช้า', lunch_act: 'กลางวัน', evening_act: 'เย็น' };
+        
         const studentStats = periods.map(period => {
             const records = studentAttendance.filter(r => r.date === buddhistDate && r.period === period);
             return {
@@ -509,7 +511,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {/* Detailed Attendance Table */}
                 <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-lg border border-white/50 p-6">
                     <h3 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-primary-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                        <svg className="w-5 h-5 text-primary-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                         รายละเอียดการเช็คชื่อ ({buddhistDate})
                     </h3>
                     <AttendanceStats 

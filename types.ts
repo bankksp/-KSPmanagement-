@@ -129,6 +129,12 @@ export interface ThemeColors {
   primaryHover: string;
 }
 
+export interface AttendancePeriodConfig {
+    id: string;
+    label: string;
+    enabled: boolean;
+}
+
 export interface Settings {
     schoolName: string;
     schoolLogo: string; 
@@ -148,9 +154,16 @@ export interface Settings {
     checkInRadius?: number;
     leaveTypes?: string[];
     leaveApproverIds?: number[];
+    attendancePeriods?: AttendancePeriodConfig[];
 }
 
-export type TimePeriod = 'morning' | 'lunch' | 'evening';
+export type TimePeriod = 
+    | 'morning_act' 
+    | 'p1' | 'p2' | 'p3' 
+    | 'lunch_act' 
+    | 'p4' | 'p5' | 'p6' 
+    | 'evening_act';
+
 export type AttendanceStatus = 'present' | 'sick' | 'leave' | 'absent' | 'activity'; 
 
 export interface StudentAttendance {
