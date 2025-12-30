@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, Personnel, StudentAttendance, PersonnelAttendance, TimePeriod, AttendanceStatus, Settings } from '../types';
 import { DEFAULT_ATTENDANCE_PERIODS } from '../constants';
-import { getFirstImageSource, buddhistToISO, isoToBuddhist, getCurrentThaiDate } from '../utils';
+import { getFirstImageSource, buddhistToISO, isoToBuddhist, getCurrentThaiDate, normalizeDate } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface AttendancePageProps {
@@ -17,26 +17,25 @@ interface AttendancePageProps {
     isSaving: boolean;
     currentUser: Personnel | null;
     settings?: Settings;
+    onRefresh?: () => void;
 }
 
 const COLORS = {
-    present: '#10B981', // Emerald 500
-    absent: '#EF4444',  // Rose 500
-    leave: '#F59E0B',   // Amber 500
-    sick: '#F97316'     // Orange 500
+    present: '#10B981', 
+    absent: '#EF4444',  
+    leave: '#F59E0B',   
+    sick: '#F97316'     
 };
 
 const AttendancePage: React.FC<AttendancePageProps> = ({
     mode, students, personnel, studentAttendance, personnelAttendance, 
     onSaveStudentAttendance, onSavePersonnelAttendance, onDeleteAttendance, 
-    isSaving, settings
+    isSaving, settings, onRefresh, currentUser
 }) => {
-    const [subTab, setSubTab] = useState<'stats' | 'log' | 'checkin'>('stats');
+    const [subTab, setSubTab] = useState<'stats' | 'log' | 'checkin'>('log');
     const [selectedDate, setSelectedDate] = useState(getCurrentThaiDate());
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('morning_act');
-    
-    // UI Drill-down State for Log tab
-    const [selectedLogClassroom, setSelectedLogClassroom] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
     
     const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
     const [localAttendance, setLocalAttendance] = useState<Record<number, AttendanceStatus>>({});
@@ -45,132 +44,138 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
         return (settings?.attendancePeriods || DEFAULT_ATTENDANCE_PERIODS).filter(p => p.enabled);
     }, [settings]);
 
-    const studentClasses = useMemo(() => settings?.studentClasses || [], [settings]);
+    const isSameDay = (date1: string, date2: string) => {
+        if (!date1 || !date2) return false;
+        return date1.trim() === date2.trim();
+    };
 
-    // --- 1. STATISTICS CALCULATION ---
-    const classStats = useMemo(() => {
-        const stats: Record<string, any> = {};
-        students.forEach(s => {
-            const className = s.studentClass.split('/')[0];
-            if (!stats[className]) stats[className] = { name: className, present: 0, absent: 0, leave: 0, sick: 0, total: 0 };
-            stats[className].total++;
-            const record = studentAttendance.find(r => r.date === selectedDate && r.period === selectedPeriod && r.studentId === s.id);
-            if (record) {
-                if (record.status === 'present' || record.status === 'activity') stats[className].present++;
-                else stats[className][record.status]++;
-            } else {
-                stats[className].absent++;
-            }
+    // --- 1. สถิติสำหรับการ์ดด้านบน ---
+    const topStats = useMemo(() => {
+        const todayRecords = studentAttendance.filter(r => isSameDay(r.date, selectedDate));
+        const checkedCount = todayRecords.length;
+        const absentOrLeave = todayRecords.filter(r => ['absent', 'leave', 'sick'].includes(r.status)).length;
+        
+        const checkedRooms = new Set();
+        todayRecords.forEach(r => {
+            const s = students.find(std => std.id === r.studentId);
+            if (s) checkedRooms.add(`${s.studentClass}-${r.period}`);
         });
-        return Object.values(stats).sort((a, b) => studentClasses.indexOf(a.name) - studentClasses.indexOf(b.name));
-    }, [students, studentAttendance, selectedDate, selectedPeriod, studentClasses]);
 
-    // --- 2. LOG DATA GROUPED BY CLASSROOM ---
-    const classroomsChecked = useMemo(() => {
-        const roomsMap = new Map<string, { present: number, absent: number, leave: number, sick: number, total: number }>();
+        return {
+            checkedCount,
+            absentOrLeave,
+            roomsCount: checkedRooms.size
+        };
+    }, [studentAttendance, selectedDate, students]);
+
+    // --- 2. ข้อมูลสำหรับการแสดงผลในตาราง LOG ---
+    const sessionLogs = useMemo(() => {
+        const groups: Record<string, {
+            id: string,
+            date: string,
+            period: string,
+            classroom: string,
+            present: number,
+            absent: number,
+            sick: number,
+            leave: number,
+            total: number,
+            ids: string[]
+        }> = {};
+
+        studentAttendance.forEach(r => {
+            const student = students.find(s => s.id === r.studentId);
+            if (!student) return;
+            
+            const key = `${r.date}-${r.period}-${student.studentClass}`;
+            if (!groups[key]) {
+                groups[key] = {
+                    id: key,
+                    date: r.date,
+                    period: r.period,
+                    classroom: student.studentClass,
+                    present: 0,
+                    absent: 0,
+                    sick: 0,
+                    leave: 0,
+                    total: 0,
+                    ids: []
+                };
+            }
+            
+            groups[key].total++;
+            groups[key].ids.push(r.id);
+            if (r.status === 'present' || r.status === 'activity') groups[key].present++;
+            else if (r.status === 'absent') groups[key].absent++;
+            else if (r.status === 'sick') groups[key].sick++;
+            else if (r.status === 'leave') groups[key].leave++;
+        });
+
+        return Object.values(groups)
+            .filter(g => {
+                const searchLower = searchTerm.toLowerCase();
+                return g.classroom.toLowerCase().includes(searchLower) || g.date.includes(searchLower);
+            })
+            .sort((a, b) => b.id.localeCompare(a.id));
+    }, [studentAttendance, students, searchTerm]);
+
+    // --- 3. ข้อมูลสำหรับหน้าสถิติ (Charts) ---
+    const chartStats = useMemo(() => {
+        const todayRecords = studentAttendance.filter(r => isSameDay(r.date, selectedDate));
         
-        // Filter attendance for selected day/period
-        const currentRecords = studentAttendance.filter(r => r.date === selectedDate && r.period === selectedPeriod);
-        
-        currentRecords.forEach(r => {
+        const statusData = [
+            { name: 'มาเรียน', value: todayRecords.filter(r => r.status === 'present' || r.status === 'activity').length, color: COLORS.present },
+            { name: 'ขาดเรียน', value: todayRecords.filter(r => r.status === 'absent').length, color: COLORS.absent },
+            { name: 'ลา', value: todayRecords.filter(r => r.status === 'leave').length, color: COLORS.leave },
+            { name: 'ป่วย', value: todayRecords.filter(r => r.status === 'sick').length, color: COLORS.sick },
+        ].filter(d => d.value > 0);
+
+        // สรุปรายห้อง
+        const roomGroups: Record<string, number> = {};
+        todayRecords.forEach(r => {
             const student = students.find(s => s.id === r.studentId);
             if (student) {
-                const room = student.studentClass;
-                if (!roomsMap.has(room)) roomsMap.set(room, { present: 0, absent: 0, leave: 0, sick: 0, total: 0 });
-                const stats = roomsMap.get(room)!;
-                stats.total++;
-                if (r.status === 'present') stats.present++;
-                else if (r.status === 'absent') stats.absent++;
-                else if (r.status === 'leave') stats.leave++;
-                else if (r.status === 'sick') stats.sick++;
+                roomGroups[student.studentClass] = (roomGroups[student.studentClass] || 0) + 1;
             }
         });
-        
-        return Array.from(roomsMap.entries()).map(([room, stats]) => ({ room, ...stats }))
-            .sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric: true }));
-    }, [studentAttendance, selectedDate, selectedPeriod, students]);
+        const barData = Object.entries(roomGroups).map(([name, value]) => ({ name, value }));
 
-    const logStudentsForClass = useMemo(() => {
-        if (!selectedLogClassroom) return [];
-        return studentAttendance
-            .filter(r => r.date === selectedDate && r.period === selectedPeriod)
-            .map(r => {
-                const student = students.find(s => s.id === r.studentId);
-                return { ...r, student };
-            })
-            .filter(item => item.student?.studentClass === selectedLogClassroom)
-            .sort((a, b) => (a.student?.studentName || '').localeCompare(b.student?.studentName || ''));
-    }, [studentAttendance, selectedDate, selectedPeriod, students, selectedLogClassroom]);
+        return { statusData, barData };
+    }, [studentAttendance, selectedDate, students]);
 
-    // --- 3. CLASSROOM SELECTOR DATA ---
-    const allClassrooms = useMemo(() => {
-        const rooms = new Set<string>();
-        students.forEach(s => rooms.add(s.studentClass));
-        return Array.from(rooms).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    }, [students]);
-
-    const classroomStatus = useMemo(() => {
-        const statusMap: Record<string, { total: number, checked: number }> = {};
-        allClassrooms.forEach(room => {
-            const roomStudents = students.filter(s => s.studentClass === room);
-            const checkedCount = studentAttendance.filter(r => 
-                r.date === selectedDate && r.period === selectedPeriod && 
-                roomStudents.some(s => s.id === r.studentId)
-            ).length;
-            statusMap[room] = { total: roomStudents.length, checked: checkedCount };
-        });
-        return statusMap;
-    }, [allClassrooms, students, studentAttendance, selectedDate, selectedPeriod]);
-
-    // --- HANDLERS ---
     const handleExportExcel = () => {
-        const periodLabel = enabledPeriods.find(p => p.id === selectedPeriod)?.label || selectedPeriod;
-        const currentRecords = studentAttendance.filter(r => r.date === selectedDate && r.period === selectedPeriod);
-        
-        if (currentRecords.length === 0) {
-            alert('ไม่มีข้อมูลให้ Export สำหรับวันที่และช่วงเวลานี้');
+        if (sessionLogs.length === 0) {
+            alert('ไม่มีข้อมูลสำหรับดาวน์โหลด');
             return;
         }
 
-        // CSV Header
-        let csvContent = "\uFEFF"; // Add BOM for Thai characters in Excel
-        csvContent += "ลำดับ,ชื่อ-นามสกุล,ชั้น/ห้อง,สถานะ,วันที่,ช่วงเวลา,หมายเหตุ\n";
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += "วันที่,คาบ,ชั้น/ห้อง,มาเรียน,ขาด,ป่วย,ลา,รวม\n";
 
-        // Build Rows
-        const rows = currentRecords.map((r, index) => {
-            const student = students.find(s => s.id === r.studentId);
-            const studentName = student ? `${student.studentTitle}${student.studentName}` : 'ไม่พบข้อมูล';
-            const studentClass = student ? student.studentClass : '-';
-            const statusThai = r.status === 'present' ? 'มา' : r.status === 'absent' ? 'ขาด' : r.status === 'leave' ? 'ลา' : 'ป่วย';
-            
-            return `${index + 1},"${studentName}","${studentClass}","${statusThai}","${r.date}","${periodLabel}","${r.note || '-'}"`;
+        sessionLogs.forEach(log => {
+            const periodLabel = enabledPeriods.find(p => p.id === log.period)?.label || log.period;
+            csvContent += `"${log.date}","${periodLabel}","${log.classroom}",${log.present},${log.absent},${log.sick},${log.leave},${log.total}\n`;
         });
 
-        csvContent += rows.join("\n");
-
-        // Download trigger
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
+        const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `เช็คชื่อ_${selectedDate.replace(/\//g, '-')}_${periodLabel}.csv`);
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `attendance_report_${selectedDate.replace(/\//g, '-')}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
-    const handleEditFromLog = (classroom: string) => {
-        setSelectedClassroom(classroom);
+    const handleEditSession = (log: any) => {
+        setSelectedDate(log.date);
+        setSelectedPeriod(log.period as TimePeriod);
+        setSelectedClassroom(log.classroom);
         setSubTab('checkin');
-    };
-
-    const handleDeleteFromLog = (ids: string[]) => {
-        if (onDeleteAttendance) onDeleteAttendance('student', ids);
     };
 
     const handleSaveAttendance = () => {
         if (!selectedClassroom) return;
-        const currentRoomStudents = students.filter(s => s.studentClass === selectedClassroom);
+        const currentRoomStudents = students.filter(s => (s.studentClass || 'ไม่ระบุ') === selectedClassroom);
         const records: StudentAttendance[] = currentRoomStudents.map(s => ({
             id: `${selectedDate}_${selectedPeriod}_${s.id}`,
             date: selectedDate,
@@ -186,8 +191,12 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     useEffect(() => {
         if (selectedClassroom) {
             const map: Record<number, AttendanceStatus> = {};
-            students.filter(s => s.studentClass === selectedClassroom).forEach(s => {
-                const existing = studentAttendance.find(r => r.id === `${selectedDate}_${selectedPeriod}_${s.id}`);
+            students.filter(s => (s.studentClass || 'ไม่ระบุ') === selectedClassroom).forEach(s => {
+                const existing = studentAttendance.find(r => 
+                    isSameDay(r.date, selectedDate) && 
+                    r.period === selectedPeriod && 
+                    Number(r.studentId) === Number(s.id)
+                );
                 map[s.id] = existing ? existing.status : 'present';
             });
             setLocalAttendance(map);
@@ -196,210 +205,278 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
 
     return (
         <div className="space-y-6 font-sarabun">
-            {/* Main Header Card */}
-            <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-3xl font-black text-navy">ระบบเช็คชื่อนักเรียน</h2>
+                    <input 
+                        type="date" 
+                        value={buddhistToISO(selectedDate)}
+                        onChange={(e) => setSelectedDate(isoToBuddhist(e.target.value))}
+                        className="px-4 py-1.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-primary-blue outline-none shadow-sm"
+                    />
+                </div>
+                <button 
+                    onClick={() => { setSubTab('checkin'); setSelectedClassroom(null); }}
+                    className="bg-primary-blue hover:bg-primary-hover text-white font-black py-2.5 px-6 rounded-xl shadow-lg shadow-blue-200 flex items-center gap-2 transition-all active:scale-95"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                    เช็คชื่อใหม่
+                </button>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 no-print">
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex items-center justify-between">
                     <div>
-                        <h2 className="text-3xl font-black text-navy flex items-center gap-3">
-                            <div className="p-2 bg-blue-100 text-blue-600 rounded-2xl">
-                                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                            </div>
-                            ระบบเช็คชื่อนักเรียน
-                        </h2>
-                        <div className="flex gap-4 mt-2">
-                            <input type="date" value={buddhistToISO(selectedDate)} onChange={(e) => setSelectedDate(isoToBuddhist(e.target.value))} className="px-3 py-1 bg-gray-50 border rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
-                            <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value as TimePeriod)} className="px-3 py-1 bg-gray-50 border rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none">
-                                {enabledPeriods.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                            </select>
-                        </div>
+                        <p className="text-gray-500 text-sm font-bold">เช็คแล้ว ({selectedDate})</p>
+                        <h4 className="text-4xl font-black text-navy mt-1">{topStats.checkedCount}</h4>
                     </div>
-                    <div className="flex bg-gray-100 p-1.5 rounded-2xl">
-                        <button onClick={() => setSubTab('stats')} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${subTab === 'stats' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>สถิติ</button>
-                        <button onClick={() => {setSubTab('log'); setSelectedLogClassroom(null);}} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${subTab === 'log' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>ข้อมูลทั้งหมด</button>
-                        <button onClick={() => {setSubTab('checkin'); setSelectedClassroom(null);}} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${subTab === 'checkin' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>เช็คชื่อ</button>
+                    <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-sm font-bold">ขาด/ลา/ป่วย</p>
+                        <h4 className="text-4xl font-black text-red-500 mt-1">{topStats.absentOrLeave}</h4>
+                    </div>
+                    <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-sm font-bold">ความคืบหน้า (คาบ)</p>
+                        <h4 className="text-4xl font-black text-indigo-600 mt-1">{topStats.roomsCount}</h4>
+                    </div>
+                    <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                     </div>
                 </div>
             </div>
 
-            {/* --- TAB: STATISTICS --- */}
-            {subTab === 'stats' && (
-                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in">
-                    <h3 className="text-lg font-bold text-navy mb-6">ภาพรวมความคืบหน้าการเช็คชื่อ</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={classStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                <XAxis dataKey="name" fontSize={12} />
-                                <YAxis fontSize={12} />
-                                <Tooltip />
-                                <Legend />
-                                <Bar dataKey="present" name="มา" stackId="a" fill={COLORS.present} />
-                                <Bar dataKey="absent" name="ขาด" stackId="a" fill={COLORS.absent} />
-                                <Bar dataKey="leave" name="ลา" stackId="a" fill={COLORS.leave} />
-                                <Bar dataKey="sick" name="ป่วย" stackId="a" fill={COLORS.sick} radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+            {/* Main Content Area */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 min-h-[60vh]">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                    <div className="flex items-center gap-4">
+                        <h3 className="text-2xl font-black text-navy">รายการเช็คชื่อ</h3>
+                        <div className="flex bg-gray-100 p-1 rounded-xl">
+                            <button onClick={() => setSubTab('log')} className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${subTab === 'log' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>รายการ</button>
+                            <button onClick={() => setSubTab('stats')} className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${subTab === 'stats' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>สถิติ</button>
+                        </div>
+                    </div>
+                    <div className="flex gap-2 w-full md:w-auto">
+                        {subTab === 'log' && (
+                            <button 
+                                onClick={handleExportExcel}
+                                className="bg-green-600 hover:bg-green-700 text-white font-black py-2 px-4 rounded-xl shadow-md flex items-center gap-2 text-sm transition-all active:scale-95"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                ดาวน์โหลด Excel
+                            </button>
+                        )}
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหา..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="flex-grow md:w-64 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-blue outline-none"
+                        />
+                        {onRefresh && (
+                            <button onClick={onRefresh} className="p-2.5 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
+                                <svg className={`w-5 h-5 ${isSaving ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            </button>
+                        )}
                     </div>
                 </div>
-            )}
 
-            {/* --- TAB: LOG (RE-DESIGNED) --- */}
-            {subTab === 'log' && (
-                <div className="animate-fade-in space-y-6">
-                    {!selectedLogClassroom ? (
-                        <>
-                            <div className="flex justify-end">
-                                <button 
-                                    onClick={handleExportExcel}
-                                    className="bg-green-600 hover:bg-green-700 text-white font-black py-2.5 px-6 rounded-2xl shadow-xl shadow-green-100 flex items-center gap-2 transition-all active:scale-95"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                    Export Excel
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {classroomsChecked.length > 0 ? classroomsChecked.map(roomData => (
-                                    <button 
-                                        key={roomData.room}
-                                        onClick={() => setSelectedLogClassroom(roomData.room)}
-                                        className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 text-left group hover:shadow-md transition-all active:scale-95"
-                                    >
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                {/* --- TAB: LOG --- */}
+                {subTab === 'log' && (
+                    <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-navy text-white font-bold">
+                                <tr>
+                                    <th className="p-4 w-12"><input type="checkbox" className="rounded border-white/20 bg-transparent" /></th>
+                                    <th className="p-4">วัน เวลา</th>
+                                    <th className="p-4">ชั้น/ห้อง</th>
+                                    <th className="p-4 text-center">มาเรียน</th>
+                                    <th className="p-4 text-center">ขาด/ลา/ป่วย</th>
+                                    <th className="p-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {sessionLogs.length > 0 ? sessionLogs.map((log) => (
+                                    <tr key={log.id} className="hover:bg-blue-50/30 transition-colors">
+                                        <td className="p-4"><input type="checkbox" className="rounded border-gray-300" /></td>
+                                        <td className="p-4">
+                                            <div className="font-bold text-navy">{log.date}</div>
+                                            <div className="text-[10px] text-gray-400 uppercase font-black tracking-tighter">
+                                                {enabledPeriods.find(p => p.id === log.period)?.label || log.period}
                                             </div>
-                                            <span className="text-[10px] font-black uppercase bg-gray-100 px-2 py-1 rounded-full text-gray-500">Checked</span>
-                                        </div>
-                                        <h4 className="text-xl font-black text-navy mb-1">ชั้น {roomData.room}</h4>
-                                        <p className="text-sm text-gray-400 font-bold mb-4">เช็คแล้ว {roomData.total} คน</p>
-                                        <div className="flex gap-2">
-                                            <div className="bg-green-50 text-green-600 text-[10px] px-2 py-1 rounded-lg font-bold">มา {roomData.present}</div>
-                                            {roomData.absent > 0 && <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded-lg font-bold">ขาด {roomData.absent}</div>}
-                                            {(roomData.leave > 0 || roomData.sick > 0) && <div className="bg-amber-50 text-amber-600 text-[10px] px-2 py-1 rounded-lg font-bold">ลา/ป่วย {roomData.leave + roomData.sick}</div>}
-                                        </div>
-                                    </button>
+                                        </td>
+                                        <td className="p-4 font-black text-indigo-900">{log.classroom}</td>
+                                        <td className="p-4 text-center">
+                                            <span className="text-green-600 font-black text-base">{log.present}</span>
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <div className="inline-flex gap-1.5 font-black text-base">
+                                                <span className="text-red-500">{log.absent + log.sick + log.leave}</span>
+                                                <span className="text-gray-300">/</span>
+                                                <span className="text-gray-400">{log.total}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <div className="flex justify-center gap-2">
+                                                <button onClick={() => handleEditSession(log)} className="bg-sky-100 text-sky-800 text-xs font-black px-3 py-1.5 rounded-lg hover:bg-sky-200 transition-colors">ดู</button>
+                                                <button onClick={() => handleEditSession(log)} className="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1.5 rounded-lg hover:bg-amber-200 transition-colors">แก้</button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 )) : (
-                                    <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed">
-                                        <div className="text-gray-400 font-bold">ยังไม่มีข้อมูลการเช็คชื่อในวันนี้</div>
-                                    </div>
+                                    <tr>
+                                        <td colSpan={6} className="p-20 text-center text-gray-400 font-bold">
+                                            <svg className="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                            ไม่พบข้อมูลการเช็คชื่อ
+                                        </td>
+                                    </tr>
                                 )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* --- TAB: STATS --- */}
+                {subTab === 'stats' && (
+                    <div className="animate-fade-in space-y-10">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Pie Chart */}
+                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                <h4 className="text-center font-bold text-navy mb-4">สัดส่วนสถานะการมาเรียน ({selectedDate})</h4>
+                                <div className="h-64 w-full">
+                                    {chartStats.statusData.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={chartStats.statusData}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={60}
+                                                    outerRadius={80}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                    isAnimationActive={false}
+                                                >
+                                                    {chartStats.statusData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip />
+                                                <Legend />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-gray-400 italic">ไม่มีข้อมูลแสดงในวันที่เลือก</div>
+                                    )}
+                                </div>
                             </div>
-                        </>
-                    ) : (
-                        <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100 animate-slide-up">
-                            <div className="p-6 bg-navy text-white flex justify-between items-center">
-                                <div className="flex items-center gap-4">
-                                    <button onClick={() => setSelectedLogClassroom(null)} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
-                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+
+                            {/* Bar Chart */}
+                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                <h4 className="text-center font-bold text-navy mb-4">จำนวนนักเรียนที่เช็คชื่อแล้วแยกตามห้อง</h4>
+                                <div className="h-64 w-full">
+                                    {chartStats.barData.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={chartStats.barData}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" fontSize={10} interval={0} angle={-30} textAnchor="end" height={60} />
+                                                <YAxis />
+                                                <Tooltip />
+                                                <Bar dataKey="value" name="จำนวนคน" fill="#3B82F6" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-gray-400 italic">ไม่มีข้อมูลแสดงในวันที่เลือก</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- TAB: CHECK-IN --- */}
+                {subTab === 'checkin' && (
+                    <div className="animate-fade-in">
+                        {!selectedClassroom ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+                                {Array.from(new Set(students.map(s => s.studentClass))).sort().map(room => (
+                                    <button 
+                                        key={room} 
+                                        onClick={() => setSelectedClassroom(room)}
+                                        className="p-6 rounded-[2rem] border-2 border-gray-100 hover:border-blue-400 hover:bg-blue-50 transition-all flex flex-col items-center gap-3 shadow-sm group active:scale-95"
+                                    >
+                                        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                        </div>
+                                        <h4 className="font-black text-navy text-lg">{room}</h4>
+                                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Select Room</p>
                                     </button>
-                                    <div>
-                                        <h3 className="text-xl font-black">ชั้น {selectedLogClassroom}</h3>
-                                        <p className="text-xs opacity-70">ประวัติการเช็คชื่อ: {selectedDate} | {enabledPeriods.find(p=>p.id===selectedPeriod)?.label}</p>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="animate-slide-up bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-2xl">
+                                <div className="p-6 bg-navy text-white flex justify-between items-center">
+                                    <div className="flex items-center gap-4">
+                                        <button onClick={() => setSelectedClassroom(null)} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                                        </button>
+                                        <div>
+                                            <h3 className="text-xl font-black">ชั้น {selectedClassroom}</h3>
+                                            <p className="text-xs opacity-70">กำลังบันทึกข้อมูล: {selectedDate} | คาบ: {enabledPeriods.find(p=>p.id===selectedPeriod)?.label}</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => { const newMap = {...localAttendance}; students.filter(s => (s.studentClass || 'ไม่ระบุ') === selectedClassroom).forEach(s => newMap[s.id] = 'present'); setLocalAttendance(newMap); }} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all">มาทั้งหมด</button>
+                                </div>
+                                <div className="p-8">
+                                    <div className="divide-y divide-gray-100">
+                                        {students.filter(s => s.studentClass === selectedClassroom).map((s, idx) => (
+                                            <div key={s.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-xs font-black text-gray-300 w-6">{idx + 1}</span>
+                                                    <div className="w-12 h-12 rounded-2xl bg-gray-100 border overflow-hidden">
+                                                        {getFirstImageSource(s.studentProfileImage) ? <img src={getFirstImageSource(s.studentProfileImage)!} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-gray-400 font-bold">{s.studentName.charAt(0)}</div>}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-navy">{s.studentTitle}{s.studentName}</p>
+                                                        <p className="text-xs text-gray-400">ชื่อเล่น: {s.studentNickname || '-'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {['present', 'absent', 'leave', 'sick'].map(st => (
+                                                        <button 
+                                                            key={st} 
+                                                            onClick={() => setLocalAttendance(prev => ({...prev, [s.id]: st as AttendanceStatus}))} 
+                                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${localAttendance[s.id] === st ? (st === 'present' ? 'bg-green-500 text-white border-green-600' : st === 'absent' ? 'bg-red-500 text-white border-red-600' : 'bg-amber-500 text-white border-amber-600') : 'bg-white text-gray-400 border-gray-200 hover:border-blue-400'}`}
+                                                        >
+                                                            {st === 'present' ? 'มา' : st === 'absent' ? 'ขาด' : st === 'leave' ? 'ลา' : 'ป่วย'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-12 flex justify-end gap-3">
+                                        <button onClick={() => setSelectedClassroom(null)} className="px-8 py-3 rounded-2xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all">ยกเลิก</button>
+                                        <button onClick={handleSaveAttendance} disabled={isSaving} className="px-12 py-3 rounded-2xl font-black text-white bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50">
+                                            {isSaving ? 'กำลังบันทึก...' : 'บันทึกการเช็คชื่อ'}
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleEditFromLog(selectedLogClassroom)} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all">แก้ไขห้องนี้</button>
-                                    <button onClick={() => { if(window.confirm('ลบประวัติทั้งห้อง?')) handleDeleteFromLog(logStudentsForClass.map(r=>r.id)); }} className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-xs font-bold transition-all">ลบประวัติ</button>
-                                </div>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 border-b">
-                                        <tr>
-                                            <th className="p-4">รูปภาพ</th>
-                                            <th className="p-4">ชื่อ-นามสกุล</th>
-                                            <th className="p-4 text-center">สถานะ</th>
-                                            <th className="p-4 text-center">จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {logStudentsForClass.map(item => (
-                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="p-4">
-                                                    <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border">
-                                                        {getFirstImageSource(item.student?.studentProfileImage) && <img src={getFirstImageSource(item.student?.studentProfileImage)!} className="w-full h-full object-cover" />}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 font-bold text-navy">{item.student?.studentTitle}{item.student?.studentName}</td>
-                                                <td className="p-4 text-center">
-                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
-                                                        item.status === 'present' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                        item.status === 'absent' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-amber-50 text-amber-600 border-amber-200'
-                                                    }`}>
-                                                        {item.status === 'present' ? 'มา' : item.status === 'absent' ? 'ขาด' : 'ลา/ป่วย'}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <button onClick={() => handleDeleteFromLog([item.id])} className="p-2 text-red-500 hover:bg-red-100 rounded-lg"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* --- TAB: CHECK-IN --- */}
-            {subTab === 'checkin' && (
-                <>
-                    {!selectedClassroom ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 animate-fade-in">
-                            {allClassrooms.map(room => {
-                                const st = classroomStatus[room];
-                                const isDone = st.checked >= st.total && st.total > 0;
-                                return (
-                                    <button key={room} onClick={() => setSelectedClassroom(room)} className={`p-5 rounded-[2rem] border-2 transition-all flex flex-col items-center text-center gap-2 shadow-sm active:scale-95 ${isDone ? 'bg-green-50 border-green-500' : 'bg-white border-gray-100 hover:border-blue-400'}`}>
-                                        <div className={`p-3 rounded-2xl ${isDone ? 'bg-green-500 text-white' : 'bg-blue-100 text-blue-600'}`}><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg></div>
-                                        <h4 className="font-black text-navy">{room}</h4>
-                                        <p className={`text-[10px] font-bold ${isDone ? 'text-green-600' : 'text-gray-400'}`}>{isDone ? 'เช็คครบแล้ว' : `เช็คแล้ว ${st.checked}/${st.total}`}</p>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 animate-slide-up">
-                            <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex justify-between items-center">
-                                <div className="flex items-center gap-4">
-                                    <button onClick={() => setSelectedClassroom(null)} className="p-2 hover:bg-white/20 rounded-xl transition-colors"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg></button>
-                                    <div><h3 className="text-xl font-black">ชั้น {selectedClassroom}</h3><p className="text-xs opacity-80">{selectedDate} | {enabledPeriods.find(p=>p.id===selectedPeriod)?.label}</p></div>
-                                </div>
-                                <button onClick={() => { const newMap = {...localAttendance}; students.filter(s => s.studentClass === selectedClassroom).forEach(s => newMap[s.id] = 'present'); setLocalAttendance(newMap); }} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-bold transition-all">เช็คมาทั้งหมด</button>
-                            </div>
-                            <div className="p-6">
-                                <div className="divide-y divide-gray-100">
-                                    {students.filter(s => s.studentClass === selectedClassroom).map((s, idx) => (
-                                        <div key={s.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                            <div className="flex items-center gap-4">
-                                                <span className="text-xs font-black text-gray-300 w-6">{idx + 1}</span>
-                                                <div className="w-12 h-12 rounded-2xl bg-gray-100 border overflow-hidden relative">
-                                                    {getFirstImageSource(s.studentProfileImage) ? <img src={getFirstImageSource(s.studentProfileImage)!} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-gray-400 font-bold">{s.studentName.charAt(0)}</div>}
-                                                </div>
-                                                <div><p className="font-bold text-navy">{s.studentTitle}{s.studentName}</p><p className="text-xs text-gray-400">ชื่อเล่น: {s.studentNickname || '-'}</p></div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                {['present', 'absent', 'leave', 'sick'].map(st => (
-                                                    <button key={st} onClick={() => setLocalAttendance(prev => ({...prev, [s.id]: st as AttendanceStatus}))} className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${localAttendance[s.id] === st ? (st === 'present' ? 'bg-green-500 text-white border-green-600' : st === 'absent' ? 'bg-red-500 text-white border-red-600' : 'bg-amber-500 text-white border-amber-600') : 'bg-white text-gray-400 border-gray-200 hover:border-blue-400'}`}>
-                                                        {st === 'present' ? 'มา' : st === 'absent' ? 'ขาด' : st === 'leave' ? 'ลา' : 'ป่วย'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-8 flex justify-end gap-3">
-                                    <button onClick={() => setSelectedClassroom(null)} className="px-8 py-3 rounded-2xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all">ยกเลิก</button>
-                                    <button onClick={handleSaveAttendance} disabled={isSaving} className="px-10 py-3 rounded-2xl font-black text-white bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50">
-                                        {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </>
-            )}
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

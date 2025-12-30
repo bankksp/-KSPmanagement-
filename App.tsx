@@ -38,7 +38,8 @@ import LeavePage from './components/LeavePage';
 
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
-import { prepareDataForApi, postToGoogleScript } from './utils';
+// Add getCurrentThaiDate to the import list from utils
+import { prepareDataForApi, postToGoogleScript, isoToBuddhist, normalizeDate, safeParseArray, getCurrentThaiDate } from './utils';
 
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('stats');
@@ -119,6 +120,17 @@ const App: React.FC = () => {
         }
     }, []);
 
+    // ฟังก์ชันช่วยจัดรูปแบบวันที่จาก Sheets ให้เป็นรูปแบบมาตรฐาน DD/MM/YYYY
+    const normalizeDateString = (dateInput: any): string => {
+        if (!dateInput) return '';
+        const d = normalizeDate(dateInput);
+        if (!d) return String(dateInput).trim();
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear() + 543;
+        return `${day}/${month}/${year}`;
+    };
+
     const fetchData = useCallback(async (isBackground: boolean = false) => {
         if (!isAuthenticated) return;
 
@@ -133,28 +145,31 @@ const App: React.FC = () => {
             const response = await postToGoogleScript({ action: 'getAllData' });
             const data = response.data || {};
             
+            // Normalize Reports
             const normalizedReports = (data.reports || []).map((r: any) => {
                 if (r.studentDetails && typeof r.studentDetails !== 'string') {
-                    return { ...r, studentDetails: JSON.stringify(r.studentDetails) };
+                    r.studentDetails = JSON.stringify(r.studentDetails);
                 }
+                r.reportDate = normalizeDateString(r.reportDate);
                 return r;
             });
-            
             setReports(normalizedReports);
+
+            // Students
             setStudents(data.students || []);
             
+            // Personnel
             let fetchedPersonnel: Personnel[] = data.personnel || [];
             fetchedPersonnel = fetchedPersonnel.map(p => {
                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
                 if (normalizeId(p.idCard) === '1469900181659') {
                     return { ...p, role: 'admin' as const, status: 'approved' as const };
                 }
-                if (!p.status) {
-                    p.status = 'approved';
-                }
+                if (!p.status) p.status = 'approved';
+                p.dob = normalizeDateString(p.dob);
+                p.appointmentDate = normalizeDateString(p.appointmentDate);
                 return p;
             });
-
             setPersonnel(fetchedPersonnel);
 
             if (currentUser) {
@@ -165,10 +180,33 @@ const App: React.FC = () => {
                 }
             }
 
-            setStudentAttendance(data.studentAttendance || []);
-            setPersonnelAttendance(data.personnelAttendance || []);
-            setDutyRecords(data.dutyRecords || []);
-            setLeaveRecords(data.leaveRecords || []);
+            // --- แก้ไขสำคัญ: Normalize ข้อมูลการเช็คชื่อก่อนเก็บลง State ---
+            const normStudentAtt = (data.studentAttendance || []).map((r: any) => ({ 
+                ...r, 
+                date: normalizeDateString(r.date) 
+            }));
+            setStudentAttendance(normStudentAtt);
+
+            const normPersAtt = (data.personnelAttendance || []).map((r: any) => ({ 
+                ...r, 
+                date: normalizeDateString(r.date) 
+            }));
+            setPersonnelAttendance(normPersAtt);
+
+            // Normalize Duty & Leave
+            setDutyRecords((data.dutyRecords || []).map((r: any) => ({ ...r, date: normalizeDateString(r.date) })));
+            
+            const normLeaveRecords = (data.leaveRecords || []).map((r: any) => ({
+                ...r,
+                date: normalizeDateString(r.date),
+                startDate: normalizeDateString(r.startDate),
+                endDate: normalizeDateString(r.endDate),
+                submissionDate: normalizeDateString(r.submissionDate),
+                approvedDate: normalizeDateString(r.approvedDate)
+            }));
+            setLeaveRecords(normLeaveRecords);
+
+            // Rest of the data
             setAcademicPlans(data.academicPlans || []);
             setSupplyItems(data.supplyItems || []);
             setSupplyRequests(data.supplyRequests || []);
@@ -183,28 +221,9 @@ const App: React.FC = () => {
             setProjectProposals(data.projectProposals || []); 
             
             const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
+                v.date = normalizeDateString(v.date);
                 if (v.studentId) v.studentId = Number(v.studentId);
-                if (v.id) v.id = Number(v.id);
-                if (v.visitorId) v.visitorId = Number(v.visitorId);
-
-                if (v.image) {
-                    if (typeof v.image === 'string') {
-                        if (v.image.trim().startsWith('[')) {
-                            try { 
-                                const parsed = JSON.parse(v.image);
-                                v.image = Array.isArray(parsed) ? parsed : [parsed];
-                            } catch(e) { 
-                                v.image = [v.image]; 
-                            }
-                        } else {
-                            v.image = [v.image];
-                        }
-                    } else if (!Array.isArray(v.image)) {
-                        v.image = [];
-                    }
-                } else {
-                    v.image = [];
-                }
+                v.image = safeParseArray(v.image);
                 return v;
             });
             setHomeVisits(normalizedHomeVisits);
@@ -214,6 +233,7 @@ const App: React.FC = () => {
                      if (typeof r.scores === 'string') {
                          try { r.scores = JSON.parse(r.scores); } catch(e) { r.scores = {}; }
                      }
+                     r.date = normalizeDateString(r.date);
                      return r;
                  });
                  setSdqRecords(normSDQ);
@@ -221,7 +241,7 @@ const App: React.FC = () => {
                 setSdqRecords([]);
             }
 
-            if (data.mealPlans) setMealPlans(data.mealPlans);
+            if (data.mealPlans) setMealPlans(data.mealPlans.map((p:any) => ({ ...p, date: normalizeDateString(p.date) })));
             if (data.ingredients) setIngredients(data.ingredients);
 
             if (data.settings) {
@@ -233,12 +253,7 @@ const App: React.FC = () => {
         } catch (error: any) {
             console.error("Failed to fetch data:", error);
             if (!isBackground) {
-                if (error.message && (error.message.includes("Unauthorized") || error.message.includes("Session expired"))) {
-                    handleLogout();
-                    alert("เซสชั่นหมดอายุหรือไม่มีสิทธิ์เข้าถึง กรุณาเข้าสู่ระบบใหม่");
-                } else {
-                    setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
-                }
+                setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
             }
         } finally {
             setIsLoading(false);
@@ -267,13 +282,14 @@ const App: React.FC = () => {
         }
     }, [isAuthenticated, fetchData]);
 
+    // Background polling with extra safety
     useEffect(() => {
         if (!isAuthenticated || isUIBusy) return;
         const intervalId = setInterval(() => {
             if (!document.hidden) {
                 fetchData(true);
             }
-        }, 45000); 
+        }, 60000); // เพิ่มเป็น 60 วินาทีเพื่อให้เวลาเซิร์ฟเวอร์บันทึกข้อมูล
         return () => clearInterval(intervalId);
     }, [fetchData, isUIBusy, isAuthenticated]);
 
@@ -287,16 +303,6 @@ const App: React.FC = () => {
         } catch (error) { console.error(error); alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า'); } finally { setIsSaving(false); }
     };
     
-    const handleUpdateServiceLocations = async (locations: string[]) => {
-        setIsSaving(true);
-        try {
-            const newSettings = { ...settings, serviceLocations: locations };
-            const apiPayload = await prepareDataForApi(newSettings);
-            const response = await postToGoogleScript({ action: 'updateSettings', data: apiPayload });
-            setSettings(response.data);
-        } catch (error) { console.error(error); alert('เกิดข้อผิดพลาด'); } finally { setIsSaving(false); }
-    };
-
     const handleLoginSuccess = (user: Personnel) => {
         const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
         if (normalizeId(user.idCard) === '1469900181659') user.role = 'admin';
@@ -321,9 +327,10 @@ const App: React.FC = () => {
         setReports([]); setStudents([]); setPersonnel([]);
     };
 
-    const handleRegister = async (newPersonnel: Personnel) => {
-        await handleSavePersonnel(newPersonnel);
-        setIsRegisterModalOpen(false);
+    // Define handleCloseReportModal to properly reset modal states
+    const handleCloseReportModal = () => {
+        setIsReportModalOpen(false);
+        setEditingReport(null);
     };
 
     const handleSaveReport = async (report: Report) => { 
@@ -334,7 +341,11 @@ const App: React.FC = () => {
             const apiPayload = await prepareDataForApi(report);
             const response = await postToGoogleScript({ action, data: apiPayload });
             const savedData = response.data;
-            const normalize = (r: any) => r.studentDetails && typeof r.studentDetails !== 'string' ? { ...r, studentDetails: JSON.stringify(r.studentDetails) } : r;
+            const normalize = (r: any) => ({
+                ...r,
+                reportDate: normalizeDateString(r.reportDate),
+                studentDetails: (r.studentDetails && typeof r.studentDetails !== 'string') ? JSON.stringify(r.studentDetails) : r.studentDetails
+            });
             
             let processed = Array.isArray(savedData) ? savedData : [savedData];
             if (isEditing) {
@@ -342,65 +353,20 @@ const App: React.FC = () => {
             } else {
                 setReports(prev => [...prev, ...processed.map(normalize)]);
             }
+            // Use the newly defined handleCloseReportModal
             handleCloseReportModal();
         } catch(e) { console.error(e); alert('Error saving report'); } finally { setIsSaving(false); }
     };
-
-    const deleteReports = async (ids: number[]) => { 
-        try { await postToGoogleScript({ action: 'deleteReports', ids }); setReports(prev => prev.filter(r => !ids.map(String).includes(String(r.id)))); } catch(e) { console.error(e); alert('Error deleting'); }
-    };
-    
-    const handleSaveStudent = async (student: Student) => { 
-        setIsSaving(true);
-        try {
-            const isEditing = !!editingStudent;
-            const action = isEditing ? 'updateStudent' : 'addStudent';
-            const apiPayload = await prepareDataForApi(student);
-            const response = await postToGoogleScript({ action, data: apiPayload });
-            const saved = response.data;
-            let processed = Array.isArray(saved) ? saved : [saved];
-            if (isEditing) setStudents(prev => prev.map(s => String(s.id) === String(processed[0].id) ? processed[0] : s));
-            else setStudents(prev => [...prev, ...processed]);
-            handleCloseStudentModal();
-        } catch(e) { console.error(e); alert('Error'); } finally { setIsSaving(false); }
-    };
-
-    const deleteStudents = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deleteStudents', ids }); setStudents(prev => prev.filter(s => !ids.map(String).includes(String(s.id)))); } catch(e) { alert('Error'); } };
-    
-    const handleSavePersonnel = async (person: Personnel) => { 
-        setIsSaving(true);
-        try {
-            const isEditing = personnel.some(p => p.id === person.id);
-            const action = isEditing ? 'updatePersonnel' : 'addPersonnel';
-            const apiPayload = await prepareDataForApi(person);
-            const response = await postToGoogleScript({ action, data: apiPayload });
-            const saved = response.data;
-            let processed = Array.isArray(saved) ? saved : [saved];
-            const fixAdmin = (p: Personnel) => {
-                 if(String(p.idCard).replace(/[^0-9]/g, '') === '1469900181659') return {...p, role: 'admin' as const, status: 'approved' as const};
-                 if(!p.status) p.status = 'approved';
-                 return p;
-            };
-            const finalP = processed.map(fixAdmin);
-            if(isEditing) {
-                setPersonnel(prev => prev.map(p => String(p.id) === String(finalP[0].id) ? finalP[0] : p));
-                if(currentUser && String(currentUser.id) === String(finalP[0].id)) {
-                    setCurrentUser(finalP[0]);
-                    localStorage.setItem('dschool_user', JSON.stringify(finalP[0]));
-                }
-            } else setPersonnel(prev => [...prev, ...finalP]);
-            handleClosePersonnelModal();
-        } catch(e) { console.error(e); alert('Error'); } finally { setIsSaving(false); }
-    };
-
-    const deletePersonnel = async (ids: number[]) => { try { await postToGoogleScript({ action: 'deletePersonnel', ids }); setPersonnel(prev => prev.filter(p => !ids.map(String).includes(String(p.id)))); } catch(e) { alert('Error'); } };
 
     const handleSaveAttendance = async (t: 'student' | 'personnel', d: any) => { 
         setIsSaving(true);
         try {
             const action = t === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
             const response = await postToGoogleScript({ action, data: d });
-            const saved = Array.isArray(response.data) ? response.data : [response.data];
+            
+            // สำคัญ: Normalize ข้อมูลที่ได้รับกลับมาจากเซิร์ฟเวอร์ทันที
+            const savedRaw = Array.isArray(response.data) ? response.data : [response.data];
+            const saved = savedRaw.map((r:any) => ({ ...r, date: normalizeDateString(r.date) }));
             
             if(t === 'student') {
                 setStudentAttendance(prev => {
@@ -423,7 +389,7 @@ const App: React.FC = () => {
     }; 
 
     const handleDeleteAttendance = async (t: 'student' | 'personnel', ids: string[]) => {
-        if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลประวัติการเช็คชื่อรายการนี้?')) return;
+        if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายการนี้?')) return;
         try {
             const action = t === 'student' ? 'deleteStudentAttendance' : 'deletePersonnelAttendance';
             await postToGoogleScript({ action, ids });
@@ -438,36 +404,26 @@ const App: React.FC = () => {
         }
     };
 
-    const handleSaveAcademicPlan = async (p: AcademicPlan) => { 
-        setIsSaving(true);
-        try {
-            const apiPayload = await prepareDataForApi(p);
-            const response = await postToGoogleScript({ action: 'saveAcademicPlan', data: apiPayload });
-            setAcademicPlans(prev => [...prev, response.data]);
-        } catch(e) { alert('Error'); } finally { setIsSaving(false); }
-    };
-
-    const handleUpdateAcademicPlanStatus = async (id: number, status: PlanStatus, comment?: string) => { 
-        setIsSaving(true);
-        try {
-            await postToGoogleScript({ action: 'updateAcademicPlanStatus', data: { id, status, comment, approverName: currentUser?.personnelName, approvedDate: new Date().toLocaleDateString('th-TH') } });
-            setAcademicPlans(prev => prev.map(p => String(p.id) === String(id) ? { ...p, status, comment } : p));
-        } catch(e) { alert('Error'); } finally { setIsSaving(false); }
-    };
-    
     const handleGenericSave = async (action: string, data: any, setter: any) => {
         setIsSaving(true);
         try {
             const apiPayload = await prepareDataForApi(data);
             const response = await postToGoogleScript({ action, data: apiPayload });
-            const saved = response.data;
+            let saved = response.data;
+            
+            if (action === 'saveLeaveRecord' || action === 'saveDutyRecord') {
+                saved.date = normalizeDateString(saved.date);
+                if (saved.startDate) saved.startDate = normalizeDateString(saved.startDate);
+                if (saved.endDate) saved.endDate = normalizeDateString(saved.endDate);
+            }
+
             setter((prev: any[]) => {
                 const index = prev.findIndex(item => String(item.id) === String(saved.id));
                 if (index >= 0) { const n = [...prev]; n[index] = saved; return n; }
                 return [...prev, saved];
             });
             alert('บันทึกเรียบร้อย');
-        } catch(e) { console.error(e); alert('Error saving: ' + e); } finally { setIsSaving(false); }
+        } catch(e) { console.error(e); alert('Error saving'); } finally { setIsSaving(false); }
     };
 
     const handleGenericDelete = async (action: string, ids: number[], setter: any) => {
@@ -475,26 +431,8 @@ const App: React.FC = () => {
             await postToGoogleScript({ action, ids }); 
             setter((prev: any[]) => prev.filter(i => !ids.map(String).includes(String(i.id)))); 
             alert('ลบเรียบร้อย'); 
-        } catch(e) { alert('Error deleting: ' + e); }
+        } catch(e) { alert('Error deleting'); }
     };
-
-    const handleOpenReportModal = () => { setEditingReport(null); setIsReportModalOpen(true); };
-    const handleCloseReportModal = () => { setIsReportModalOpen(false); setEditingReport(null); };
-    const handleViewReport = (r: Report) => setViewingReport(r);
-    const handleCloseViewReportModal = () => setViewingReport(null);
-    const handleEditReport = (r: Report) => { setEditingReport(r); setIsReportModalOpen(true); };
-
-    const handleOpenStudentModal = () => { setEditingStudent(null); setIsStudentModalOpen(true); };
-    const handleCloseStudentModal = () => { setIsStudentModalOpen(false); setEditingStudent(null); };
-    const handleViewStudent = (s: Student) => setViewingStudent(s);
-    const handleCloseViewStudentModal = () => setViewingStudent(null);
-    const handleEditStudent = (s: Student) => { setEditingStudent(s); setIsStudentModalOpen(true); };
-
-    const handleOpenPersonnelModal = () => { setEditingPersonnel(null); setIsPersonnelModalOpen(true); };
-    const handleClosePersonnelModal = () => { setIsPersonnelModalOpen(false); setEditingPersonnel(null); };
-    const handleViewPersonnel = (p: Personnel) => setViewingPersonnel(p);
-    const handleCloseViewPersonnelModal = () => setViewingPersonnel(null);
-    const handleEditPersonnel = (p: Personnel) => { setEditingPersonnel(p); setIsPersonnelModalOpen(true); };
 
     const renderPage = () => {
         if (isLoading && !hasInitialData) {
@@ -536,31 +474,6 @@ const App: React.FC = () => {
                             personnelAttendance={personnelAttendance}
                             homeVisits={homeVisits} 
                         />;
-            case 'academic_plans':
-                return currentUser ? (
-                    <AcademicPage 
-                        currentUser={currentUser}
-                        personnel={personnel}
-                        plans={academicPlans}
-                        onSavePlan={handleSaveAcademicPlan}
-                        onUpdateStatus={handleUpdateAcademicPlanStatus}
-                        isSaving={isSaving}
-                    />
-                ) : null;
-            case 'academic_service': 
-                return currentUser ? (
-                    <ServiceRegistrationPage 
-                        currentUser={currentUser}
-                        students={students}
-                        personnel={personnel}
-                        records={serviceRecords}
-                        onSaveRecord={(r) => handleGenericSave('saveServiceRecord', r, setServiceRecords)}
-                        onDeleteRecord={(ids) => handleGenericDelete('deleteServiceRecords', ids, setServiceRecords)}
-                        serviceLocations={settings.serviceLocations || []}
-                        onUpdateLocations={handleUpdateServiceLocations}
-                        isSaving={isSaving}
-                    />
-                ) : null;
             case 'attendance':
                 return <AttendancePage
                             mode="student"
@@ -574,6 +487,7 @@ const App: React.FC = () => {
                             isSaving={isSaving}
                             currentUser={currentUser}
                             settings={settings}
+                            onRefresh={() => fetchData(true)} // ให้หน้าลูกสามารถกด Refresh ได้เอง
                         />;
             case 'attendance_personnel':
                 return <AttendancePage
@@ -588,39 +502,15 @@ const App: React.FC = () => {
                             isSaving={isSaving}
                             currentUser={currentUser}
                             settings={settings}
+                            onRefresh={() => fetchData(true)}
                         />;
-            case 'personnel_duty':
-                return currentUser ? (
-                    <DutyPage 
-                        currentUser={currentUser}
-                        records={dutyRecords}
-                        onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)}
-                        onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)}
-                        settings={settings}
-                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
-                        isSaving={isSaving}
-                    />
-                ) : null;
-            case 'personnel_leave':
-                return currentUser ? (
-                    <LeavePage 
-                        currentUser={currentUser}
-                        records={leaveRecords}
-                        onSave={(r) => handleGenericSave('saveLeaveRecord', r, setLeaveRecords)}
-                        onDelete={(ids) => handleGenericDelete('deleteLeaveRecords', ids, setLeaveRecords)}
-                        settings={settings}
-                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
-                        isSaving={isSaving}
-                        personnel={personnel}
-                    />
-                ) : null;
             case 'reports':
                 return <ReportPage
                             reports={reports}
-                            deleteReports={deleteReports}
-                            onViewReport={handleViewReport}
-                            onEditReport={handleEditReport}
-                            onAddReport={handleOpenReportModal}
+                            deleteReports={(ids) => handleGenericDelete('deleteReports', ids, setReports)}
+                            onViewReport={(r) => setViewingReport(r)}
+                            onEditReport={(r) => { setEditingReport(r); setIsReportModalOpen(true); }}
+                            onAddReport={() => { setEditingReport(null); setIsReportModalOpen(true); }}
                         />;
             case 'students':
                 return <StudentPage 
@@ -628,21 +518,67 @@ const App: React.FC = () => {
                             dormitories={settings.dormitories}
                             studentClasses={settings.studentClasses}
                             studentClassrooms={settings.studentClassrooms}
-                            onAddStudent={handleOpenStudentModal}
-                            onEditStudent={handleEditStudent}
-                            onViewStudent={handleViewStudent}
-                            onDeleteStudents={deleteStudents}
+                            onAddStudent={() => { setEditingStudent(null); setIsStudentModalOpen(true); }}
+                            onEditStudent={(s) => { setEditingStudent(s); setIsStudentModalOpen(true); }}
+                            onViewStudent={(s) => setViewingStudent(s)}
+                            onDeleteStudents={(ids) => handleGenericDelete('deleteStudents', ids, setStudents)}
                         />;
             case 'personnel':
                 return <PersonnelPage 
                             personnel={personnel}
                             positions={settings.positions}
-                            onAddPersonnel={handleOpenPersonnelModal}
-                            onEditPersonnel={handleEditPersonnel}
-                            onViewPersonnel={handleViewPersonnel}
-                            onDeletePersonnel={deletePersonnel}
+                            onAddPersonnel={() => { setEditingPersonnel(null); setIsPersonnelModalOpen(true); }}
+                            onEditPersonnel={(p) => { setEditingPersonnel(p); setIsPersonnelModalOpen(true); }}
+                            onViewPersonnel={(p) => setViewingPersonnel(p)}
+                            onDeletePersonnel={(ids) => handleGenericDelete('deletePersonnel', ids, setPersonnel)}
                             currentUser={currentUser}
                         />;
+            case 'admin':
+                return <AdminDashboard 
+                            settings={settings}
+                            onSave={handleSaveAdminSettings}
+                            onExit={() => setCurrentPage('stats')}
+                            isSaving={isSaving}
+                        />
+            case 'profile':
+                return currentUser ? (
+                    <ProfilePage 
+                        user={currentUser}
+                        onSave={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)}
+                        isSaving={isSaving}
+                    />
+                ) : null;
+            case 'academic_plans':
+                return currentUser ? (
+                    <AcademicPage 
+                        currentUser={currentUser}
+                        personnel={personnel}
+                        plans={academicPlans}
+                        onSavePlan={(p) => handleGenericSave('saveAcademicPlan', p, setAcademicPlans)}
+                        onUpdateStatus={async (id, status, comment) => {
+                            await postToGoogleScript({ action: 'updateAcademicPlanStatus', data: { id, status, comment, approverName: currentUser?.personnelName, approvedDate: getCurrentThaiDate() } });
+                            setAcademicPlans(prev => prev.map(p => String(p.id) === String(id) ? { ...p, status, comment } : p));
+                        }}
+                        isSaving={isSaving}
+                    />
+                ) : null;
+            case 'academic_service': 
+                return currentUser ? (
+                    <ServiceRegistrationPage 
+                        currentUser={currentUser}
+                        students={students}
+                        personnel={personnel}
+                        records={serviceRecords}
+                        onSaveRecord={(r) => handleGenericSave('saveServiceRecord', r, setServiceRecords)}
+                        onDeleteRecord={(ids) => handleGenericDelete('deleteServiceRecords', ids, setServiceRecords)}
+                        serviceLocations={settings.serviceLocations || []}
+                        onUpdateLocations={async (locations) => {
+                            const newSettings = { ...settings, serviceLocations: locations };
+                            await handleSaveAdminSettings(newSettings, false);
+                        }}
+                        isSaving={isSaving}
+                    />
+                ) : null;
             case 'finance_supplies':
                 return currentUser ? (
                     <SupplyPage 
@@ -650,15 +586,15 @@ const App: React.FC = () => {
                         items={supplyItems}
                         requests={supplyRequests}
                         personnel={personnel}
-                        onUpdateItems={(items) => { setSupplyItems(items); }}
+                        onUpdateItems={(items) => setSupplyItems(items)}
                         onUpdateRequests={(reqs) => setSupplyRequests(reqs)}
-                        onUpdatePersonnel={handleSavePersonnel}
+                        onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)}
                         settings={settings}
-                        onSaveSettings={(s) => handleSaveAdminSettings(s)}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
                         onSaveItem={(i) => handleGenericSave('saveSupplyItem', i, setSupplyItems)}
                         onDeleteItem={(id) => handleGenericDelete('deleteSupplyItems', [id], setSupplyItems)}
                         onSaveRequest={(r) => handleGenericSave('saveSupplyRequest', r, setSupplyRequests)}
-                        onUpdateRequestStatus={(r) => { handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests); }}
+                        onUpdateRequestStatus={(r) => handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests)}
                     />
                 ) : null;
             case 'finance_projects': 
@@ -671,7 +607,7 @@ const App: React.FC = () => {
                         onSave={(p) => handleGenericSave('saveProjectProposal', p, setProjectProposals)}
                         onDelete={(ids) => handleGenericDelete('deleteProjectProposals', ids, setProjectProposals)}
                         onUpdateSettings={(s) => handleSaveAdminSettings(s, false)}
-                        onUpdatePersonnel={handleSavePersonnel} 
+                        onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)} 
                         isSaving={isSaving}
                     />
                 ) : null;
@@ -686,13 +622,14 @@ const App: React.FC = () => {
                         settings={settings}
                     />
                 ) : null;
-            case 'general_certs':
+            case 'general_docs': 
                 return currentUser ? (
-                    <CertificatePage 
+                    <GeneralDocsPage 
                         currentUser={currentUser}
-                        requests={certificateRequests}
-                        onSave={(r) => handleGenericSave('saveCertificateRequest', r, setCertificateRequests)}
-                        onDelete={(ids) => handleGenericDelete('deleteCertificateRequests', ids, setCertificateRequests)}
+                        personnel={personnel}
+                        documents={documents}
+                        onSave={(d) => handleGenericSave('saveDocument', d, setDocuments)}
+                        onDelete={(ids) => handleGenericDelete('deleteDocuments', ids, setDocuments)}
                         isSaving={isSaving}
                     />
                 ) : null;
@@ -703,17 +640,6 @@ const App: React.FC = () => {
                         requests={maintenanceRequests}
                         onSave={(r) => handleGenericSave('saveMaintenanceRequest', r, setMaintenanceRequests)}
                         onDelete={(ids) => handleGenericDelete('deleteMaintenanceRequests', ids, setMaintenanceRequests)}
-                        isSaving={isSaving}
-                    />
-                ) : null;
-            case 'general_docs': 
-                return currentUser ? (
-                    <GeneralDocsPage 
-                        currentUser={currentUser}
-                        personnel={personnel}
-                        documents={documents}
-                        onSave={(d) => handleGenericSave('saveDocument', d, setDocuments)}
-                        onDelete={(ids) => handleGenericDelete('deleteDocuments', ids, setDocuments)}
                         isSaving={isSaving}
                     />
                 ) : null;
@@ -795,19 +721,29 @@ const App: React.FC = () => {
                         isSaving={isSaving}
                     />
                 ) : null;
-            case 'admin':
-                return <AdminDashboard 
-                            settings={settings}
-                            onSave={handleSaveAdminSettings}
-                            onExit={() => setCurrentPage('stats')}
-                            isSaving={isSaving}
-                        />
-            case 'profile':
+            case 'personnel_duty':
                 return currentUser ? (
-                    <ProfilePage 
-                        user={currentUser}
-                        onSave={handleSavePersonnel}
+                    <DutyPage 
+                        currentUser={currentUser}
+                        records={dutyRecords}
+                        onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)}
+                        onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)}
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
                         isSaving={isSaving}
+                    />
+                ) : null;
+            case 'personnel_leave':
+                return currentUser ? (
+                    <LeavePage 
+                        currentUser={currentUser}
+                        records={leaveRecords}
+                        onSave={(r) => handleGenericSave('saveLeaveRecord', r, setLeaveRecords)}
+                        onDelete={(ids) => handleGenericDelete('deleteLeaveRecords', ids, setLeaveRecords)}
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
+                        isSaving={isSaving}
+                        personnel={personnel}
                     />
                 ) : null;
                 
@@ -851,7 +787,7 @@ const App: React.FC = () => {
 
             <div className={`flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300 ${isDesktopSidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
                 <Header 
-                    onReportClick={handleOpenReportModal} 
+                    onReportClick={() => setIsReportModalOpen(true)} 
                     onNavigate={navigateTo}
                     currentPage={currentPage}
                     schoolName={settings.schoolName}
@@ -889,13 +825,14 @@ const App: React.FC = () => {
             <RegisterModal 
                 isOpen={isRegisterModalOpen} 
                 onClose={() => setIsRegisterModalOpen(false)} 
-                onRegister={handleRegister} 
+                onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} 
                 positions={settings.positions} 
                 isSaving={isSaving} 
             />
 
             {isReportModalOpen && (
                 <ReportModal 
+                    // Fix: Use the properly defined handleCloseReportModal function
                     onClose={handleCloseReportModal} 
                     onSave={handleSaveReport}
                     reportToEdit={editingReport}
@@ -908,11 +845,11 @@ const App: React.FC = () => {
                     students={students}
                 />
             )}
-            {viewingReport && <ViewReportModal report={viewingReport} onClose={handleCloseViewReportModal} students={students} />}
+            {viewingReport && <ViewReportModal report={viewingReport} onClose={() => setViewingReport(null)} students={students} />}
             {isStudentModalOpen && (
                 <StudentModal
-                    onClose={handleCloseStudentModal}
-                    onSave={handleSaveStudent}
+                    onClose={() => setIsStudentModalOpen(false)}
+                    onSave={(s) => handleGenericSave(editingStudent ? 'updateStudent' : 'addStudent', s, setStudents)}
                     studentToEdit={editingStudent}
                     dormitories={settings.dormitories}
                     studentClasses={settings.studentClasses}
@@ -921,11 +858,11 @@ const App: React.FC = () => {
                     isSaving={isSaving}
                 />
             )}
-            {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={handleCloseViewStudentModal} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
+            {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={() => setViewingStudent(null)} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
             {isPersonnelModalOpen && (
                 <PersonnelModal
-                    onClose={handleClosePersonnelModal}
-                    onSave={handleSavePersonnel}
+                    onClose={() => setIsPersonnelModalOpen(false)}
+                    onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)}
                     personnelToEdit={editingPersonnel}
                     positions={settings.positions}
                     students={students}
@@ -934,7 +871,7 @@ const App: React.FC = () => {
                     currentUser={currentUser}
                 />
             )}
-            {viewingPersonnel && <ViewPersonnelModal personnel={viewingPersonnel} onClose={handleCloseViewPersonnelModal} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
+            {viewingPersonnel && <ViewPersonnelModal personnel={viewingPersonnel} onClose={() => setViewingPersonnel(null)} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
         </div>
     );
 };
