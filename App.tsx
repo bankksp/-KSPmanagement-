@@ -38,7 +38,6 @@ import LeavePage from './components/LeavePage';
 
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
-// Add getCurrentThaiDate to the import list from utils
 import { prepareDataForApi, postToGoogleScript, isoToBuddhist, normalizeDate, safeParseArray, getCurrentThaiDate } from './utils';
 
 const App: React.FC = () => {
@@ -120,7 +119,6 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // ฟังก์ชันช่วยจัดรูปแบบวันที่จาก Sheets ให้เป็นรูปแบบมาตรฐาน DD/MM/YYYY
     const normalizeDateString = (dateInput: any): string => {
         if (!dateInput) return '';
         const d = normalizeDate(dateInput);
@@ -180,7 +178,6 @@ const App: React.FC = () => {
                 }
             }
 
-            // --- แก้ไขสำคัญ: Normalize ข้อมูลการเช็คชื่อก่อนเก็บลง State ---
             const normStudentAtt = (data.studentAttendance || []).map((r: any) => ({ 
                 ...r, 
                 date: normalizeDateString(r.date) 
@@ -193,7 +190,6 @@ const App: React.FC = () => {
             }));
             setPersonnelAttendance(normPersAtt);
 
-            // Normalize Duty & Leave
             setDutyRecords((data.dutyRecords || []).map((r: any) => ({ ...r, date: normalizeDateString(r.date) })));
             
             const normLeaveRecords = (data.leaveRecords || []).map((r: any) => ({
@@ -206,11 +202,15 @@ const App: React.FC = () => {
             }));
             setLeaveRecords(normLeaveRecords);
 
-            // Rest of the data
             setAcademicPlans(data.academicPlans || []);
             setSupplyItems(data.supplyItems || []);
             setSupplyRequests(data.supplyRequests || []);
             setDurableGoods(data.durableGoods || []); 
+            
+            // Fix: Certificate Requests Mapping
+            const fetchedCerts = data.certificateRequests || [];
+            setCertificateRequests(fetchedCerts);
+            
             setCertificateRequests(data.certificateRequests || []); 
             setMaintenanceRequests(data.maintenanceRequests || []);
             setPerformanceReports(data.performanceReports || []);
@@ -282,14 +282,13 @@ const App: React.FC = () => {
         }
     }, [isAuthenticated, fetchData]);
 
-    // Background polling with extra safety
     useEffect(() => {
         if (!isAuthenticated || isUIBusy) return;
         const intervalId = setInterval(() => {
             if (!document.hidden) {
                 fetchData(true);
             }
-        }, 60000); // เพิ่มเป็น 60 วินาทีเพื่อให้เวลาเซิร์ฟเวอร์บันทึกข้อมูล
+        }, 60000); 
         return () => clearInterval(intervalId);
     }, [fetchData, isUIBusy, isAuthenticated]);
 
@@ -327,7 +326,6 @@ const App: React.FC = () => {
         setReports([]); setStudents([]); setPersonnel([]);
     };
 
-    // Define handleCloseReportModal to properly reset modal states
     const handleCloseReportModal = () => {
         setIsReportModalOpen(false);
         setEditingReport(null);
@@ -353,7 +351,6 @@ const App: React.FC = () => {
             } else {
                 setReports(prev => [...prev, ...processed.map(normalize)]);
             }
-            // Use the newly defined handleCloseReportModal
             handleCloseReportModal();
         } catch(e) { console.error(e); alert('Error saving report'); } finally { setIsSaving(false); }
     };
@@ -363,11 +360,8 @@ const App: React.FC = () => {
         try {
             const action = t === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
             const response = await postToGoogleScript({ action, data: d });
-            
-            // สำคัญ: Normalize ข้อมูลที่ได้รับกลับมาจากเซิร์ฟเวอร์ทันที
             const savedRaw = Array.isArray(response.data) ? response.data : [response.data];
             const saved = savedRaw.map((r:any) => ({ ...r, date: normalizeDateString(r.date) }));
-            
             if(t === 'student') {
                 setStudentAttendance(prev => {
                     const ids = new Set(saved.map((x:any) => x.id));
@@ -475,278 +469,85 @@ const App: React.FC = () => {
                             homeVisits={homeVisits} 
                         />;
             case 'attendance':
-                return <AttendancePage
-                            mode="student"
-                            students={students}
-                            personnel={personnel}
-                            studentAttendance={studentAttendance}
-                            personnelAttendance={personnelAttendance}
-                            onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
-                            onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
-                            onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)}
-                            isSaving={isSaving}
-                            currentUser={currentUser}
-                            settings={settings}
-                            onRefresh={() => fetchData(true)} // ให้หน้าลูกสามารถกด Refresh ได้เอง
-                        />;
+                return <AttendancePage mode="student" students={students} personnel={personnel} studentAttendance={studentAttendance} personnelAttendance={personnelAttendance} onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)} onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)} onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)} isSaving={isSaving} currentUser={currentUser} settings={settings} onRefresh={() => fetchData(true)} />;
             case 'attendance_personnel':
-                return <AttendancePage
-                            mode="personnel"
-                            students={students}
-                            personnel={personnel}
-                            studentAttendance={studentAttendance}
-                            personnelAttendance={personnelAttendance}
-                            onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)}
-                            onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)}
-                            onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)}
-                            isSaving={isSaving}
-                            currentUser={currentUser}
-                            settings={settings}
-                            onRefresh={() => fetchData(true)}
-                        />;
+                return <AttendancePage mode="personnel" students={students} personnel={personnel} studentAttendance={studentAttendance} personnelAttendance={personnelAttendance} onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)} onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)} onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)} isSaving={isSaving} currentUser={currentUser} settings={settings} onRefresh={() => fetchData(true)} />;
             case 'reports':
-                return <ReportPage
-                            reports={reports}
-                            deleteReports={(ids) => handleGenericDelete('deleteReports', ids, setReports)}
-                            onViewReport={(r) => setViewingReport(r)}
-                            onEditReport={(r) => { setEditingReport(r); setIsReportModalOpen(true); }}
-                            onAddReport={() => { setEditingReport(null); setIsReportModalOpen(true); }}
-                        />;
+                return <ReportPage reports={reports} deleteReports={(ids) => handleGenericDelete('deleteReports', ids, setReports)} onViewReport={(r) => setViewingReport(r)} onEditReport={(r) => { setEditingReport(r); setIsReportModalOpen(true); }} onAddReport={() => { setEditingReport(null); setIsReportModalOpen(true); }} />;
             case 'students':
-                return <StudentPage 
-                            students={students}
-                            dormitories={settings.dormitories}
-                            studentClasses={settings.studentClasses}
-                            studentClassrooms={settings.studentClassrooms}
-                            onAddStudent={() => { setEditingStudent(null); setIsStudentModalOpen(true); }}
-                            onEditStudent={(s) => { setEditingStudent(s); setIsStudentModalOpen(true); }}
-                            onViewStudent={(s) => setViewingStudent(s)}
-                            onDeleteStudents={(ids) => handleGenericDelete('deleteStudents', ids, setStudents)}
-                        />;
+                return <StudentPage students={students} dormitories={settings.dormitories} studentClasses={settings.studentClasses} studentClassrooms={settings.studentClassrooms} onAddStudent={() => { setEditingStudent(null); setIsStudentModalOpen(true); }} onEditStudent={(s) => { setEditingStudent(s); setIsStudentModalOpen(true); }} onViewStudent={(s) => setViewingStudent(s)} onDeleteStudents={(ids) => handleGenericDelete('deleteStudents', ids, setStudents)} />;
             case 'personnel':
-                return <PersonnelPage 
-                            personnel={personnel}
-                            positions={settings.positions}
-                            onAddPersonnel={() => { setEditingPersonnel(null); setIsPersonnelModalOpen(true); }}
-                            onEditPersonnel={(p) => { setEditingPersonnel(p); setIsPersonnelModalOpen(true); }}
-                            onViewPersonnel={(p) => setViewingPersonnel(p)}
-                            onDeletePersonnel={(ids) => handleGenericDelete('deletePersonnel', ids, setPersonnel)}
-                            currentUser={currentUser}
-                        />;
+                return <PersonnelPage personnel={personnel} positions={settings.positions} onAddPersonnel={() => { setEditingPersonnel(null); setIsPersonnelModalOpen(true); }} onEditPersonnel={(p) => { setEditingPersonnel(p); setIsPersonnelModalOpen(true); }} onViewPersonnel={(p) => setViewingPersonnel(p)} onDeletePersonnel={(ids) => handleGenericDelete('deletePersonnel', ids, setPersonnel)} currentUser={currentUser} />;
             case 'admin':
-                return <AdminDashboard 
-                            settings={settings}
-                            onSave={handleSaveAdminSettings}
-                            onExit={() => setCurrentPage('stats')}
-                            isSaving={isSaving}
-                        />
+                return <AdminDashboard settings={settings} onSave={handleSaveAdminSettings} onExit={() => setCurrentPage('stats')} isSaving={isSaving} />
             case 'profile':
                 return currentUser ? (
-                    <ProfilePage 
-                        user={currentUser}
-                        onSave={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)}
-                        isSaving={isSaving}
-                    />
+                    <ProfilePage user={currentUser} onSave={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)} isSaving={isSaving} />
                 ) : null;
             case 'academic_plans':
                 return currentUser ? (
-                    <AcademicPage 
-                        currentUser={currentUser}
-                        personnel={personnel}
-                        plans={academicPlans}
-                        onSavePlan={(p) => handleGenericSave('saveAcademicPlan', p, setAcademicPlans)}
-                        onUpdateStatus={async (id, status, comment) => {
-                            await postToGoogleScript({ action: 'updateAcademicPlanStatus', data: { id, status, comment, approverName: currentUser?.personnelName, approvedDate: getCurrentThaiDate() } });
-                            setAcademicPlans(prev => prev.map(p => String(p.id) === String(id) ? { ...p, status, comment } : p));
-                        }}
-                        isSaving={isSaving}
-                    />
+                    <AcademicPage currentUser={currentUser} personnel={personnel} plans={academicPlans} onSavePlan={(p) => handleGenericSave('saveAcademicPlan', p, setAcademicPlans)} onUpdateStatus={async (id, status, comment) => { await postToGoogleScript({ action: 'updateAcademicPlanStatus', data: { id, status, comment, approverName: currentUser?.personnelName, approvedDate: getCurrentThaiDate() } }); setAcademicPlans(prev => prev.map(p => String(p.id) === String(id) ? { ...p, status, comment } : p)); }} isSaving={isSaving} />
                 ) : null;
             case 'academic_service': 
                 return currentUser ? (
-                    <ServiceRegistrationPage 
-                        currentUser={currentUser}
-                        students={students}
-                        personnel={personnel}
-                        records={serviceRecords}
-                        onSaveRecord={(r) => handleGenericSave('saveServiceRecord', r, setServiceRecords)}
-                        onDeleteRecord={(ids) => handleGenericDelete('deleteServiceRecords', ids, setServiceRecords)}
-                        serviceLocations={settings.serviceLocations || []}
-                        onUpdateLocations={async (locations) => {
-                            const newSettings = { ...settings, serviceLocations: locations };
-                            await handleSaveAdminSettings(newSettings, false);
-                        }}
-                        isSaving={isSaving}
-                    />
+                    <ServiceRegistrationPage currentUser={currentUser} students={students} personnel={personnel} records={serviceRecords} onSaveRecord={(r) => handleGenericSave('saveServiceRecord', r, setServiceRecords)} onDeleteRecord={(ids) => handleGenericDelete('deleteServiceRecords', ids, setServiceRecords)} serviceLocations={settings.serviceLocations || []} onUpdateLocations={async (locations) => { const newSettings = { ...settings, serviceLocations: locations }; await handleSaveAdminSettings(newSettings, false); }} isSaving={isSaving} />
                 ) : null;
             case 'finance_supplies':
                 return currentUser ? (
-                    <SupplyPage 
-                        currentUser={currentUser}
-                        items={supplyItems}
-                        requests={supplyRequests}
-                        personnel={personnel}
-                        onUpdateItems={(items) => setSupplyItems(items)}
-                        onUpdateRequests={(reqs) => setSupplyRequests(reqs)}
-                        onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)}
-                        settings={settings}
-                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
-                        onSaveItem={(i) => handleGenericSave('saveSupplyItem', i, setSupplyItems)}
-                        onDeleteItem={(id) => handleGenericDelete('deleteSupplyItems', [id], setSupplyItems)}
-                        onSaveRequest={(r) => handleGenericSave('saveSupplyRequest', r, setSupplyRequests)}
-                        onUpdateRequestStatus={(r) => handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests)}
-                    />
+                    <SupplyPage currentUser={currentUser} items={supplyItems} requests={supplyRequests} personnel={personnel} onUpdateItems={(items) => setSupplyItems(items)} onUpdateRequests={(reqs) => setSupplyRequests(reqs)} onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} onSaveItem={(i) => handleGenericSave('saveSupplyItem', i, setSupplyItems)} onDeleteItem={(id) => handleGenericDelete('deleteSupplyItems', [id], setSupplyItems)} onSaveRequest={(r) => handleGenericSave('saveSupplyRequest', r, setSupplyRequests)} onUpdateRequestStatus={(r) => handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests)} />
                 ) : null;
             case 'finance_projects': 
                 return currentUser ? (
-                    <BudgetPlanningPage 
-                        currentUser={currentUser}
-                        proposals={projectProposals}
-                        personnel={personnel}
-                        settings={settings}
-                        onSave={(p) => handleGenericSave('saveProjectProposal', p, setProjectProposals)}
-                        onDelete={(ids) => handleGenericDelete('deleteProjectProposals', ids, setProjectProposals)}
-                        onUpdateSettings={(s) => handleSaveAdminSettings(s, false)}
-                        onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)} 
-                        isSaving={isSaving}
-                    />
+                    <BudgetPlanningPage currentUser={currentUser} proposals={projectProposals} personnel={personnel} settings={settings} onSave={(p) => handleGenericSave('saveProjectProposal', p, setProjectProposals)} onDelete={(ids) => handleGenericDelete('deleteProjectProposals', ids, setProjectProposals)} onUpdateSettings={(s) => handleSaveAdminSettings(s, false)} onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)} isSaving={isSaving} />
                 ) : null;
             case 'durable_goods': 
                 return currentUser ? (
-                    <DurableGoodsPage 
-                        currentUser={currentUser}
-                        durableGoods={durableGoods}
-                        onSave={(i) => handleGenericSave('saveDurableGood', i, setDurableGoods)}
-                        onDelete={(ids) => handleGenericDelete('deleteDurableGoods', ids, setDurableGoods)}
-                        isSaving={isSaving}
-                        settings={settings}
-                    />
+                    <DurableGoodsPage currentUser={currentUser} durableGoods={durableGoods} onSave={(i) => handleGenericSave('saveDurableGood', i, setDurableGoods)} onDelete={(ids) => handleGenericDelete('deleteDurableGoods', ids, setDurableGoods)} isSaving={isSaving} settings={settings} />
                 ) : null;
             case 'general_docs': 
                 return currentUser ? (
-                    <GeneralDocsPage 
-                        currentUser={currentUser}
-                        personnel={personnel}
-                        documents={documents}
-                        onSave={(d) => handleGenericSave('saveDocument', d, setDocuments)}
-                        onDelete={(ids) => handleGenericDelete('deleteDocuments', ids, setDocuments)}
-                        isSaving={isSaving}
-                    />
+                    <GeneralDocsPage currentUser={currentUser} personnel={personnel} documents={documents} onSave={(d) => handleGenericSave('saveDocument', d, setDocuments)} onDelete={(ids) => handleGenericDelete('deleteDocuments', ids, setDocuments)} isSaving={isSaving} />
                 ) : null;
             case 'general_repair':
                 return currentUser ? (
-                    <MaintenancePage 
-                        currentUser={currentUser}
-                        requests={maintenanceRequests}
-                        onSave={(r) => handleGenericSave('saveMaintenanceRequest', r, setMaintenanceRequests)}
-                        onDelete={(ids) => handleGenericDelete('deleteMaintenanceRequests', ids, setMaintenanceRequests)}
-                        isSaving={isSaving}
-                    />
+                    <MaintenancePage currentUser={currentUser} requests={maintenanceRequests} onSave={(r) => handleGenericSave('saveMaintenanceRequest', r, setMaintenanceRequests)} onDelete={(ids) => handleGenericDelete('deleteMaintenanceRequests', ids, setMaintenanceRequests)} isSaving={isSaving} />
                 ) : null;
             case 'general_construction': 
                 return currentUser ? (
-                    <ConstructionPage 
-                        currentUser={currentUser}
-                        records={constructionRecords}
-                        onSave={(r) => handleGenericSave('saveConstructionRecord', r, setConstructionRecords)}
-                        onDelete={(ids) => handleGenericDelete('deleteConstructionRecords', ids, setConstructionRecords)}
-                        isSaving={isSaving}
-                        personnel={personnel}
-                    />
+                    <ConstructionPage currentUser={currentUser} records={constructionRecords} onSave={(r) => handleGenericSave('saveConstructionRecord', r, setConstructionRecords)} onDelete={(ids) => handleGenericDelete('deleteConstructionRecords', ids, setConstructionRecords)} isSaving={isSaving} personnel={personnel} />
                 ) : null;
             case 'general_nutrition':
                 return currentUser ? (
-                    <NutritionPage 
-                        currentUser={currentUser}
-                        mealPlans={mealPlans}
-                        ingredients={ingredients}
-                        onSaveMealPlan={(mp) => handleGenericSave('saveMealPlan', mp, setMealPlans)}
-                        onDeleteMealPlan={(ids) => handleGenericDelete('deleteMealPlans', ids, setMealPlans)}
-                        onSaveIngredient={(ing) => handleGenericSave('saveIngredient', ing, setIngredients)}
-                        onDeleteIngredient={(ids) => handleGenericDelete('deleteIngredients', ids, setIngredients)}
-                        isSaving={isSaving}
-                        students={students}
-                    />
+                    <NutritionPage currentUser={currentUser} mealPlans={mealPlans} ingredients={ingredients} onSaveMealPlan={(mp) => handleGenericSave('saveMealPlan', mp, setMealPlans)} onDeleteMealPlan={(ids) => handleGenericDelete('deleteMealPlans', ids, setMealPlans)} onSaveIngredient={(ing) => handleGenericSave('saveIngredient', ing, setIngredients)} onDeleteIngredient={(ids) => handleGenericDelete('deleteIngredients', ids, setIngredients)} isSaving={isSaving} students={students} />
+                ) : null;
+            case 'general_certs': 
+                return currentUser ? (
+                    <CertificatePage currentUser={currentUser} requests={certificateRequests} onSave={(r) => handleGenericSave('saveCertificateRequest', r, setCertificateRequests)} onDelete={(ids) => handleGenericDelete('deleteCertificateRequests', ids, setCertificateRequests)} isSaving={isSaving} />
                 ) : null;
             case 'student_home_visit':
                 return currentUser ? (
-                    <StudentHomeVisitPage 
-                        currentUser={currentUser}
-                        students={students}
-                        visits={homeVisits}
-                        onSave={(v) => handleGenericSave('saveHomeVisit', v, setHomeVisits)}
-                        studentClasses={settings.studentClasses}
-                        studentClassrooms={settings.studentClassrooms}
-                        academicYears={settings.academicYears}
-                        isSaving={isSaving}
-                    />
+                    <StudentHomeVisitPage currentUser={currentUser} students={students} visits={homeVisits} onSave={(v) => handleGenericSave('saveHomeVisit', v, setHomeVisits)} studentClasses={settings.studentClasses} studentClassrooms={settings.studentClassrooms} academicYears={settings.academicYears} isSaving={isSaving} />
                 ) : null;
             case 'student_sdq':
                 return currentUser ? (
-                    <SDQPage
-                        currentUser={currentUser}
-                        students={students}
-                        records={sdqRecords}
-                        onSave={(r) => handleGenericSave('saveSDQRecord', r, setSdqRecords)}
-                        onDelete={(ids) => handleGenericDelete('deleteSDQRecords', ids, setSdqRecords)}
-                        academicYears={settings.academicYears}
-                        isSaving={isSaving}
-                        studentClasses={settings.studentClasses}
-                        studentClassrooms={settings.studentClassrooms}
-                    />
+                    <SDQPage currentUser={currentUser} students={students} records={sdqRecords} onSave={(r) => handleGenericSave('saveSDQRecord', r, setSdqRecords)} onDelete={(ids) => handleGenericDelete('deleteSDQRecords', ids, setSdqRecords)} academicYears={settings.academicYears} isSaving={isSaving} studentClasses={settings.studentClasses} studentClassrooms={settings.studentClassrooms} />
                 ) : null;
             case 'personnel_report':
                 return currentUser ? (
-                    <PersonnelReportPage 
-                        currentUser={currentUser}
-                        personnel={personnel}
-                        reports={performanceReports}
-                        onSave={(r) => handleGenericSave('savePerformanceReport', r, setPerformanceReports)}
-                        onDelete={(ids) => handleGenericDelete('deletePerformanceReports', ids, setPerformanceReports)}
-                        academicYears={settings.academicYears}
-                        positions={settings.positions}
-                        isSaving={isSaving}
-                    />
+                    <PersonnelReportPage currentUser={currentUser} personnel={personnel} reports={performanceReports} onSave={(r) => handleGenericSave('savePerformanceReport', r, setPerformanceReports)} onDelete={(ids) => handleGenericDelete('deletePerformanceReports', ids, setPerformanceReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
                 ) : null;
             case 'personnel_sar': 
                 return currentUser ? (
-                    <PersonnelSARPage 
-                        currentUser={currentUser}
-                        personnel={personnel}
-                        reports={sarReports}
-                        onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)}
-                        onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)}
-                        academicYears={settings.academicYears}
-                        positions={settings.positions}
-                        isSaving={isSaving}
-                    />
+                    <PersonnelSARPage currentUser={currentUser} personnel={personnel} reports={sarReports} onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)} onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
                 ) : null;
             case 'personnel_duty':
                 return currentUser ? (
-                    <DutyPage 
-                        currentUser={currentUser}
-                        records={dutyRecords}
-                        onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)}
-                        onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)}
-                        settings={settings}
-                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
-                        isSaving={isSaving}
-                    />
+                    <DutyPage currentUser={currentUser} records={dutyRecords} onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)} onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} />
                 ) : null;
             case 'personnel_leave':
                 return currentUser ? (
-                    <LeavePage 
-                        currentUser={currentUser}
-                        records={leaveRecords}
-                        onSave={(r) => handleGenericSave('saveLeaveRecord', r, setLeaveRecords)}
-                        onDelete={(ids) => handleGenericDelete('deleteLeaveRecords', ids, setLeaveRecords)}
-                        settings={settings}
-                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
-                        isSaving={isSaving}
-                        personnel={personnel}
-                    />
+                    <LeavePage currentUser={currentUser} records={leaveRecords} onSave={(r) => handleGenericSave('saveLeaveRecord', r, setLeaveRecords)} onDelete={(ids) => handleGenericDelete('deleteLeaveRecords', ids, setLeaveRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} personnel={personnel} />
                 ) : null;
-                
             default:
                 return null;
         }
@@ -773,103 +574,27 @@ const App: React.FC = () => {
 
     return (
         <div className="flex h-screen overflow-hidden bg-[#F3F4F6] font-sarabun">
-            <Sidebar 
-                onNavigate={navigateTo}
-                currentPage={currentPage}
-                schoolName={settings.schoolName}
-                schoolLogo={settings.schoolLogo}
-                currentUser={currentUser}
-                personnel={personnel}
-                isOpen={isSidebarOpen}
-                onCloseMobile={() => setIsSidebarOpen(false)}
-                isDesktopOpen={isDesktopSidebarOpen}
-            />
-
+            <Sidebar onNavigate={navigateTo} currentPage={currentPage} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} personnel={personnel} isOpen={isSidebarOpen} onCloseMobile={() => setIsSidebarOpen(false)} isDesktopOpen={isDesktopSidebarOpen} />
             <div className={`flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300 ${isDesktopSidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
-                <Header 
-                    onReportClick={() => setIsReportModalOpen(true)} 
-                    onNavigate={navigateTo}
-                    currentPage={currentPage}
-                    schoolName={settings.schoolName}
-                    schoolLogo={settings.schoolLogo}
-                    currentUser={currentUser}
-                    onLoginClick={() => setIsLoginModalOpen(true)}
-                    onLogoutClick={handleLogout}
-                    personnel={personnel} 
-                    onToggleSidebar={() => setIsSidebarOpen(true)}
-                    isDesktopSidebarOpen={isDesktopSidebarOpen}
-                    onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
-                    isSyncing={isSyncing}
-                />
-                
+                <Header onReportClick={() => setIsReportModalOpen(true)} onNavigate={navigateTo} currentPage={currentPage} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} onLoginClick={() => setIsLoginModalOpen(true)} onLogoutClick={handleLogout} personnel={personnel} onToggleSidebar={() => setIsSidebarOpen(true)} isDesktopSidebarOpen={isDesktopSidebarOpen} onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)} isSyncing={isSyncing} />
                 <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
-                    <div className="max-w-7xl mx-auto">
-                        {renderPage()}
-                    </div>
+                    <div className="max-w-7xl mx-auto">{renderPage()}</div>
                     <div className="h-10"></div> 
                     <Footer />
                 </main>
             </div>
-
-            <LoginModal 
-                isOpen={isLoginModalOpen}
-                onClose={() => setIsLoginModalOpen(false)}
-                onLogin={handleSessionLogin}
-                personnelList={personnel}
-                onRegisterClick={() => {
-                    setIsLoginModalOpen(false);
-                    setIsRegisterModalOpen(true);
-                }}
-            />
-
-            <RegisterModal 
-                isOpen={isRegisterModalOpen} 
-                onClose={() => setIsRegisterModalOpen(false)} 
-                onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} 
-                positions={settings.positions} 
-                isSaving={isSaving} 
-            />
-
+            <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleSessionLogin} personnelList={personnel} onRegisterClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }} />
+            <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} positions={settings.positions} isSaving={isSaving} />
             {isReportModalOpen && (
-                <ReportModal 
-                    // Fix: Use the properly defined handleCloseReportModal function
-                    onClose={handleCloseReportModal} 
-                    onSave={handleSaveReport}
-                    reportToEdit={editingReport}
-                    academicYears={settings.academicYears}
-                    dormitories={settings.dormitories}
-                    positions={settings.positions}
-                    isSaving={isSaving}
-                    personnel={personnel}
-                    currentUser={currentUser}
-                    students={students}
-                />
+                <ReportModal onClose={handleCloseReportModal} onSave={handleSaveReport} reportToEdit={editingReport} academicYears={settings.academicYears} dormitories={settings.dormitories} positions={settings.positions} isSaving={isSaving} personnel={personnel} currentUser={currentUser} students={students} />
             )}
             {viewingReport && <ViewReportModal report={viewingReport} onClose={() => setViewingReport(null)} students={students} />}
             {isStudentModalOpen && (
-                <StudentModal
-                    onClose={() => setIsStudentModalOpen(false)}
-                    onSave={(s) => handleGenericSave(editingStudent ? 'updateStudent' : 'addStudent', s, setStudents)}
-                    studentToEdit={editingStudent}
-                    dormitories={settings.dormitories}
-                    studentClasses={settings.studentClasses}
-                    studentClassrooms={settings.studentClassrooms}
-                    personnel={personnel}
-                    isSaving={isSaving}
-                />
+                <StudentModal onClose={() => setIsStudentModalOpen(false)} onSave={(s) => handleGenericSave(editingStudent ? 'updateStudent' : 'addStudent', s, setStudents)} studentToEdit={editingStudent} dormitories={settings.dormitories} studentClasses={settings.studentClasses} studentClassrooms={settings.studentClassrooms} personnel={personnel} isSaving={isSaving} />
             )}
             {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={() => setViewingStudent(null)} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
             {isPersonnelModalOpen && (
-                <PersonnelModal
-                    onClose={() => setIsPersonnelModalOpen(false)}
-                    onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)}
-                    personnelToEdit={editingPersonnel}
-                    positions={settings.positions}
-                    students={students}
-                    isSaving={isSaving}
-                    currentUserRole={currentUser?.role}
-                    currentUser={currentUser}
-                />
+                <PersonnelModal onClose={() => setIsPersonnelModalOpen(false)} onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)} personnelToEdit={editingPersonnel} positions={settings.positions} students={students} isSaving={isSaving} currentUserRole={currentUser?.role} currentUser={currentUser} />
             )}
             {viewingPersonnel && <ViewPersonnelModal personnel={viewingPersonnel} onClose={() => setViewingPersonnel(null)} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
         </div>
