@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Personnel } from '../types';
-import { getFirstImageSource } from '../utils';
+import { getFirstImageSource, formatThaiDate, normalizeDate } from '../utils';
 import { THAI_PROVINCES } from '../constants'; 
 
 interface PersonnelTableProps {
@@ -14,17 +14,10 @@ interface PersonnelTableProps {
 
 const calculateAge = (dobString: string): number => {
     if (!dobString) return 0;
-    const parts = dobString.split('/');
-    if (parts.length !== 3) return 0;
-    const [day, month, year] = parts.map(Number);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return 0;
-
-    const buddhistYear = year;
-    const gregorianYear = buddhistYear - 543;
+    const birthDate = normalizeDate(dobString);
+    if (!birthDate) return 0;
     
-    const birthDate = new Date(gregorianYear, month - 1, day);
     const today = new Date();
-    
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
     

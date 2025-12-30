@@ -58,7 +58,7 @@
     @media print {
       @page {
         size: A4 portrait;
-        margin: 2cm; /* Official Thai Govt Document Margin */
+        margin: 2cm;
       }
       
       body {
@@ -73,14 +73,10 @@
         print-color-adjust: exact !important;
       }
       
-      /* Hide standard UI */
       nav, header, footer, button, input, select, .no-print, .print\:hidden, .shadow-lg, .shadow-xl, .shadow-2xl, .shadow-md, .shadow-sm {
         display: none !important;
-        box-shadow: none !important;
-        border: none !important;
       }
 
-      /* Force print sections to show */
       .print-visible {
         display: block !important;
         width: 100% !important;
@@ -89,12 +85,10 @@
         background: white !important;
       }
 
-      /* Hide everything else when printing a specific section */
       body > *:not(#root) {
         display: none;
       }
 
-      /* Tables */
       table {
         width: 100% !important;
         border-collapse: collapse !important;
@@ -114,37 +108,21 @@
       tfoot { display: table-footer-group; }
       tr { page-break-inside: avoid; }
 
-      /* Layout Helpers */
-      .page-break { page-break-before: always; }
-      .avoid-break { page-break-inside: avoid; }
-      
-      .signature-section { 
-        margin-top: 2cm; 
-        page-break-inside: avoid;
-        width: 100%;
-        display: flex;
-        justify-content: flex-end;
-      }
-      
-      /* Reset Position */
-      .fixed, .absolute, .sticky {
-        position: static !important;
-        transform: none !important;
-        z-index: auto !important;
-      }
-      
-      /* Modal Printing Handling */
-      .fixed.inset-0 {
-        position: static !important;
-        background: white !important;
-        width: 100% !important;
-        height: auto !important;
-        overflow: visible !important;
+      .asset-tag-print {
+          display: flex !important;
+          flex-direction: column;
+          align-items: center;
+          border: 2px solid #000;
+          padding: 10mm;
+          width: 80mm;
+          margin: 0 auto;
       }
     }
   </style>
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- QR Code Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script type="importmap">
 {
   "imports": {

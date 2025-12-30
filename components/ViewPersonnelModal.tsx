@@ -1,7 +1,7 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
 import { Personnel } from '../types';
-import { getFirstImageSource, getDirectDriveImageSrc } from '../utils';
+import { getFirstImageSource, getDirectDriveImageSrc, formatThaiDate, normalizeDate } from '../utils';
 
 interface ViewPersonnelModalProps {
     personnel: Personnel;
@@ -12,24 +12,17 @@ interface ViewPersonnelModalProps {
 
 const calculateAge = (dobString: string): string => {
     if (!dobString) return '-';
-    const parts = dobString.split('/');
-    if (parts.length !== 3) return '-';
-    const [day, month, year] = parts.map(Number);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return '-';
-
-    const buddhistYear = year;
-    const gregorianYear = buddhistYear - 543;
+    const birthDate = normalizeDate(dobString);
+    if (!birthDate) return '-';
     
-    const birthDate = new Date(gregorianYear, month - 1, day);
     const today = new Date();
-    
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
     
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
         age--;
     }
-    return age > 0 ? age.toString() : '-';
+    return age >= 0 ? age.toString() : '-';
 };
 
 const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onClose, schoolName, schoolLogo }) => {
@@ -80,7 +73,6 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
 
     const exportToWord = () => {
         const logoSrc = getDirectDriveImageSrc(schoolLogo);
-        // Photo size approx 1.5 inches wide (3.81 cm) by 2 inches high (5.08 cm)
         const photoHtml = profileImageUrl 
             ? `<img src="${profileImageUrl}" style="width: 3.81cm; height: 5.08cm; object-fit: cover; border: 1px solid #000;">` 
             : `<div style="width: 3.81cm; height: 5.08cm; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-size: 14pt;">รูปถ่าย</div>`;
@@ -120,7 +112,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                 <span class="label">เลขที่ตำแหน่ง:</span> <span class="value">${personnel.positionNumber || '-'}</span>
                             </p>
                              <p>
-                                <span class="label">วันเดือนปีเกิด:</span> <span class="value">${personnel.dob || '-'}</span>
+                                <span class="label">วันเดือนปีเกิด:</span> <span class="value">${formatThaiDate(personnel.dob) || '-'}</span>
                                 &nbsp;&nbsp;
                                 <span class="label">อายุ:</span> <span class="value">${calculateAge(personnel.dob)} ปี</span>
                             </p>
@@ -128,7 +120,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                 <span class="label">เลขบัตรประชาชน:</span> <span class="value">${personnel.idCard || '-'}</span>
                             </p>
                              <p>
-                                <span class="label">วันที่บรรจุแต่งตั้ง:</span> <span class="value">${personnel.appointmentDate || '-'}</span>
+                                <span class="label">วันที่บรรจุแต่งตั้ง:</span> <span class="value">${formatThaiDate(personnel.appointmentDate) || '-'}</span>
                             </p>
                              <p>
                                 <span class="label">เบอร์โทรศัพท์:</span> <span class="value">${personnel.phone || '-'}</span>
@@ -176,10 +168,10 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
             ['ตำแหน่ง', personnel.position],
             ['เลขที่ตำแหน่ง', personnel.positionNumber],
             ['เลขบัตรประชาชน', personnel.idCard],
-            ['วันเดือนปีเกิด', personnel.dob],
+            ['วันเดือนปีเกิด', formatThaiDate(personnel.dob)],
             ['อายุ', calculateAge(personnel.dob)],
             ['เบอร์โทร', personnel.phone],
-            ['วันที่บรรจุ', personnel.appointmentDate],
+            ['วันที่บรรจุ', formatThaiDate(personnel.appointmentDate)],
             ['ครูที่ปรึกษา', advisoryClassesText]
         ];
 
@@ -256,7 +248,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                             <div class="role-badge">${personnel.position}</div>
                             <div class="data-row"><span class="label">ID Card</span><span class="value">${personnel.idCard}</span></div>
                             <div class="data-row"><span class="label">เบอร์โทร</span><span class="value">${personnel.phone}</span></div>
-                            <div class="data-row"><span class="label">บรรจุเมื่อ</span><span class="value">${personnel.appointmentDate || '-'}</span></div>
+                            <div class="data-row"><span class="label">บรรจุเมื่อ</span><span class="value">${formatThaiDate(personnel.appointmentDate) || '-'}</span></div>
                         </div>
                     </div>
                     <div class="footer">
@@ -273,7 +265,6 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-40 p-4" onClick={onClose}>
-            {/* Style isolation to ensure only this modal prints when open */}
             <style>{`
                 @media print {
                     #print-dashboard { display: none !important; }
@@ -307,7 +298,6 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                         </div>
 
                         <div className="flex justify-between items-start">
-                            {/* Info Column */}
                             <div className="flex-grow pr-8 space-y-2 text-lg w-2/3">
                                  <div className="flex items-baseline">
                                     <span className="font-bold shrink-0">ชื่อ-นามสกุล:</span>
@@ -321,7 +311,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                  </div>
                                  <div className="flex items-baseline">
                                     <span className="font-bold shrink-0">วันเดือนปีเกิด:</span>
-                                    <span className="print-dotted-line">{personnel.dob || '-'}</span>
+                                    <span className="print-dotted-line">{formatThaiDate(personnel.dob) || '-'}</span>
                                     <span className="font-bold shrink-0 ml-4">อายุ:</span>
                                     <span className="print-dotted-line">{calculateAge(personnel.dob)} ปี</span>
                                  </div>
@@ -331,7 +321,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                  </div>
                                  <div className="flex items-baseline">
                                     <span className="font-bold shrink-0">วันที่บรรจุแต่งตั้ง:</span>
-                                    <span className="print-dotted-line">{personnel.appointmentDate || '-'}</span>
+                                    <span className="print-dotted-line">{formatThaiDate(personnel.appointmentDate) || '-'}</span>
                                  </div>
                                  <div className="flex items-baseline">
                                     <span className="font-bold shrink-0">เบอร์โทรศัพท์:</span>
@@ -339,7 +329,6 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                  </div>
                             </div>
 
-                            {/* Photo Column (Top Right) - Fixed Size ~1.5x2 inch */}
                             <div className="w-[4cm] h-[5.2cm] border border-black flex items-center justify-center bg-gray-50 shrink-0 mb-4 self-start">
                                 {profileImageUrl ? (
                                     <img src={profileImageUrl} className="w-full h-full object-cover" alt="Profile" />
@@ -349,7 +338,6 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                             </div>
                         </div>
 
-                        {/* Work Info Header */}
                         <div className="mt-8 mb-4 border-b border-black">
                             <h3 className="text-lg font-bold pb-1">ภาระงาน</h3>
                         </div>
@@ -382,7 +370,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                             className="w-full h-full object-cover" 
                                             onError={(e) => {
                                                 const target = e.currentTarget;
-                                                target.onerror = null; // prevent looping
+                                                target.onerror = null; 
                                                 target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
                                                 target.outerHTML = `<svg class="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`;
                                             }}
@@ -396,11 +384,11 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                                 <h3 className="text-3xl font-bold text-navy">{fullName}</h3>
                                 <p className="text-xl text-secondary-gray mb-4">{personnel.position}</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                                    <DetailItem label="วันเดือนปีเกิด" value={personnel.dob} />
+                                    <DetailItem label="วันเดือนปีเกิด" value={formatThaiDate(personnel.dob)} />
                                     <DetailItem label="อายุ" value={`${calculateAge(personnel.dob)} ปี`} />
                                     <DetailItem label="เลขบัตรประชาชน" value={personnel.idCard} />
                                     <DetailItem label="เบอร์โทร" value={personnel.phone} />
-                                    <DetailItem label="วันที่บรรจุ" value={personnel.appointmentDate} />
+                                    <DetailItem label="วันที่บรรจุ" value={formatThaiDate(personnel.appointmentDate)} />
                                     <DetailItem label="เลขตำแหน่ง" value={personnel.positionNumber} />
                                     <DetailItem label="ครูที่ปรึกษา" value={advisoryClassesText} fullWidth />
                                 </div>
@@ -415,26 +403,26 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onCl
                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow-md transition-all"
                         >
-                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                              ดาวน์โหลด / ส่งออก
                         </button>
                         
                         {isExportMenuOpen && (
                             <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
                                 <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     พิมพ์ / บันทึก PDF
                                 </button>
                                 <button onClick={exportToWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                     ส่งออก Word (.doc)
                                 </button>
                                 <button onClick={exportToExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                     ส่งออก Excel (.csv)
                                 </button>
                                 <button onClick={handleExportIDCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
                                     บัตรประจำตัวบุคลากร
                                 </button>
                             </div>

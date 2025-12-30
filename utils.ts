@@ -171,21 +171,22 @@ export const safeParseArray = (input: any): any[] => {
  */
 export const normalizeDate = (input: any): Date | null => {
     if (!input) return null;
-    if (input instanceof Date) return input;
+    if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
     
     const str = String(input).trim();
     
-    // Check ISO format or date-time with 'T' (e.g. 2568-12-28T...)
+    // 1. Handle ISO formats like 2535-12-09T... or 1992-12-09
     if (str.includes('T') || str.match(/^\d{4}-\d{2}-\d{2}/)) {
         const datePart = str.split('T')[0];
         const parts = datePart.split(/[-/]/).map(Number);
         
         if (parts.length === 3) {
             let y = parts[0], m = parts[1], d = parts[2];
-            // If year is the first part (ISO)
+            
+            // Detect Buddhist Year in ISO-like string
             if (y > 2400) y -= 543;
             // Handle case where it might be DD-MM-YYYY
-            if (y < 31 && d > 2400) {
+            else if (y < 31 && d > 2400) {
                 const temp = y; y = d - 543; d = temp;
             }
 
@@ -201,7 +202,7 @@ export const normalizeDate = (input: any): Date | null => {
         }
     }
     
-    // Check Thai format (DD/MM/YYYY)
+    // 2. Check Thai format (DD/MM/YYYY)
     const parts = str.split('/');
     if (parts.length === 3) {
         const d = parseInt(parts[0]);
@@ -212,12 +213,24 @@ export const normalizeDate = (input: any): Date | null => {
         return isNaN(dateObj.getTime()) ? null : dateObj;
     }
     
+    // 3. Fallback for potential raw timestamps
+    const timestamp = Date.parse(str);
+    if (!isNaN(timestamp)) {
+        const d = new Date(timestamp);
+        // If year ended up in 2500s due to parsing
+        if (d.getFullYear() > 2400) {
+            return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
+        }
+        return d;
+    }
+    
     return null;
 };
 
 export const formatThaiDate = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
     const date = normalizeDate(dateString);
-    if (!date) return dateString || '-';
+    if (!date) return dateString;
     
     const d = date.getDate();
     const m = date.getMonth();
@@ -226,8 +239,9 @@ export const formatThaiDate = (dateString: string | undefined): string => {
 };
 
 export const formatThaiDateTime = (dateStr: string, timeStr?: string): string => {
+    if (!dateStr) return '-';
     const date = normalizeDate(dateStr);
-    if (!date) return dateStr || '-';
+    if (!date) return dateStr;
     
     const d = date.getDate();
     const m = date.getMonth();
@@ -317,17 +331,18 @@ export const getCurrentThaiDate = (): string => {
 
 export const buddhistToISO = (buddhistDate: string | undefined): string => {
     if (!buddhistDate) return '';
-    const parts = String(buddhistDate).split('/');
-    if (parts.length !== 3) return '';
-    const y = parseInt(parts[2]);
-    const gregYear = y > 2400 ? y - 543 : y;
-    return `${gregYear}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    const date = normalizeDate(buddhistDate);
+    if (!date) return '';
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
 
 export const isoToBuddhist = (isoDate: string | undefined): string => {
     if (!isoDate) return '';
     const parts = String(isoDate).split('-');
-    if (parts.length !== 3) return '';
+    if (parts.length !== 3) return isoDate;
     const buddhistYear = parseInt(parts[0]) + 543;
     return `${parts[2].padStart(2,'0')}/${parts[1].padStart(2,'0')}/${buddhistYear}`;
 };

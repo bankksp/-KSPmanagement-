@@ -41,9 +41,9 @@ const ReportChart: React.FC<ReportChartProps> = ({ data }) => {
                     cursor={{ fill: '#F3F4F6' }}
                 />
                 <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                <Bar dataKey="present" name="มา" fill="#10B981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="sick" name="ป่วย" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="home" name="อยู่บ้าน" fill="#9CA3AF" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="present" name="มา" fill="#10B981" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="sick" name="ป่วย" fill="#EF4444" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="home" name="อยู่บ้าน" fill="#9CA3AF" radius={[4, 4, 0, 0]} isAnimationActive={false} />
             </BarChart>
         </ResponsiveContainer>
     </div>

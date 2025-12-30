@@ -40,6 +40,7 @@ const InfirmaryChart: React.FC<InfirmaryChartProps> = ({ data }) => {
                         fillOpacity={1} 
                         fill="url(#colorDorm)" 
                         strokeWidth={2}
+                        isAnimationActive={false}
                     />
                     <Area 
                         type="monotone" 
@@ -49,6 +50,7 @@ const InfirmaryChart: React.FC<InfirmaryChartProps> = ({ data }) => {
                         fillOpacity={1} 
                         fill="url(#colorInfirmary)" 
                         strokeWidth={2}
+                        isAnimationActive={false}
                     />
                 </AreaChart>
             </ResponsiveContainer>

@@ -44,91 +44,51 @@ const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('stats');
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSyncing, setIsSyncing] = useState(false); // Subtle sync indicator
+    const [isSyncing, setIsSyncing] = useState(false); 
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [hasInitialData, setHasInitialData] = useState(false);
     
-    // Sidebar States
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile
-    const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); // Desktop
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+    const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); 
 
-    // Report states
     const [reports, setReports] = useState<Report[]>([]);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
     const [editingReport, setEditingReport] = useState<Report | null>(null);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-    // Student states
     const [students, setStudents] = useState<Student[]>([]);
     const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
     const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     
-    // Personnel states
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
     const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
     const [viewingPersonnel, setViewingPersonnel] = useState<Personnel | null>(null);
     const [editingPersonnel, setEditingPersonnel] = useState<Personnel | null>(null);
 
-    // Attendance states
     const [studentAttendance, setStudentAttendance] = useState<StudentAttendance[]>([]);
     const [personnelAttendance, setPersonnelAttendance] = useState<PersonnelAttendance[]>([]);
-
-    // Duty Records state
     const [dutyRecords, setDutyRecords] = useState<DutyRecord[]>([]);
-    
-    // Leave Records state
     const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
-
-    // Academic Plan state
     const [academicPlans, setAcademicPlans] = useState<AcademicPlan[]>([]);
-
-    // Supply State
     const [supplyItems, setSupplyItems] = useState<SupplyItem[]>([]);
     const [supplyRequests, setSupplyRequests] = useState<SupplyRequest[]>([]);
-
-    // Durable Goods State
     const [durableGoods, setDurableGoods] = useState<DurableGood[]>([]);
-
-    // Certificate Requests State
     const [certificateRequests, setCertificateRequests] = useState<CertificateRequest[]>([]);
-
-    // Maintenance Requests State
     const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
-
-    // Personnel Performance Reports State
     const [performanceReports, setPerformanceReports] = useState<PerformanceReport[]>([]);
-
-    // SAR Reports State
     const [sarReports, setSarReports] = useState<SARReport[]>([]);
-
-    // General Documents State
     const [documents, setDocuments] = useState<Document[]>([]);
-
-    // Home Visit State
     const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
-
-    // SDQ State
     const [sdqRecords, setSdqRecords] = useState<SDQRecord[]>([]);
-
-    // Nutrition State
     const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>(DEFAULT_INGREDIENTS);
-
-    // Service Registration State
     const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
-
-    // Construction Records State
     const [constructionRecords, setConstructionRecords] = useState<ConstructionRecord[]>([]);
-
-    // Project Proposals
     const [projectProposals, setProjectProposals] = useState<ProjectProposal[]>([]);
-
-    // Admin state
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
-    // Auth State
     const [currentUser, setCurrentUser] = useState<Personnel | null>(null);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -139,13 +99,13 @@ const App: React.FC = () => {
         root.style.setProperty('--color-primary-hover', settings.themeColors.primaryHover);
     }, [settings.themeColors]);
     
-    // Auth Check on Mount
     useEffect(() => {
         const storedUser = localStorage.getItem('dschool_user');
         if (storedUser) {
             try {
                 const user = JSON.parse(storedUser);
-                if (user.idCard && String(user.idCard).replace(/[^0-9]/g, '') === '1469900181659') {
+                const idStr = user.idCard ? String(user.idCard).replace(/[^0-9]/g, '') : '';
+                if (idStr === '1469900181659') {
                     user.role = 'admin';
                 }
                 setCurrentUser(user);
@@ -159,7 +119,6 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // Fetch Data
     const fetchData = useCallback(async (isBackground: boolean = false) => {
         if (!isAuthenticated) return;
 
@@ -198,7 +157,6 @@ const App: React.FC = () => {
 
             setPersonnel(fetchedPersonnel);
 
-            // Sync currentUser
             if (currentUser) {
                 const updatedMe = fetchedPersonnel.find(p => p.id === currentUser.id);
                 if (updatedMe) {
@@ -251,7 +209,6 @@ const App: React.FC = () => {
             });
             setHomeVisits(normalizedHomeVisits);
 
-            // SDQ
             if (data.sdqRecords) {
                  const normSDQ = data.sdqRecords.map((r: any) => {
                      if (typeof r.scores === 'string') {
@@ -692,6 +649,7 @@ const App: React.FC = () => {
                         onSave={(i) => handleGenericSave('saveDurableGood', i, setDurableGoods)}
                         onDelete={(ids) => handleGenericDelete('deleteDurableGoods', ids, setDurableGoods)}
                         isSaving={isSaving}
+                        settings={settings}
                     />
                 ) : null;
             case 'general_certs':
@@ -845,7 +803,6 @@ const App: React.FC = () => {
 
     return (
         <div className="flex h-screen overflow-hidden bg-[#F3F4F6] font-sarabun">
-            {/* Left Sidebar */}
             <Sidebar 
                 onNavigate={navigateTo}
                 currentPage={currentPage}
@@ -858,7 +815,6 @@ const App: React.FC = () => {
                 isDesktopOpen={isDesktopSidebarOpen}
             />
 
-            {/* Main Content Area */}
             <div className={`flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300 ${isDesktopSidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
                 <Header 
                     onReportClick={handleOpenReportModal} 
@@ -880,7 +836,7 @@ const App: React.FC = () => {
                     <div className="max-w-7xl mx-auto">
                         {renderPage()}
                     </div>
-                    <div className="h-10"></div> {/* Spacer */}
+                    <div className="h-10"></div> 
                     <Footer />
                 </main>
             </div>

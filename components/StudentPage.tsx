@@ -235,7 +235,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
                                         <XAxis type="number" tick={{fontSize: 12}} />
                                         <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11}} />
                                         <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
-                                        <Bar dataKey="value" name="จำนวน" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20}>
+                                        <Bar dataKey="value" name="จำนวน" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} isAnimationActive={false}>
                                             {stats.classData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
@@ -258,6 +258,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
                                             outerRadius={100}
                                             paddingAngle={2}
                                             dataKey="value"
+                                            isAnimationActive={false}
                                         >
                                             {stats.dormData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -281,7 +282,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
                                     <XAxis type="number" tick={{fontSize: 12}} />
                                     <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
                                     <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
-                                    <Bar dataKey="value" name="จำนวน" fill="#82ca9d" radius={[0, 4, 4, 0]} barSize={20}>
+                                    <Bar dataKey="value" name="จำนวน" fill="#82ca9d" radius={[0, 4, 4, 0]} barSize={20} isAnimationActive={false}>
                                         {stats.provinceData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
@@ -304,7 +305,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
                                 onClick={exportToExcel}
                                 className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 <span>Excel</span>
                             </button>
                             <button

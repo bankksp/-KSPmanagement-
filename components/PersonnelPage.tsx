@@ -43,7 +43,6 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
         // Province Distribution
         const provinceCounts: Record<string, number> = {};
         personnel.forEach(p => {
-            // Note: Use 'any' cast if address prop is optional in Personnel type, though it should be added now.
             const addr = (p as any).address || '';
             const foundProvince = THAI_PROVINCES.find(prov => addr.includes(prov));
             const key = foundProvince || 'ไม่ระบุ';
@@ -62,12 +61,6 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
         const lowerTerm = searchTerm.toLowerCase().trim();
 
         return personnel.filter(person => {
-            // Hide pending users from the main list unless explicitly needed, or show them with status
-            // For now, let's include them but sort or filter visually in the table if needed.
-            // Actually, typically we might want to hide 'pending' from the public directory.
-            // Let's hide pending from the main list if not admin, or just keep them but show status.
-            // Decision: Show all, but Table will handle visualization.
-            
             const title = person.personnelTitle === 'อื่นๆ' ? (person.personnelTitleOther || '') : (person.personnelTitle || '');
             const name = person.personnelName || '';
             const idCard = String(person.idCard || '');
@@ -144,7 +137,6 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
 
     return (
         <div className="space-y-6">
-            {/* Header with Tabs */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
                 <h2 className="text-2xl font-bold text-navy">ข้อมูลบุคลากร</h2>
             </div>
@@ -155,7 +147,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'stats' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                    สถิติ (จำนวน/ชาย-หญิง/ตำแหน่ง)
+                    สถิติ
                 </button>
                 <button
                     onClick={() => setActiveTab('list')}
@@ -166,7 +158,6 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                 </button>
             </div>
 
-            {/* --- STATS VIEW --- */}
             {activeTab === 'stats' && (
                 <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -194,7 +185,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                                         <XAxis type="number" tick={{fontSize: 12}} />
                                         <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
                                         <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
-                                        <Bar dataKey="value" name="จำนวน" fill="#8884d8" radius={[0, 4, 4, 0]} barSize={25}>
+                                        <Bar dataKey="value" name="จำนวน" fill="#8884d8" radius={[0, 4, 4, 0]} barSize={25} isAnimationActive={false}>
                                             {stats.posData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
@@ -204,9 +195,8 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                             </div>
                         </div>
 
-                        {/* Province Stats Chart */}
                         <div className="bg-white p-6 rounded-xl shadow">
-                            <h3 className="text-lg font-bold text-navy mb-4">จำนวนบุคลากรแยกตามจังหวัด (ตามที่อยู่)</h3>
+                            <h3 className="text-lg font-bold text-navy mb-4">จำนวนบุคลากรแยกตามจังหวัด</h3>
                             <div className="h-80">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={stats.provinceData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
@@ -214,7 +204,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                                         <XAxis type="number" tick={{fontSize: 12}} />
                                         <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
                                         <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}} />
-                                        <Bar dataKey="value" name="จำนวน" fill="#82ca9d" radius={[0, 4, 4, 0]} barSize={20}>
+                                        <Bar dataKey="value" name="จำนวน" fill="#82ca9d" radius={[0, 4, 4, 0]} barSize={20} isAnimationActive={false}>
                                             {stats.provinceData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
@@ -227,12 +217,10 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                 </div>
             )}
 
-            {/* --- LIST VIEW --- */}
             {activeTab === 'list' && (
                 <div className="space-y-6">
-                    {/* Pending Approvals Section (Admin Only) */}
                     {isAdmin && pendingUsers.length > 0 && (
-                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 shadow-sm animate-pulse-slow">
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 shadow-sm">
                             <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2 mb-4">
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                 รายการรออนุมัติเข้าใช้งาน ({pendingUsers.length})
@@ -250,18 +238,8 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                                             </div>
                                         </div>
                                         <div className="flex gap-2 mt-2">
-                                            <button 
-                                                onClick={() => handleApproveUser(user)}
-                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors"
-                                            >
-                                                อนุมัติ
-                                            </button>
-                                            <button 
-                                                onClick={() => handleRejectUser(user)}
-                                                className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold py-1.5 px-3 rounded transition-colors"
-                                            >
-                                                ลบคำขอ
-                                            </button>
+                                            <button onClick={() => handleApproveUser(user)} className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm">อนุมัติ</button>
+                                            <button onClick={() => handleRejectUser(user)} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold py-1.5 px-3 rounded">ลบคำขอ</button>
                                         </div>
                                     </div>
                                 ))}
@@ -272,45 +250,20 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                     <div className="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <h2 className="text-xl font-bold text-navy">จัดการข้อมูลบุคลากร</h2>
-                            
                             <div className="flex gap-2 no-print">
-                                <button
-                                    onClick={exportToExcel}
-                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    <span>Excel</span>
-                                </button>
-                                <button
-                                    onClick={onAddPersonnel}
-                                    className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                    </svg>
-                                    <span>เพิ่มบุคลากร</span>
-                                </button>
+                                <button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2"><span>Excel</span></button>
+                                <button onClick={onAddPersonnel} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2"><span>เพิ่มบุคลากร</span></button>
                             </div>
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end no-print">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">ค้นหา</label>
-                                <input
-                                    type="text"
-                                    placeholder="ค้นหาชื่อ, เลขบัตร, ตำแหน่ง, เบอร์โทร..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                                />
+                                <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
-                                <select
-                                    value={positionFilter}
-                                    onChange={(e) => setPositionFilter(e.target.value)}
-                                    className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                                >
+                                <select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg bg-white">
                                     <option value="">ทั้งหมด</option>
                                     {positions.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
@@ -318,18 +271,7 @@ const PersonnelPage: React.FC<PersonnelPageProps> = ({ personnel, positions, onA
                             <button onClick={() => { setSearchTerm(''); setPositionFilter(''); }} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg self-end">ล้างค่า</button>
                         </div>
 
-                        <div className="printable-content">
-                            <div className="hidden print:block text-center mb-4">
-                                <h1 className="text-2xl font-bold">ทะเบียนบุคลากร</h1>
-                            </div>
-                            <PersonnelTable 
-                                personnel={filteredPersonnel} 
-                                onViewPersonnel={onViewPersonnel} 
-                                onEditPersonnel={onEditPersonnel} 
-                                onDeletePersonnel={onDeletePersonnel}
-                                currentUser={currentUser}
-                            />
-                        </div>
+                        <PersonnelTable personnel={filteredPersonnel} onViewPersonnel={onViewPersonnel} onEditPersonnel={onEditPersonnel} onDeletePersonnel={onDeletePersonnel} currentUser={currentUser} />
                     </div>
                 </div>
             )}

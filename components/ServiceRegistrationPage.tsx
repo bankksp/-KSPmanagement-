@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ServiceRecord, Personnel, Student, ServiceStudent } from '../types';
-/* Added getFirstImageSource to imports */
 import { getDirectDriveImageSrc, safeParseArray, getCurrentThaiDate, formatThaiDate, parseThaiDateForSort, buddhistToISO, isoToBuddhist, getFirstImageSource } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
@@ -346,7 +346,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                                         <XAxis dataKey="day" />
                                         <YAxis />
                                         <Tooltip />
-                                        <Bar dataKey="students" name="จำนวนนักเรียน" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={20} />
+                                        <Bar dataKey="students" name="จำนวนนักเรียน" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={20} isAnimationActive={false} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -356,7 +356,7 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                             <div className="h-80 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
-                                        <Pie data={stats.locationData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                        <Pie data={stats.locationData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" isAnimationActive={false}>
                                             {stats.locationData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                         </Pie>
                                         <Tooltip />
@@ -498,7 +498,6 @@ const ServiceRegistrationPage: React.FC<ServiceRegistrationPageProps> = ({
                                                     className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue"
                                                 />
                                                 <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-white">
-                                                    {/* Added fallback to avoid undefined error if getFirstImageSource is not yet loaded in scope, though it should be after import fix */}
                                                     <img src={getFirstImageSource(student.studentProfileImage) || ''} className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display='none'} />
                                                 </div>
                                                 <div className="flex-grow min-w-0">

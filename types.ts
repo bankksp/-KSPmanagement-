@@ -262,6 +262,14 @@ export interface SupplyRequest {
 
 export type DurableGoodStatus = 'available' | 'in_use' | 'repair' | 'write_off';
 
+export interface MaintenanceLog {
+  id: number;
+  date: string;
+  description: string;
+  cost: number;
+  technician: string;
+}
+
 export interface DurableGood {
   id: number;
   code: string; 
@@ -273,6 +281,7 @@ export interface DurableGood {
   status: DurableGoodStatus; 
   description?: string;
   image?: (File | string)[];
+  maintenanceHistory?: MaintenanceLog[];
 }
 
 export interface CertificateRequest {

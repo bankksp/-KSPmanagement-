@@ -1,7 +1,7 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
 import { Student, Personnel } from '../types';
-import { getFirstImageSource, getDirectDriveImageSrc, safeParseArray } from '../utils';
+import { getFirstImageSource, getDirectDriveImageSrc, safeParseArray, formatThaiDate } from '../utils';
 
 interface ViewStudentModalProps {
     student: Student;
@@ -115,7 +115,6 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
 
     const exportToWord = () => {
         const logoSrc = getDirectDriveImageSrc(schoolLogo);
-        // Photo size approx 1.5 inches wide (3.81 cm) by 2 inches high (5.08 cm)
         const photoHtml = profileImageUrl 
             ? `<img src="${profileImageUrl}" style="width: 3.81cm; height: 5.08cm; object-fit: cover; border: 1px solid #000;">` 
             : `<div style="width: 3.81cm; height: 5.08cm; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-size: 14pt;">รูปถ่าย</div>`;
@@ -155,7 +154,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                                 <span class="label">เลขประจำตัวประชาชน:</span> <span class="value">${student.studentIdCard || '-'}</span>
                             </p>
                             <p>
-                                <span class="label">วันเกิด:</span> <span class="value">${student.studentDob || '-'}</span>
+                                <span class="label">วันเกิด:</span> <span class="value">${formatThaiDate(student.studentDob) || '-'}</span>
                                 &nbsp;&nbsp;
                                 <span class="label">ระดับชั้น:</span> <span class="value">${student.studentClass || '-'}</span>
                             </p>
@@ -239,7 +238,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
             ['ชื่อ-นามสกุล', `${student.studentTitle} ${student.studentName}`],
             ['ชื่อเล่น', student.studentNickname],
             ['เลขประจำตัว', student.studentIdCard],
-            ['วันเกิด', student.studentDob],
+            ['วันเกิด', formatThaiDate(student.studentDob)],
             ['เบอร์โทร', student.studentPhone],
             ['ชั้นเรียน', student.studentClass],
             ['เรือนนอน', student.dormitory],
@@ -299,15 +298,6 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
         }
 
         let displayClass = student.studentClass || '-';
-        if (displayClass.length > 5 && displayClass.length % 2 === 0) {
-            const halfIndex = displayClass.length / 2;
-            const firstHalf = displayClass.substring(0, halfIndex);
-            const secondHalf = displayClass.substring(halfIndex);
-            if (firstHalf === secondHalf) {
-                displayClass = firstHalf;
-            }
-        }
-
         const html = `
             <!DOCTYPE html>
             <html>
@@ -383,7 +373,6 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-40 p-4" onClick={onClose}>
-            {/* Style isolation to ensure only this modal prints when open */}
             <style>{`
                 @media print {
                     #print-dashboard { display: none !important; }
@@ -417,7 +406,6 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                         </div>
 
                         <div className="flex justify-between items-start relative">
-                            {/* Info Column */}
                             <div className="flex-grow pr-8 space-y-2 text-lg w-2/3">
                                  <div className="flex items-baseline">
                                     <span className="font-bold shrink-0">ชื่อ-นามสกุล:</span>
@@ -431,7 +419,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                                  </div>
                                  <div className="flex items-baseline">
                                     <span className="font-bold shrink-0">วันเกิด:</span>
-                                    <span className="print-dotted-line">{student.studentDob || '-'}</span>
+                                    <span className="print-dotted-line">{formatThaiDate(student.studentDob) || '-'}</span>
                                     <span className="font-bold shrink-0 ml-4">ระดับชั้น:</span>
                                     <span className="print-dotted-line">{student.studentClass || '-'}</span>
                                  </div>
@@ -451,7 +439,6 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                                  </div>
                             </div>
 
-                            {/* Photo Column (Top Right) - Standard 2 inch photo (approx 4x5cm) */}
                             <div className="w-[4cm] h-[5.2cm] border border-black flex items-center justify-center bg-gray-50 shrink-0 mb-4 self-start">
                                 {profileImageUrl ? (
                                     <img src={profileImageUrl} className="w-full h-full object-cover" alt="Profile" />
@@ -461,12 +448,10 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                             </div>
                         </div>
 
-                        {/* Family Info Header */}
                         <div className="mt-8 mb-4 border-b border-black">
                             <h3 className="text-lg font-bold pb-1">ข้อมูลครอบครัว</h3>
                         </div>
 
-                        {/* Family Info Content */}
                         <div className="space-y-2 text-lg">
                              <div className="flex gap-4">
                                  <div className="flex items-baseline flex-grow">
@@ -543,7 +528,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                                     <DetailItem label="ชั้น" value={student.studentClass} />
                                     <DetailItem label="เรือนนอน" value={student.dormitory} />
                                     <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} />
-                                    <DetailItem label="วันเกิด" value={student.studentDob} />
+                                    <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} />
                                     <DetailItem label="เบอร์โทร" value={student.studentPhone} />
                                     <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} />
                                     <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/>
@@ -583,26 +568,26 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow-md transition-all"
                         >
-                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                              ดาวน์โหลด / ส่งออก
                         </button>
                         
                         {isExportMenuOpen && (
                             <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
                                 <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     พิมพ์ / บันทึก PDF
                                 </button>
                                 <button onClick={exportToWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                     ส่งออก Word (.doc)
                                 </button>
                                 <button onClick={exportToExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                     ส่งออก Excel (.csv)
                                 </button>
                                 <button onClick={handleExportIDCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
                                     บัตรนักเรียน
                                 </button>
                             </div>

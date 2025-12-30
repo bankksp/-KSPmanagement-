@@ -19,12 +19,10 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentRecord, setCurrentRecord] = useState<Partial<ConstructionRecord>>({});
-    const [viewRecord, setViewRecord] = useState<ConstructionRecord | null>(null);
+    const [viewRecord, setViewProject] = useState<ConstructionRecord | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [supervisorSearch, setSupervisorSearch] = useState('');
-    const [isSupervisorDropdownOpen, setIsSupervisorDropdownOpen] = useState(false);
 
     const stats = useMemo(() => {
         const total = records.length;
@@ -79,13 +77,6 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
         if (e.target.files) setCurrentRecord(prev => ({ ...prev, media: [...(prev.media || []), ...Array.from(e.target.files!)] }));
     };
 
-    const toggleSupervisor = (id: number) => {
-        setCurrentRecord(prev => {
-            const current = prev.supervisors || [];
-            return { ...prev, supervisors: current.includes(id) ? current.filter(x => x !== id) : [...current, id] };
-        });
-    };
-
     return (
         <div className="space-y-6">
             <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 no-print">
@@ -95,15 +86,15 @@ const ConstructionPage: React.FC<ConstructionPageProps> = ({ currentUser, record
 
             {activeTab === 'dashboard' && (
                 <div className="space-y-6 animate-fade-in no-print">
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-white p-4 rounded-xl shadow"><p className="text-gray-500 text-sm">โครงการ</p><p className="text-3xl font-bold">{stats.total}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow"><p className="text-gray-500 text-sm">งบประมาณ</p><p className="text-3xl font-bold text-green-600">{stats.totalBudget.toLocaleString()}</p></div>
+                        <div className="bg-white p-4 rounded-xl shadow"><p className="text-gray-500 text-sm">งบประมาณ</p><p className="text-2xl font-bold text-green-600">{stats.totalBudget.toLocaleString()}</p></div>
                         <div className="bg-white p-4 rounded-xl shadow"><p className="text-gray-500 text-sm">กำลังทำ</p><p className="text-3xl font-bold text-blue-600">{stats.active}</p></div>
                         <div className="bg-white p-4 rounded-xl shadow"><p className="text-gray-500 text-sm">เสร็จแล้ว</p><p className="text-3xl font-bold text-gray-600">{stats.completed}</p></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow h-64"><ResponsiveContainer><PieChart><Pie data={stats.pieData} dataKey="value" cx="50%" cy="50%" outerRadius={80}><Cell fill="#8884d8"/></Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div>
-                        <div className="bg-white p-6 rounded-xl shadow h-64"><ResponsiveContainer><BarChart data={stats.progressData} layout="vertical"><XAxis type="number"/><YAxis type="category" dataKey="name" width={100}/><Tooltip/><Bar dataKey="progress" fill="#3B82F6"/></BarChart></ResponsiveContainer></div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-xl shadow h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={stats.pieData} dataKey="value" cx="50%" cy="50%" outerRadius={80} isAnimationActive={false}><Cell fill="#8884d8"/></Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div>
+                        <div className="bg-white p-6 rounded-xl shadow h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={stats.progressData} layout="vertical" margin={{left: 40}}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number"/><YAxis type="category" dataKey="name" width={100} tick={{fontSize: 10}}/><Tooltip/><Bar dataKey="progress" fill="#3B82F6" isAnimationActive={false}/></BarChart></ResponsiveContainer></div>
                     </div>
                 </div>
             )}
