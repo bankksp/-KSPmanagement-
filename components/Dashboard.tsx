@@ -5,6 +5,7 @@ import ReportChart from './ReportChart';
 import InfirmaryChart from './InfirmaryChart';
 import AttendanceStats from './AttendanceStats';
 import { getDirectDriveImageSrc, buddhistToISO, isoToBuddhist, getFirstImageSource, normalizeDate } from '../utils';
+import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
     reports: Report[];
@@ -30,22 +31,29 @@ const Dashboard: React.FC<DashboardProps> = ({
         return `${day}/${month}/${year}`;
     });
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const [aiSummary, setAiSummary] = useState<string | null>(null);
+    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
     const mapRef = useRef<any>(null);
 
     // --- Data Processing ---
 
     const { dormitoryData, totalStudentsReport, totalSick, totalHome, displayDate, buddhistDate } = useMemo(() => {
-        const parts = selectedDate.split('/');
-        let targetDay = 0, targetMonth = 0, targetYear = 0;
-        if (parts.length === 3) {
-            targetDay = parseInt(parts[0]);
-            targetMonth = parseInt(parts[1]) - 1; 
-            targetYear = parseInt(parts[2]) - 543;
+        const targetDateObj = normalizeDate(selectedDate);
+        if (!targetDateObj) {
+            return {
+                dormitoryData: [],
+                totalStudentsReport: 0, totalSick: 0, totalHome: 0,
+                displayDate: '', buddhistDate: selectedDate
+            };
         }
-        const buddhistYear = targetYear + 543;
-        const displayDateString = `${targetDay}/${targetMonth + 1}/${buddhistYear}`;
 
-        // Robust date filtering using normalizeDate
+        const targetDay = targetDateObj.getDate();
+        const targetMonth = targetDateObj.getMonth();
+        const targetYear = targetDateObj.getFullYear();
+        
+        const bYear = targetYear + 543;
+        const bDateStr = `${String(targetDay).padStart(2, '0')}/${String(targetMonth + 1).padStart(2, '0')}/${bYear}`;
+
         const dayReports = reports.filter(r => {
             const d = normalizeDate(r.reportDate);
             if (!d) return false;
@@ -55,58 +63,87 @@ const Dashboard: React.FC<DashboardProps> = ({
         const latestReportsMap = new Map<string, Report>();
         dayReports.forEach(report => {
             const existing = latestReportsMap.get(report.dormitory);
-            if (!existing || report.id > existing.id) {
+            if (!existing || Number(report.id) > Number(existing.id)) {
                 latestReportsMap.set(report.dormitory, report);
             }
         });
 
-        const uniqueReports = Array.from(latestReportsMap.values());
-        const aggregatedStats = { present: 0, sick: 0, home: 0 };
         const getDormStudentCount = (dormName: string) => students.filter(s => s.dormitory === dormName).length;
 
-        const finalDormitoryData: DormitoryStat[] = dormitories.map(dormName => {
-             if (dormName === "เรือนพยาบาล") return null;
-             const report = latestReportsMap.get(dormName);
-             let present = 0, sick = 0, home = 0;
-             if (report) {
-                 present = report.presentCount || 0;
-                 sick = report.sickCount || 0;
-                 if (report.homeCount !== undefined) home = report.homeCount;
-                 else {
-                     const totalInDorm = getDormStudentCount(dormName);
-                     home = Math.max(0, totalInDorm - present - sick);
-                 }
-             }
-             return { name: dormName, present, sick, home, total: present + sick + home };
-        }).filter(Boolean) as DormitoryStat[];
+        let accPresent = 0, accSick = 0, accHome = 0;
 
-        uniqueReports.forEach(r => {
-            if (r.dormitory === 'เรือนพยาบาล') {
-                aggregatedStats.sick += r.sickCount;
-            } else {
-                aggregatedStats.present += r.presentCount;
-                aggregatedStats.sick += r.sickCount;
-                if (r.homeCount !== undefined) aggregatedStats.home += r.homeCount;
-                else {
-                    const totalInDorm = getDormStudentCount(r.dormitory);
-                    aggregatedStats.home += Math.max(0, totalInDorm - r.presentCount - r.sickCount);
+        const finalDormitoryData: DormitoryStat[] = dormitories
+            .filter(d => d !== "เรือนพยาบาล")
+            .map(dormName => {
+                const report = latestReportsMap.get(dormName);
+                let present = 0, sick = 0, home = 0;
+                
+                if (report) {
+                    present = Number(report.presentCount) || 0;
+                    sick = Number(report.sickCount) || 0;
+                    if (report.homeCount !== undefined && report.homeCount !== null && String(report.homeCount) !== "") {
+                        home = Number(report.homeCount);
+                    } else {
+                        const totalInDorm = getDormStudentCount(dormName);
+                        home = Math.max(0, totalInDorm - present - sick);
+                    }
+                } else {
+                    // If no report for this dorm today, default to 0 but show in list
                 }
-            }
-        });
+
+                accPresent += present;
+                accSick += sick;
+                accHome += home;
+
+                return { name: dormName, present, sick, home, total: present + sick + home };
+            });
+
+        // Add Infirmary Sick to Total Sick
+        const infirmaryReport = latestReportsMap.get("เรือนพยาบาล");
+        if (infirmaryReport) {
+            accSick += (Number(infirmaryReport.sickCount) || 0);
+        }
 
         return {
             dormitoryData: finalDormitoryData,
-            totalStudentsReport: aggregatedStats.present,
-            totalSick: aggregatedStats.sick,
-            totalHome: aggregatedStats.home,
-            displayDate: `ประจำวันที่ ${displayDateString}`,
-            buddhistDate: displayDateString
+            totalStudentsReport: accPresent,
+            totalSick: accSick,
+            totalHome: accHome,
+            displayDate: `ประจำวันที่ ${bDateStr}`,
+            buddhistDate: bDateStr
         };
     }, [reports, dormitories, selectedDate, students]);
     
+    // AI Summary Generation
+    const generateAiSummary = async () => {
+        setIsGeneratingAi(true);
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const prompt = `You are a school administrator. Analyze the following attendance data for ${buddhistDate} at ${schoolName} and provide a concise, professional summary in Thai. 
+            Data:
+            - Total Students: ${students.length}
+            - Students present: ${totalStudentsReport}
+            - Students sick: ${totalSick}
+            - Students away/home: ${totalHome}
+            - Dormitory breakdown: ${JSON.stringify(dormitoryData.map(d => ({ name: d.name, present: d.present, sick: d.sick, home: d.home })))}
+            
+            Format: Provide a summary of the health status, identify any dorms with high sickness rates (>10% of their total), and give a brief positive recommendation for the administration.`;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
+            });
+            setAiSummary(response.text || "ไม่สามารถสรุปข้อมูลได้ในขณะนี้");
+        } catch (error) {
+            console.error("AI Generation Error:", error);
+            setAiSummary("เกิดข้อผิดพลาดในการวิเคราะห์ข้อมูลด้วย AI");
+        } finally {
+            setIsGeneratingAi(false);
+        }
+    };
+
     // Attendance Stats
     const attendanceStatsData = useMemo(() => {
-        // Fix: Ensure comparison values match TimePeriod type to avoid unintentional type comparison error.
         const periods = ['morning_act', 'lunch_act', 'evening_act'] as TimePeriod[];
         const periodNames: Record<string, string> = { morning_act: 'เช้า', lunch_act: 'กลางวัน', evening_act: 'เย็น' };
         
@@ -140,7 +177,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         return { studentStats, personnelStats };
     }, [studentAttendance, personnelAttendance, students.length, personnel.length, buddhistDate]);
 
-    // Map Effect - Use Students with Location
+    // Map Effect
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const L = (window as any).L;
@@ -166,7 +203,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                             const name = `${s.studentTitle}${s.studentName}`;
                             const imgUrl = getFirstImageSource(s.studentProfileImage);
                             
-                            // Red Pin for Student Home (Stylized)
                             const icon = L.divIcon({
                                 className: 'student-marker',
                                 html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#EF4444" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); width: 100%; height: 100%;">
@@ -174,7 +210,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         <circle cx="12" cy="10" r="3" fill="white"></circle>
                                        </svg>`,
                                 iconSize: [36, 36],
-                                iconAnchor: [18, 36], // Tip at bottom center
+                                iconAnchor: [18, 36],
                                 popupAnchor: [0, -34]
                             });
 
@@ -218,28 +254,20 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleExportExcel = () => {
         setIsExportMenuOpen(false);
-        
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        
-        // Summary Section
         csvContent += `รายงานภาพรวมสถานศึกษา,${schoolName}\n`;
         csvContent += `วันที่,${buddhistDate}\n\n`;
-        
         csvContent += `สถิติรวม\n`;
         csvContent += `นักเรียนทั้งหมด,${students.length},คน\n`;
         csvContent += `บุคลากรทั้งหมด,${personnel.length},คน\n`;
         csvContent += `มาเรียน,${totalStudentsReport},คน\n`;
         csvContent += `ป่วย,${totalSick},คน\n`;
         csvContent += `ลา/ขาด/อยู่บ้าน,${totalHome},คน\n\n`;
-
-        // Dormitory Table Section
         csvContent += `รายละเอียดตามเรือนนอน\n`;
         csvContent += `เรือนนอน,มา (คน),ป่วย (คน),อยู่บ้าน (คน),รวม (คน)\n`;
-        
         dormitoryData.forEach(row => {
             csvContent += `"${row.name}",${row.present},${row.sick},${row.home},${row.total}\n`;
         });
-
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -251,7 +279,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleExportWord = () => {
         setIsExportMenuOpen(false);
-        
         const rows = dormitoryData.map(d => `
             <tr>
                 <td style="text-align:left; padding:5px;">${d.name}</td>
@@ -286,7 +313,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <p>รายงานภาพรวมสถานศึกษา</p>
                     <p>ประจำวันที่ ${buddhistDate}</p>
                 </div>
-
                 <h3>1. ข้อมูลสถิติรวม</h3>
                 <div class="stats-box">
                     <p class="stat-item">นักเรียนทั้งหมด: ${students.length} คน</p>
@@ -296,7 +322,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <p>ป่วย: ${totalSick} คน</p>
                     <p>ลา/ขาด/อยู่บ้าน: ${totalHome} คน</p>
                 </div>
-
                 <h3>2. รายละเอียดตามเรือนนอน</h3>
                 <table>
                     <thead>
@@ -312,7 +337,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                         ${rows}
                     </tbody>
                 </table>
-                
                 <br/><br/>
                 <div style="text-align: right; margin-top: 30px;">
                     <p>ลงชื่อ ........................................................... ผู้รายงาน</p>
@@ -386,7 +410,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <h2 className="text-3xl font-bold text-navy tracking-tight">ภาพรวมสถานศึกษา</h2>
                         <p className="text-gray-500 text-sm mt-1">ข้อมูลประจำวันที่ {buddhistDate}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                         {/* AI Analysis Button */}
+                        <button 
+                            onClick={generateAiSummary}
+                            disabled={isGeneratingAi}
+                            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all text-sm disabled:opacity-50"
+                        >
+                            {isGeneratingAi ? (
+                                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            )}
+                            {isGeneratingAi ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ด้วย AI'}
+                        </button>
+
                         <input 
                             type="date" 
                             value={buddhistToISO(selectedDate)}
@@ -397,7 +435,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                             className="pl-4 pr-4 py-2 bg-white/80 border border-white/50 backdrop-blur-sm rounded-full shadow-sm text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue"
                         />
                         
-                        {/* Export Dropdown */}
                         <div className="relative">
                             <button 
                                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
@@ -427,11 +464,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                 </div>
 
+                {/* AI Summary Banner */}
+                {aiSummary && (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-6 shadow-sm animate-fade-in-up relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                            <svg className="w-24 h-24 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        </div>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-md">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            </div>
+                            <h3 className="text-indigo-900 font-bold text-lg">AI Report Summary (สรุปรายงานโดย AI)</h3>
+                            <button onClick={() => setAiSummary(null)} className="ml-auto text-indigo-400 hover:text-indigo-600">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="text-indigo-800 leading-relaxed text-sm whitespace-pre-wrap font-medium">
+                            {aiSummary}
+                        </div>
+                    </div>
+                )}
+
                 {/* Hero Section: Stats & Map */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left: Colorful Stat Cards */}
                     <div className="lg:col-span-1 space-y-4">
-                        {/* Students Card */}
                         <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-3xl p-6 text-white shadow-xl shadow-blue-300/50 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -446,7 +503,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
 
-                        {/* Personnel Card */}
                         <div className="bg-gradient-to-br from-pink-400 to-rose-500 rounded-3xl p-6 text-white shadow-xl shadow-pink-300/50 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
@@ -460,7 +516,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
 
-                        {/* Daily Status Card */}
                         <div className="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-3xl p-6 text-white shadow-xl shadow-cyan-300/50 relative overflow-hidden group">
                              <div className="relative z-10">
                                 <p className="text-cyan-100 text-sm font-medium mb-2">สถานะรายวัน</p>
@@ -487,12 +542,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="bg-white rounded-3xl shadow-xl overflow-hidden h-full border border-white/50 relative group">
                             <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl shadow-sm">
                                 <h3 className="text-navy font-bold text-sm flex items-center gap-2">
-                                    <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/></svg>
+                                    <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" /></svg>
                                     แผนที่ติดตามนักเรียน (GPS)
                                 </h3>
                             </div>
                             <div id="dashboard-map" className="w-full h-full min-h-[400px] bg-gray-100 z-0"></div>
-                            {/* Overlay Gradient at bottom */}
                             <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none"></div>
                         </div>
                     </div>

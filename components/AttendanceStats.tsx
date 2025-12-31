@@ -26,15 +26,11 @@ interface CalculatedStats {
 }
 
 interface AttendanceStatsProps {
-    // Optional: If provided, use these calculated stats. If not, calculate from raw data (backward compatibility)
     stats?: CalculatedStats;
-    
-    // Optional raw data for internal calculation if stats not provided
     studentAttendance?: StudentAttendance[];
     personnelAttendance?: PersonnelAttendance[];
     students?: Student[];
     personnel?: Personnel[];
-    
     selectedDate: string;
 }
 
@@ -85,8 +81,6 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
     const displayStats = useMemo(() => {
         if (stats) return stats;
 
-        // Fallback calculation if stats prop isn't passed
-        // Fix: Use correct TimePeriod literals to avoid unintentional type comparison error
         const periods = ['morning_act', 'lunch_act', 'evening_act'] as TimePeriod[];
         const periodNames: Record<string, string> = { morning_act: 'เช้า', lunch_act: 'กลางวัน', evening_act: 'เย็น' };
 
@@ -124,11 +118,10 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* Student Stats Card */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 flex justify-between items-center text-white">
                     <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                         <h3 className="font-bold">สถิตินักเรียน</h3>
                     </div>
                     <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{selectedDate}</span>
@@ -148,11 +141,10 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                 </div>
             </div>
 
-            {/* Personnel Stats Card */}
              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-3 flex justify-between items-center text-white">
                     <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                         <h3 className="font-bold">สถิติบุคลากร</h3>
                     </div>
                     <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{selectedDate}</span>

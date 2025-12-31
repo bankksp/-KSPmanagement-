@@ -248,11 +248,13 @@ const App: React.FC = () => {
             }
             
             setHasInitialData(true);
+            setFetchError(null);
 
         } catch (error: any) {
             console.error("Failed to fetch data:", error);
+            const msg = error instanceof Error ? error.message : "Unknown network error";
             if (!isBackground) {
-                setFetchError(error instanceof Error ? error.message : "Unknown error occurred");
+                setFetchError(msg);
             }
         } finally {
             setIsLoading(false);
@@ -363,16 +365,15 @@ const App: React.FC = () => {
             const saved = savedRaw.map((r:any) => ({ ...r, date: normalizeDateString(r.date) }));
             if(t === 'student') {
                 setStudentAttendance(prev => {
-                    const ids = new Set(saved.map((x:any) => x.id));
-                    return [...prev.filter(r => !ids.has(r.id)), ...saved];
+                    const ids = new Set(saved.map((x:any) => String(x.id)));
+                    return [...prev.filter(r => !ids.has(String(r.id))), ...saved];
                 });
             } else {
                 setPersonnelAttendance(prev => {
-                    const ids = new Set(saved.map((x:any) => x.id));
-                    return [...prev.filter(r => !ids.has(r.id)), ...saved];
+                    const ids = new Set(saved.map((x:any) => String(x.id)));
+                    return [...prev.filter(r => !ids.has(String(r.id))), ...saved];
                 });
             }
-            alert('บันทึกข้อมูลเรียบร้อย');
         } catch(e) { 
             console.error(e);
             alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
@@ -387,9 +388,9 @@ const App: React.FC = () => {
             const action = t === 'student' ? 'deleteStudentAttendance' : 'deletePersonnelAttendance';
             await postToGoogleScript({ action, ids });
             if(t === 'student') {
-                setStudentAttendance(prev => prev.filter(r => !ids.includes(r.id)));
+                setStudentAttendance(prev => prev.filter(r => !ids.includes(String(r.id))));
             } else {
-                setPersonnelAttendance(prev => prev.filter(r => !ids.includes(r.id)));
+                setPersonnelAttendance(prev => prev.filter(r => !ids.includes(String(r.id))));
             }
             alert('ลบข้อมูลเรียบร้อย');
         } catch(e) {
@@ -447,7 +448,8 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800 mb-2">ไม่สามารถดึงข้อมูลได้</h3>
                     <p className="text-gray-600 mb-6 max-w-md">{fetchError}</p>
-                    <button onClick={() => fetchData()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow transition">
+                    <p className="text-xs text-gray-400 mb-4">* กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือติดต่อผู้ดูแลระบบเพื่อตรวจสอบสถานะของ Google Script</p>
+                    <button onClick={() => fetchData()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow shadow-blue-200 transition">
                         ลองใหม่อีกครั้ง
                     </button>
                 </div>
@@ -587,7 +589,6 @@ const App: React.FC = () => {
                 </main>
             </div>
             <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleSessionLogin} personnelList={personnel} onRegisterClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }} />
-            {/* Fix: Changed isRegisterOpen to isRegisterModalOpen */}
             <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} positions={settings.positions} isSaving={isSaving} />
             {isReportModalOpen && (
                 <ReportModal onClose={handleCloseReportModal} onSave={handleSaveReport} reportToEdit={editingReport} academicYears={settings.academicYears} dormitories={settings.dormitories} positions={settings.positions} isSaving={isSaving} personnel={personnel} currentUser={currentUser} students={students} />

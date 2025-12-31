@@ -297,19 +297,27 @@ export const fileToObject = async (file: File): Promise<{ filename: string, mime
 
 export const postToGoogleScript = async (payload: any, retries = 3) => {
     const scriptUrl = GOOGLE_SCRIPT_URL;
-    const urlWithCacheBuster = `${scriptUrl}?t=${new Date().getTime()}`;
     let lastError: any;
 
     for (let i = 0; i < retries; i++) {
         try {
-            const response = await fetch(urlWithCacheBuster, {
+            const response = await fetch(scriptUrl, {
                 method: 'POST',
-                redirect: 'follow',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                mode: 'cors', // Ensure CORS is enabled
+                headers: { 
+                    'Content-Type': 'text/plain;charset=utf-8' // Use text/plain to avoid preflight
+                },
                 body: JSON.stringify(payload)
             });
+            
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const text = await response.text();
+            
+            // Check if response is HTML (login page redirect) vs JSON
+            if (text.trim().startsWith('<!DOCTYPE')) {
+                throw new Error('Google Script session expired or restricted access. Please check script deployment permissions.');
+            }
+            
             const result = JSON.parse(text);
             if (result.status === 'error') throw new Error(result.message);
             return result;
