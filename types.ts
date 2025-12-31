@@ -38,6 +38,35 @@ export interface Document {
   stampScale?: number;
 }
 
+export interface WorkflowStep {
+  role: 'head' | 'deputy' | 'director';
+  signerId: number;
+  signerName: string;
+  signerPosition: string;
+  comment: string;
+  signature: string;
+  date: string;
+  status: 'approved' | 'rejected';
+}
+
+export type WorkflowStage = 'head' | 'deputy' | 'director' | 'completed';
+
+export interface WorkflowDocument {
+  id: number;
+  date: string;
+  title: string;
+  group: string; // New field
+  category: string; // New field
+  description?: string;
+  file: (File | string)[];
+  submitterId: number;
+  submitterName: string;
+  currentStage: WorkflowStage;
+  currentApproverId: number;
+  status: 'pending' | 'approved' | 'rejected';
+  history: WorkflowStep[];
+}
+
 export interface Report {
   id: number;
   reportDate: string;
@@ -460,7 +489,8 @@ export type Page =
     | 'general_construction' 
     | 'general_nutrition' 
     | 'student_home_visit' 
-    | 'student_sdq';
+    | 'student_sdq'
+    | 'workflow_docs';
 
 export interface HomeVisit {
   id: number;

@@ -35,8 +35,9 @@ import LandingPage from './components/LandingPage';
 import NutritionPage from './components/NutritionPage';
 import DutyPage from './components/DutyPage';
 import LeavePage from './components/LeavePage';
+import WorkflowPage from './components/WorkflowPage';
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript, isoToBuddhist, normalizeDate, safeParseArray, getCurrentThaiDate } from './utils';
 
@@ -80,6 +81,7 @@ const App: React.FC = () => {
     const [performanceReports, setPerformanceReports] = useState<PerformanceReport[]>([]);
     const [sarReports, setSarReports] = useState<SARReport[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
+    const [workflowDocuments, setWorkflowDocuments] = useState<WorkflowDocument[]>([]);
     const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
     const [sdqRecords, setSdqRecords] = useState<SDQRecord[]>([]);
     const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
@@ -207,15 +209,12 @@ const App: React.FC = () => {
             setSupplyRequests(data.supplyRequests || []);
             setDurableGoods(data.durableGoods || []); 
             
-            // Fix: Certificate Requests Mapping
-            const fetchedCerts = data.certificateRequests || [];
-            setCertificateRequests(fetchedCerts);
-            
             setCertificateRequests(data.certificateRequests || []); 
             setMaintenanceRequests(data.maintenanceRequests || []);
             setPerformanceReports(data.performanceReports || []);
             setSarReports(data.sarReports || []);
             setDocuments(data.generalDocuments || data.documents || []); 
+            setWorkflowDocuments(data.workflowDocuments || []);
             setServiceRecords(data.serviceRecords || []);
             setConstructionRecords(data.constructionRecords || []); 
             setProjectProposals(data.projectProposals || []); 
@@ -548,6 +547,10 @@ const App: React.FC = () => {
                 return currentUser ? (
                     <LeavePage currentUser={currentUser} records={leaveRecords} onSave={(r) => handleGenericSave('saveLeaveRecord', r, setLeaveRecords)} onDelete={(ids) => handleGenericDelete('deleteLeaveRecords', ids, setLeaveRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} personnel={personnel} />
                 ) : null;
+            case 'workflow_docs':
+                return currentUser ? (
+                    <WorkflowPage currentUser={currentUser} personnel={personnel} documents={workflowDocuments} onSave={(d) => handleGenericSave('saveWorkflowDoc', d, setWorkflowDocuments)} onDelete={(ids) => handleGenericDelete('deleteWorkflowDocs', ids, setWorkflowDocuments)} isSaving={isSaving} />
+                ) : null;
             default:
                 return null;
         }
@@ -584,6 +587,7 @@ const App: React.FC = () => {
                 </main>
             </div>
             <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleSessionLogin} personnelList={personnel} onRegisterClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }} />
+            {/* Fix: Changed isRegisterOpen to isRegisterModalOpen */}
             <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} positions={settings.positions} isSaving={isSaving} />
             {isReportModalOpen && (
                 <ReportModal onClose={handleCloseReportModal} onSave={handleSaveReport} reportToEdit={editingReport} academicYears={settings.academicYears} dormitories={settings.dormitories} positions={settings.positions} isSaving={isSaving} personnel={personnel} currentUser={currentUser} students={students} />

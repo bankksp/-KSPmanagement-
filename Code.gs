@@ -31,7 +31,8 @@ const SHEET_NAMES = {
   SDQ_RECORDS: "SDQRecords",
   MEAL_PLANS: "MealPlans",
   INGREDIENTS: "Ingredients",
-  OTP_STORE: "OTPStore" 
+  OTP_STORE: "OTPStore",
+  WORKFLOW_DOCS: "WorkflowDocuments"
 };
 
 function doPost(e) {
@@ -107,6 +108,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveIngredient': SHEET_NAMES.INGREDIENTS,
     'saveStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
     'savePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
+    'saveWorkflowDoc': SHEET_NAMES.WORKFLOW_DOCS,
     'updateSettings': SHEET_NAMES.SETTINGS,
     'deleteReports': SHEET_NAMES.REPORTS,
     'deleteStudents': SHEET_NAMES.STUDENTS,
@@ -127,7 +129,8 @@ function routeGenericAction(action, request, uploadFolder) {
     'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
     'deleteIngredients': SHEET_NAMES.INGREDIENTS,
     'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
-    'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE
+    'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
+    'deleteWorkflowDocs': SHEET_NAMES.WORKFLOW_DOCS
   };
 
   const sheetName = actionToSheetMap[action];
