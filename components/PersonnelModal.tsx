@@ -164,7 +164,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
     const currentAdvisoryClasses = safeParseArray(formData.advisoryClasses);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[60] p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b">
                     <h2 className="text-2xl font-bold text-navy">{isEditing ? 'แก้ไขข้อมูลบุคลากร' : 'เพิ่มข้อมูลบุคลากร'}</h2>

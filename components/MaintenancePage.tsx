@@ -296,7 +296,7 @@ const MaintenancePage: React.FC<MaintenancePageProps> = ({ currentUser, requests
 
             {/* MODAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
                         <div className="p-5 border-b bg-primary-blue text-white rounded-t-xl flex justify-between items-center">
                             <h3 className="text-xl font-bold">{currentItem.id ? 'แก้ไขข้อมูลแจ้งซ่อม' : 'แจ้งซ่อมพัสดุ/ครุภัณฑ์'}</h3>

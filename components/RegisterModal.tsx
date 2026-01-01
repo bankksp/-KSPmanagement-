@@ -70,7 +70,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4 backdrop-blur-md">
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[100] p-4 backdrop-blur-md">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up border border-white">
                 <div className="p-8 border-b bg-gray-50 flex justify-between items-center">
                     <div>

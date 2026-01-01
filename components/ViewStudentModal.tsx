@@ -372,7 +372,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-40 p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-4" onClick={onClose}>
             <style>{`
                 @media print {
                     #print-dashboard { display: none !important; }
@@ -389,7 +389,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
             >
                 <div className="p-5 border-b flex justify-between items-center print:hidden">
                     <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลนักเรียน</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                    <button onClose={onClose} className="text-gray-400 hover:text-gray-600">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -568,7 +568,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow-md transition-all"
                         >
-                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                              ดาวน์โหลด / ส่งออก
                         </button>
                         

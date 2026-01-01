@@ -314,7 +314,7 @@ const CertificatePage: React.FC<CertificatePageProps> = ({ currentUser, requests
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
                         <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex justify-between items-center">
                             <div>

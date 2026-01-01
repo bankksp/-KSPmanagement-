@@ -62,7 +62,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, perso
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[100] p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 transform transition-all scale-100 border border-white/20">
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 mb-4 shadow-sm text-primary-blue">

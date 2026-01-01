@@ -153,7 +153,7 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose, stud
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-40 p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-4" onClick={onClose}>
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="p-5 border-b flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-navy">รายละเอียดรายงาน</h2>
@@ -257,7 +257,7 @@ const ViewReportModal: React.FC<ViewReportModalProps> = ({ report, onClose, stud
                         ) : (
                             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                 <div className="flex items-start gap-3">
-                                    <svg className="w-6 h-6 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    <svg className="w-6 h-6 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                     <div>
                                         <p className="text-gray-800 font-bold mb-1">ไม่พบข้อมูลรายชื่อ</p>
                                         <div className="bg-white p-3 rounded border border-gray-200 mt-2">
