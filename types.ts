@@ -193,7 +193,7 @@ export type TimePeriod =
     | 'p4' | 'p5' | 'p6' 
     | 'evening_act';
 
-export type AttendanceStatus = 'present' | 'sick' | 'leave' | 'absent' | 'activity' | 'home'; 
+export type AttendanceStatus = 'present' | 'sick' | 'leave' | 'absent' | 'activity'; 
 
 export interface StudentAttendance {
     id: string; 

@@ -150,7 +150,6 @@ function routeGenericAction(action, request, uploadFolder) {
 
   if (action.startsWith('add') || action.startsWith('update') || action.startsWith('save')) {
     const records = Array.isArray(data) ? data : [data];
-    // Optimized for multiple records
     const results = records.map(r => saveRecord(sheet, r, uploadFolder));
     return responseJSON({ status: 'success', data: Array.isArray(data) ? results : results[0] });
   }
@@ -196,7 +195,6 @@ function saveRecord(sheet, dataObj, uploadFolder) {
         if (item && item.data && item.filename) {
           const blob = Utilities.newBlob(Utilities.base64Decode(item.data), item.mimeType, item.filename);
           const file = uploadFolder.createFile(blob);
-          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
           return file.getUrl();
         }
         return item;
@@ -204,7 +202,6 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     } else if (val && val.data && val.filename) {
        const blob = Utilities.newBlob(Utilities.base64Decode(val.data), val.mimeType, val.filename);
        const file = uploadFolder.createFile(blob);
-       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
        dataObj[key] = file.getUrl();
     }
   }
@@ -214,7 +211,7 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     sheet.appendRow(Object.keys(dataObj));
   }
   
-  let headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
   // Check for missing headers and add them
   const objKeys = Object.keys(dataObj);
@@ -272,9 +269,7 @@ function deleteRecords(sheet, ids) {
 
 function getUploadFolder() {
   const it = DriveApp.getFoldersByName(FOLDER_NAME);
-  const folder = it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
-  folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return folder;
+  return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
 }
 
 function responseJSON(data) {

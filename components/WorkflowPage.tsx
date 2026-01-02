@@ -415,7 +415,7 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({
                 </div>
             )}
 
-            {/* CREATE TAB UI */}
+            {/* CREATE TAB UI (Redesigned) */}
             {activeTab === 'create' && (
                 <div className="max-w-4xl mx-auto animate-fade-in-up">
                     <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-gray-100 space-y-10">
@@ -505,32 +505,21 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({
                 </div>
             )}
 
-            {/* VIEW MODAL */}
+            {/* VIEW MODAL (Enhanced Stepper Timeline) */}
             {isViewModalOpen && viewDoc && (
-                <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[70] p-4 flex items-center justify-center overflow-auto no-print" onClick={() => setIsViewModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 p-4 flex items-center justify-center overflow-auto no-print" onClick={() => setIsViewModalOpen(false)}>
                     <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
                         <div className="p-10 bg-navy text-white flex justify-between items-start shrink-0 relative overflow-hidden">
                              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
-                             <div className="relative z-10 flex flex-col flex-grow min-w-0">
-                                <span className="bg-white/20 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-[0.2em] mb-3 inline-block self-start">{viewDoc.category}</span>
-                                <h3 className="text-4xl font-black tracking-tighter leading-tight max-w-2xl truncate">{viewDoc.title}</h3>
+                             <div className="relative z-10">
+                                <span className="bg-white/20 text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-[0.2em] mb-3 inline-block">{viewDoc.category}</span>
+                                <h3 className="text-4xl font-black tracking-tighter leading-tight max-w-2xl">{viewDoc.title}</h3>
                                 <div className="flex items-center gap-4 mt-6 text-blue-200 text-sm font-bold">
                                     <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> ผู้เสนอ: {viewDoc.submitterName}</span>
                                     <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> วันที่: {formatThaiDate(viewDoc.date)}</span>
                                 </div>
                              </div>
-                             {/* แก้ไข Layer และ Hit area ของปุ่มปิด */}
-                             <div className="relative z-20 shrink-0">
-                                <button 
-                                    onClick={() => setIsViewModalOpen(false)} 
-                                    className="bg-white/10 hover:bg-white/20 p-4 rounded-full transition-all active:scale-90 border-2 border-white/20 flex items-center justify-center group pointer-events-auto" 
-                                    title="ปิดหน้าต่าง"
-                                >
-                                    <svg className="w-8 h-8 text-white group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                             </div>
+                             <button onClick={() => setIsViewModalOpen(false)} className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all active:scale-90"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
 
                         <div className="flex flex-col lg:flex-row overflow-hidden flex-grow bg-gray-50/30">
@@ -602,56 +591,31 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({
                                                  <p className="text-sm font-black text-navy mt-1">
                                                      {personnel.find(p => p.id === viewDoc.currentApproverId)?.personnelName || 'ผู้มีอำนาจลงนาม'}
                                                  </p>
-                                                 {viewDoc.currentApproverId === currentUser.id && (
-                                                     <button 
-                                                        onClick={() => { setIsViewModalOpen(false); handleOpenApprove(viewDoc); }} 
-                                                        className="mt-4 bg-navy text-white px-6 py-2 rounded-xl text-xs font-bold shadow-lg shadow-blue-900/10 hover:bg-blue-900 transition-all"
-                                                     >
-                                                         พิจารณาและลงนาม
-                                                     </button>
-                                                 )}
                                              </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
-
-                        {/* Modal Footer with Close Button */}
-                        <div className="p-8 bg-white border-t border-gray-100 flex justify-center items-center shrink-0">
-                            <button 
-                                onClick={() => setIsViewModalOpen(false)} 
-                                className="bg-gray-100 text-gray-500 px-16 py-3.5 rounded-2xl font-black text-sm hover:bg-gray-200 transition-all uppercase tracking-widest active:scale-95 shadow-sm"
-                            >
-                                ปิดหน้าต่าง
-                            </button>
-                        </div>
                     </div>
                 </div>
             )}
 
-            {/* APPROVE MODAL */}
+            {/* APPROVE MODAL (Redesigned Signing Room) */}
             {isApproveModalOpen && approveDoc && (
-                <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[70] p-4 flex items-center justify-center">
+                <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 p-4 flex items-center justify-center">
                     <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden animate-fade-in-up">
-                        <div className="p-8 bg-indigo-700 text-white flex justify-between items-center shrink-0 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                            <div className="relative z-10 flex-grow min-w-0">
-                                <h3 className="text-2xl font-black truncate">พิจารณาและลงนามหนังสือ</h3>
+                        <div className="p-8 bg-indigo-700 text-white flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-2xl font-black">พิจารณาและลงนามหนังสือ</h3>
                                 <p className="text-[10px] opacity-70 font-bold uppercase tracking-[0.3em] mt-1">Digital Signing Gateway</p>
                             </div>
-                            <div className="relative z-20 shrink-0">
-                                <button onClick={() => setIsApproveModalOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all active:scale-90 pointer-events-auto">
-                                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
+                            <button onClick={() => setIsApproveModalOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all active:scale-90"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
                         
                         <div className="p-10 overflow-y-auto space-y-10 flex-grow bg-gray-50/40">
                             <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12 transition-transform group-hover:rotate-0"><svg className="w-20 h-20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2zm4 8h-2v-4h2v4zm0-6h-2V7h2v2z"/></svg></div>
+                                <div className="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12 transition-transform group-hover:rotate-0"><svg className="w-20 h-20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></div>
                                 <label className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em] mb-2 block">Document Subject</label>
                                 <h4 className="text-2xl font-black text-navy leading-snug tracking-tight">{approveDoc.title}</h4>
                                 <div className="flex gap-2 mt-6">

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useState } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, getDirectDriveImageSrc, safeParseArray, formatThaiDate } from '../utils';
@@ -388,8 +389,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
             >
                 <div className="p-5 border-b flex justify-between items-center print:hidden">
                     <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลนักเรียน</h2>
-                    {/* Fix: Changed invalid 'onClose' prop to 'onClick' on button element */}
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                    <button onClose={onClose} className="text-gray-400 hover:text-gray-600">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
