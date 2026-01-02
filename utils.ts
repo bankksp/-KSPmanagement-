@@ -11,9 +11,6 @@ export const THAI_SHORT_MONTHS = [
     'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
 ];
 
-/**
- * Converts Arabic numerals to Thai numerals
- */
 export const toThaiNumerals = (str: string | number | undefined): string => {
     if (str === undefined || str === null) return '';
     const s = String(str);
@@ -21,102 +18,35 @@ export const toThaiNumerals = (str: string | number | undefined): string => {
     return s.replace(/[0-9]/g, (digit) => id[parseInt(digit)]);
 };
 
-/**
- * Extract time from Google Sheets date string (handles 1899-12-30 cases and full ISO)
- */
 export const formatOnlyTime = (timeStr: string | undefined): string => {
     if (!timeStr) return '';
     const s = String(timeStr).trim();
-    
     if (s.includes('T')) {
         try {
             const date = new Date(s);
             if (!isNaN(date.getTime())) {
-                const h = date.getHours().toString().padStart(2, '0');
-                const m = date.getMinutes().toString().padStart(2, '0');
-                return `${h}:${m}`;
+                return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
             }
         } catch (e) {}
     }
-    
     const match = s.match(/(\d{1,2}):(\d{2})/);
-    if (match) {
-        return `${match[1].padStart(2, '0')}:${match[2]}`;
-    }
-    
+    if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
     return s;
 };
 
-/**
- * Extracts Google Drive ID from various URL formats
- */
 export const getDriveId = (url: any): string | null => {
     if (!url || typeof url !== 'string') return null;
     const cleanUrl = url.trim().replace(/[\[\]"'\\]/g, '');
-    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
-                  cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
     return match ? match[1] : null;
 };
 
-/**
- * URL for embedding images or small previews.
- */
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
-    if (url instanceof File) {
-        return URL.createObjectURL(url);
-    }
-    
+    if (url instanceof File) return URL.createObjectURL(url);
     const id = getDriveId(url);
-    if (id) {
-        return `https://lh3.googleusercontent.com/d/${id}`;
-    }
-    
+    if (id) return `https://lh3.googleusercontent.com/d/${id}`;
     return String(url).trim().replace(/[\[\]"\\]/g, '').replace(/^'|'$/g, '');
-};
-
-/**
- * URL for downloading files directly.
- */
-export const getDriveDownloadUrl = (url: string | File | undefined | null): string => {
-    if (!url) return '';
-    if (url instanceof File) return URL.createObjectURL(url);
-    
-    const id = getDriveId(url);
-    if (id) {
-        return `https://drive.google.com/uc?export=download&id=${id}`;
-    }
-    return String(url).trim().replace(/[\[\]"']/g, '');
-};
-
-/**
- * URL for opening the file in Google Drive's native viewer.
- */
-export const getDriveViewUrl = (url: string | File | undefined | null): string => {
-    if (!url) return '';
-    if (url instanceof File) return URL.createObjectURL(url);
-    
-    const id = getDriveId(url);
-    if (id) {
-        return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
-    }
-    return String(url).trim().replace(/[\[\]"']/g, '');
-};
-
-/**
- * Gets a preview URL for Google Drive documents.
- */
-export const getDrivePreviewUrl = (url: string | File | undefined | null): string => {
-    if (!url) return '';
-    if (url instanceof File) {
-        return URL.createObjectURL(url);
-    }
-
-    const id = getDriveId(url);
-    if (id) {
-        return `https://drive.google.com/file/d/${id}/preview`;
-    }
-    return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
 export const getFirstImageSource = (source: any): string | null => {
@@ -127,19 +57,11 @@ export const getFirstImageSource = (source: any): string | null => {
     }
     if (typeof source === 'string') {
         let trimmed = source.trim();
-        while (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-            trimmed = trimmed.substring(1, trimmed.length - 1).trim();
-        }
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
             try {
                 const parsed = JSON.parse(trimmed);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    return getDirectDriveImageSrc(parsed[0]);
-                }
-            } catch (e) {
-                const match = trimmed.match(/"([^"]+)"/);
-                if (match) return getDirectDriveImageSrc(match[1]);
-            }
+                if (Array.isArray(parsed) && parsed.length > 0) return getDirectDriveImageSrc(parsed[0]);
+            } catch (e) {}
         }
         return getDirectDriveImageSrc(trimmed);
     }
@@ -151,12 +73,8 @@ export const safeParseArray = (input: any): any[] => {
     if (Array.isArray(input)) return input;
     if (typeof input === 'string') {
         let clean = input.trim();
-        while (clean.startsWith('"') && clean.endsWith('"')) {
-            clean = clean.substring(1, clean.length - 1).trim();
-        }
         if (clean.startsWith('[') && clean.endsWith(']')) {
             try {
-               if (clean.includes("'")) clean = clean.replace(/'/g, '"');
                const parsed = JSON.parse(clean);
                if (Array.isArray(parsed)) return parsed;
             } catch(e) {}
@@ -167,7 +85,8 @@ export const safeParseArray = (input: any): any[] => {
 };
 
 /**
- * Normalizes date from various formats including ISO strings with Buddhist years
+ * ปรับปรุงการจัดการรูปแบบวันที่ (Date Normalization)
+ * บังคับให้เป็นรูปแบบ DD/MM/YYYY (พ.ศ.) เสมอ เพื่อความแม่นยำในการเปรียบเทียบ String
  */
 export const normalizeDate = (input: any): Date | null => {
     if (!input) return null;
@@ -175,187 +94,172 @@ export const normalizeDate = (input: any): Date | null => {
     
     const str = String(input).trim();
     
-    // 1. Handle ISO formats like 2535-12-09T... or 1992-12-09
-    if (str.includes('T') || str.match(/^\d{4}-\d{2}-\d{2}/)) {
-        const datePart = str.split('T')[0];
-        const parts = datePart.split(/[-/]/).map(Number);
-        
-        if (parts.length === 3) {
-            let y = parts[0], m = parts[1], d = parts[2];
-            
-            // Detect Buddhist Year in ISO-like string
-            if (y > 2400) y -= 543;
-            // Handle case where it might be DD-MM-YYYY
-            else if (y < 31 && d > 2400) {
-                const temp = y; y = d - 543; d = temp;
-            }
-
-            const dateObj = new Date(y, m - 1, d);
-            if (str.includes('T')) {
-                const timeStr = str.split('T')[1];
-                const timeMatch = timeStr.match(/(\d{2}):(\d{2})/);
-                if (timeMatch) {
-                    dateObj.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]));
-                }
-            }
-            return isNaN(dateObj.getTime()) ? null : dateObj;
-        }
-    }
-    
-    // 2. Check Thai format (DD/MM/YYYY)
+    // 1. Handle DD/MM/YYYY
     const parts = str.split('/');
     if (parts.length === 3) {
-        const d = parseInt(parts[0]);
-        const m = parseInt(parts[1]) - 1;
+        let d = parseInt(parts[0]);
+        let m = parseInt(parts[1]) - 1;
         let y = parseInt(parts[2]);
         if (y > 2400) y -= 543;
         const dateObj = new Date(y, m, d);
         return isNaN(dateObj.getTime()) ? null : dateObj;
     }
     
-    // 3. Fallback for potential raw timestamps
+    // 2. Handle YYYY-MM-DD
+    const isoParts = str.split('-');
+    if (isoParts.length === 3 && isoParts[0].length === 4) {
+        let y = parseInt(isoParts[0]);
+        let m = parseInt(isoParts[1]) - 1;
+        let d = parseInt(isoParts[2]);
+        if (y > 2400) y -= 543;
+        const dateObj = new Date(y, m, d);
+        return isNaN(dateObj.getTime()) ? null : dateObj;
+    }
+    
     const timestamp = Date.parse(str);
     if (!isNaN(timestamp)) {
         const d = new Date(timestamp);
-        // If year ended up in 2500s due to parsing
-        if (d.getFullYear() > 2400) {
-            return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
-        }
+        if (d.getFullYear() > 2400) return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate());
         return d;
     }
-    
     return null;
+};
+
+/**
+ * บังคับรูปแบบวันที่ให้เป็น 01/01/2569 (มี 0 นำหน้าเสมอ)
+ */
+export const toStrictThaiDateString = (input: any): string => {
+    const d = normalizeDate(input);
+    if (!d) return String(input);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear() + 543;
+    return `${day}/${month}/${year}`;
 };
 
 export const formatThaiDate = (dateString: string | undefined): string => {
     if (!dateString) return '-';
     const date = normalizeDate(dateString);
     if (!date) return dateString;
-    
-    const d = date.getDate();
-    const m = date.getMonth();
-    const y = date.getFullYear() + 543;
-    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}`;
-};
-
-export const formatThaiDateTime = (dateStr: string, timeStr?: string): string => {
-    if (!dateStr) return '-';
-    const date = normalizeDate(dateStr);
-    if (!date) return dateStr;
-    
-    const d = date.getDate();
-    const m = date.getMonth();
-    const y = date.getFullYear() + 543;
-    
-    let hourStr = '';
-    let minuteStr = '';
-
-    const cleanTime = formatOnlyTime(timeStr || (dateStr.includes('T') ? dateStr : ''));
-    if (cleanTime && cleanTime.includes(':')) {
-        [hourStr, minuteStr] = cleanTime.split(':');
-    }
-
-    let timePart = '';
-    if (hourStr && minuteStr && (hourStr !== '00' || minuteStr !== '00')) {
-        timePart = ` ${hourStr}:${minuteStr} น.`;
-    }
-    
-    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}${timePart}`;
-};
-
-export const prepareDataForApi = async (data: any) => {
-    const apiData: any = { ...data }; 
-    for (const key in data) {
-        const value = data[key];
-        if (value instanceof File) {
-            apiData[key] = await fileToObject(value);
-        } else if (Array.isArray(value)) {
-             apiData[key] = await Promise.all(value.map(async (item) => {
-                 if (item instanceof File) return await fileToObject(item);
-                 return item;
-             }));
-        }
-    }
-    return apiData;
-};
-
-export const fileToObject = async (file: File): Promise<{ filename: string, mimeType: string, data: string }> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            const result = reader.result as string;
-            resolve({
-                filename: file.name,
-                mimeType: file.type,
-                data: result.split(',')[1] 
-            });
-        };
-        reader.onerror = error => reject(error);
-    });
-};
-
-export const postToGoogleScript = async (payload: any, retries = 3) => {
-    const scriptUrl = GOOGLE_SCRIPT_URL;
-    let lastError: any;
-
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await fetch(scriptUrl, {
-                method: 'POST',
-                mode: 'cors', // Ensure CORS is enabled
-                headers: { 
-                    'Content-Type': 'text/plain;charset=utf-8' // Use text/plain to avoid preflight
-                },
-                body: JSON.stringify(payload)
-            });
-            
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const text = await response.text();
-            
-            // Check if response is HTML (login page redirect) vs JSON
-            if (text.trim().startsWith('<!DOCTYPE')) {
-                throw new Error('Google Script session expired or restricted access. Please check script deployment permissions.');
-            }
-            
-            const result = JSON.parse(text);
-            if (result.status === 'error') throw new Error(result.message);
-            return result;
-        } catch (error: any) {
-            lastError = error;
-            if (i < retries - 1) await new Promise(res => setTimeout(res, 1000 * (i + 1))); 
-        }
-    }
-    throw lastError;
+    return `${date.getDate()} ${THAI_SHORT_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`;
 };
 
 export const getCurrentThaiDate = (): string => {
-    const date = new Date();
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = (date.getFullYear() + 543).toString();
-    return `${day}/${month}/${year}`;
+    return toStrictThaiDateString(new Date());
 };
 
 export const buddhistToISO = (buddhistDate: string | undefined): string => {
     if (!buddhistDate) return '';
     const date = normalizeDate(buddhistDate);
     if (!date) return '';
-    const y = date.getFullYear();
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const d = date.getDate().toString().padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
 };
 
 export const isoToBuddhist = (isoDate: string | undefined): string => {
     if (!isoDate) return '';
     const parts = String(isoDate).split('-');
     if (parts.length !== 3) return isoDate;
-    const buddhistYear = parseInt(parts[0]) + 543;
-    return `${parts[2].padStart(2,'0')}/${parts[1].padStart(2,'0')}/${buddhistYear}`;
+    return toStrictThaiDateString(isoDate);
+};
+
+export const postToGoogleScript = async (payload: any, retries = 3) => {
+    const scriptUrl = GOOGLE_SCRIPT_URL;
+    let lastError: any;
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(scriptUrl, {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const text = await response.text();
+            const result = JSON.parse(text);
+            if (result.status === 'error') throw new Error(result.message);
+            return result;
+        } catch (error: any) {
+            lastError = error;
+            if (i < retries - 1) await new Promise(res => setTimeout(res, 1000)); 
+        }
+    }
+    throw lastError;
 };
 
 export const parseThaiDateForSort = (dateString: string): number => {
     const date = normalizeDate(dateString);
     return date ? date.getTime() : 0;
+};
+
+// Fix: Added missing prepareDataForApi utility function
+/**
+ * แปลงไฟล์ในอ็อบเจกต์ข้อมูลให้เป็น Base64 เพื่อส่งไปยัง API
+ */
+export const prepareDataForApi = async (data: any): Promise<any> => {
+    if (data === null || data === undefined) return data;
+
+    if (data instanceof File) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(data);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    }
+
+    if (Array.isArray(data)) {
+        const results = await Promise.all(data.map(item => prepareDataForApi(item)));
+        return results;
+    }
+
+    if (typeof data === 'object') {
+        const result: any = {};
+        for (const key in data) {
+            result[key] = await prepareDataForApi(data[key]);
+        }
+        return result;
+    }
+
+    return data;
+};
+
+// Fix: Added missing formatThaiDateTime utility function
+/**
+ * รูปแบบ วันที่ และ เวลา แบบไทย
+ */
+export const formatThaiDateTime = (dateString: string | undefined, timeString?: string): string => {
+    if (!dateString) return '-';
+    const datePart = formatThaiDate(dateString);
+    const timePart = formatOnlyTime(timeString);
+    return `${datePart}${timePart ? ' ' + timePart + ' น.' : ''}`;
+};
+
+// Fix: Added missing getDrivePreviewUrl utility function
+/**
+ * รับ URL ของ Google Drive แล้วสร้าง Preview URL
+ */
+export const getDrivePreviewUrl = (source: any): string => {
+    const id = getDriveId(source);
+    if (id) return `https://drive.google.com/file/d/${id}/preview`;
+    return String(source);
+};
+
+// Fix: Added missing getDriveDownloadUrl utility function
+/**
+ * รับ URL ของ Google Drive แล้วสร้าง Download URL
+ */
+export const getDriveDownloadUrl = (source: any): string => {
+    const id = getDriveId(source);
+    if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
+    return String(source);
+};
+
+// Fix: Added missing getDriveViewUrl utility function
+/**
+ * รับ URL ของ Google Drive แล้วสร้าง View URL
+ */
+export const getDriveViewUrl = (source: any): string => {
+    const id = getDriveId(source);
+    if (id) return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+    return String(source);
 };

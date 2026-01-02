@@ -8,7 +8,8 @@ import {
     isoToBuddhist, 
     getDirectDriveImageSrc,
     formatOnlyTime,
-    normalizeDate
+    normalizeDate,
+    getFirstImageSource
 } from '../utils';
 
 interface DutyPageProps {
@@ -30,7 +31,7 @@ const DutyPage: React.FC<DutyPageProps> = ({
     const [isLocating, setIsLocating] = useState(false);
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
     
-    // Local settings state to prevent constant API calls
+    // Local settings state
     const [localSettings, setLocalSettings] = useState<Settings>(settings);
     
     // Check-in location state
@@ -40,7 +41,6 @@ const DutyPage: React.FC<DutyPageProps> = ({
 
     // List Filtering State
     const [searchName, setSearchName] = useState('');
-    const [filterPos, setFilterPos] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
@@ -54,7 +54,7 @@ const DutyPage: React.FC<DutyPageProps> = ({
         setLocalSettings(settings);
     }, [settings]);
 
-    // --- Effect to attach stream when video element is ready ---
+    // Effect to attach stream when video element is ready
     useEffect(() => {
         if (cameraActive && videoRef.current && cameraStream) {
             videoRef.current.srcObject = cameraStream;
@@ -63,23 +63,6 @@ const DutyPage: React.FC<DutyPageProps> = ({
             };
         }
     }, [cameraActive, cameraStream]);
-
-    // --- Filtering Logic ---
-    const filteredRecords = useMemo(() => {
-        return records.filter(r => {
-            const matchesName = r.personnelName.toLowerCase().includes(searchName.toLowerCase());
-            
-            const recordDateObj = normalizeDate(r.date);
-            const recordTime = recordDateObj?.getTime() || 0;
-            const startLimit = startDate ? new Date(startDate).getTime() : 0;
-            const endLimit = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
-            
-            const matchesDate = recordTime >= startLimit && recordTime <= endLimit;
-            const matchesPos = !filterPos || r.personnelName.includes(filterPos);
-
-            return matchesName && matchesDate && matchesPos;
-        }).sort((a, b) => b.id - a.id);
-    }, [records, searchName, filterPos, startDate, endDate]);
 
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
         const R = 6371e3; 
@@ -99,6 +82,7 @@ const DutyPage: React.FC<DutyPageProps> = ({
             });
             setCameraStream(stream);
             setCameraActive(true);
+            setCapturedImage(null);
         } catch (err) { 
             alert('ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบการอนุญาตใช้งานกล้อง'); 
         }
@@ -157,12 +141,15 @@ const DutyPage: React.FC<DutyPageProps> = ({
         }
         
         const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        const title = currentUser.personnelTitle === 'อื่นๆ' ? currentUser.personnelTitleOther : currentUser.personnelTitle;
+        
         onSave({
             id: Date.now(),
             date: getCurrentThaiDate(),
-            time: now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'),
+            time: timeStr,
             personnelId: currentUser.id,
-            personnelName: `${currentUser.personnelTitle}${currentUser.personnelName}`,
+            personnelName: `${title}${currentUser.personnelName}`,
             type: checkInType,
             latitude: currentGeo.lat,
             longitude: currentGeo.lng,
@@ -179,186 +166,263 @@ const DutyPage: React.FC<DutyPageProps> = ({
     };
 
     const handleAdminGetLocation = () => {
-        if (!navigator.geolocation) return;
-        setIsLocating(true);
-        navigator.geolocation.getCurrentPosition((pos) => {
-            setLocalSettings(prev => ({ ...prev, schoolLat: pos.coords.latitude, schoolLng: pos.coords.longitude }));
-            setIsLocating(false);
-            alert('ดึงพิกัดสำเร็จ อย่าลืมกดปุ่ม "บันทึกการตั้งค่า" ด้านล่าง');
-        }, () => setIsLocating(false));
+        if (!navigator.geolocation) {
+            alert('เบราว์เซอร์ไม่รองรับ GPS');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setLocalSettings(prev => ({
+                    ...prev,
+                    schoolLat: pos.coords.latitude,
+                    schoolLng: pos.coords.longitude
+                }));
+                alert('ดึงพิกัดปัจจุบันเรียบร้อย');
+            },
+            () => alert('ไม่สามารถระบุตำแหน่งได้')
+        );
     };
 
     const handleSaveLocalSettings = () => {
         onSaveSettings(localSettings);
+        alert('บันทึกการตั้งค่าพิกัดเรียบร้อย');
     };
 
-    useEffect(() => { return () => stopCamera(); }, []);
+    const filteredRecords = useMemo(() => {
+        return records.filter(r => {
+            const matchesName = (r.personnelName || '').toLowerCase().includes(searchName.toLowerCase());
+            const recordDateObj = normalizeDate(r.date);
+            const recordTime = recordDateObj?.getTime() || 0;
+            const startLimit = startDate ? new Date(startDate).getTime() : 0;
+            const endLimit = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+            const matchesDate = recordTime >= startLimit && recordTime <= endLimit;
+            return matchesName && matchesDate;
+        }).sort((a, b) => b.id - a.id);
+    }, [records, searchName, startDate, endDate]);
+
+    const handleExportExcel = () => {
+        const header = ['วันที่', 'เวลา', 'ชื่อ-นามสกุล', 'ประเภท', 'พิกัด Latitude', 'พิกัด Longitude', 'ระยะห่าง (ม.)', 'สถานะพิกัด'];
+        const rows = filteredRecords.map(r => [
+            r.date,
+            r.time,
+            r.personnelName,
+            r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน',
+            r.latitude,
+            r.longitude,
+            r.distance,
+            r.status === 'within_range' ? 'ในระยะ' : 'นอกระยะ'
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += header.map(h => `"${h}"`).join(",") + "\r\n";
+        
+        rows.forEach(row => {
+            csvContent += row.map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(",") + "\r\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `ประวัติการลงเวลา_${getCurrentThaiDate().replace(/\//g,'-')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     return (
-        <div className="space-y-6 animate-fade-in font-sarabun pb-10">
-            <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 no-print border border-gray-100">
-                <button onClick={() => setActiveTab('checkin')} className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'checkin' ? 'bg-primary-blue text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>
-                    ลงเวลาปฏิบัติงาน
-                </button>
-                <button onClick={() => setActiveTab('list')} className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'list' ? 'bg-primary-blue text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>
-                    ประวัติปฏิบัติหน้าที่
-                </button>
+        <div className="space-y-6 font-sarabun pb-20">
+            {/* Nav Tabs */}
+            <div className="flex bg-white/40 backdrop-blur-md p-1.5 rounded-2xl border border-white/50 w-fit no-print flex-wrap gap-1 shadow-sm mx-auto">
+                <button onClick={() => setActiveTab('checkin')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'checkin' ? 'bg-white text-navy shadow-md' : 'text-gray-500 hover:bg-white/50'}`}>ลงเวลาปฏิบัติงาน</button>
+                <button onClick={() => setActiveTab('list')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'list' ? 'bg-white text-navy shadow-md' : 'text-gray-500 hover:bg-white/50'}`}>ประวัติปฏิบัติหน้าที่</button>
                 {isAdmin && (
-                    <button onClick={() => setActiveTab('settings')} className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'settings' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>
-                        ตั้งค่าพิกัดโรงเรียน
-                    </button>
+                    <button onClick={() => setActiveTab('settings')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'settings' ? 'bg-white text-navy shadow-md' : 'text-gray-500 hover:bg-white/50'}`}>ตั้งค่าพิกัดโรงเรียน</button>
                 )}
             </div>
 
+            {/* CHECK-IN TAB (Updated to match design) */}
             {activeTab === 'checkin' && (
-                <div className="max-w-md mx-auto space-y-6">
-                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-white text-center relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
-                        <h2 className="text-2xl font-black text-navy mb-1">ลงเวลาปฏิบัติหน้าที่</h2>
-                        <p className="text-[10px] text-gray-400 mb-8 uppercase tracking-widest font-black">Identity & Location Verified</p>
+                <div className="max-w-xl mx-auto animate-fade-in px-4">
+                    <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden relative border-t-8 border-blue-500">
+                        <div className="p-8 pt-10 flex flex-col items-center">
+                            {/* Title & Subtitle */}
+                            <h2 className="text-3xl font-black text-navy text-center mb-1">ลงเวลาปฏิบัติหน้าที่</h2>
+                            <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-10 text-center uppercase">Identity & Location Verified</p>
 
-                        <div className="relative aspect-[3/4] w-full max-w-[280px] mx-auto rounded-3xl overflow-hidden bg-slate-900 shadow-2xl border-4 border-white mb-8 group">
-                            {!cameraActive && !capturedImage && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 space-y-4">
-                                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md">
-                                        <svg className="w-10 h-10 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            {/* Camera Area */}
+                            <div className="w-full aspect-[3/4] bg-[#0F172A] rounded-[2.5rem] overflow-hidden relative mb-8 flex flex-col items-center justify-center group shadow-xl">
+                                {capturedImage ? (
+                                    <img src={capturedImage} className="w-full h-full object-cover transform -scale-x-100" alt="Identity Preview" />
+                                ) : cameraActive ? (
+                                    <video ref={videoRef} className="w-full h-full object-cover transform -scale-x-100" autoPlay playsInline muted />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center p-10 text-center">
+                                        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 text-white/20">
+                                            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        </div>
                                     </div>
-                                    <button onClick={startCamera} className="bg-white text-navy px-8 py-3 rounded-full font-black text-sm shadow-xl hover:bg-blue-50 transition-all active:scale-95">เปิดกล้องยืนยันตัวตน</button>
-                                </div>
-                            )}
+                                )}
+                                <canvas ref={canvasRef} className="hidden" />
 
-                            {cameraActive && (
-                                <div className="w-full h-full relative">
-                                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                                    <div className="absolute inset-0 pointer-events-none z-10">
-                                        <div className="w-full h-1 bg-blue-400 shadow-[0_0_20px_rgba(96,165,250,1)] absolute animate-scan-line"></div>
-                                        <div className="absolute inset-0 border-[40px] border-slate-900/40 rounded-full"></div>
-                                    </div>
-                                    <button onClick={captureFace} className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white/90 text-navy p-4 rounded-full shadow-2xl backdrop-blur-sm transition-transform active:scale-90 border-2 border-white">
-                                        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                    </button>
+                                {/* Camera Toggle / Capture Button */}
+                                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full px-10">
+                                    {!capturedImage && !cameraActive ? (
+                                        <button 
+                                            onClick={startCamera}
+                                            className="w-full bg-white text-navy font-black py-4 rounded-2xl shadow-xl transition-all active:scale-95 text-base flex items-center justify-center"
+                                        >
+                                            เปิดกล้องยืนยันตัวตน
+                                        </button>
+                                    ) : cameraActive ? (
+                                        <button 
+                                            onClick={captureFace}
+                                            className="w-full bg-white text-navy font-black py-4 rounded-2xl shadow-xl transition-all active:scale-95 text-base flex items-center justify-center"
+                                        >
+                                            ถ่ายรูปยืนยันตัวตน
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={startCamera}
+                                            className="w-full bg-white/20 backdrop-blur-md text-white border border-white/30 font-black py-4 rounded-2xl shadow-xl transition-all active:scale-95 text-base flex items-center justify-center"
+                                        >
+                                            ถ่ายใหม่
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-
-                            {capturedImage && (
-                                <div className="relative w-full h-full animate-fade-in z-20 bg-black">
-                                    <img src={capturedImage} className="w-full h-full object-cover" alt="Captured" />
-                                    <button onClick={() => { setCapturedImage(null); startCamera(); }} className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600">
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-4 mb-8">
-                            <button onClick={verifyLocation} disabled={isLocating} className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 border-2 transition-all ${currentGeo ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-blue-500 text-blue-600'}`}>
-                                {isLocating ? <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                                {currentGeo ? 'ยืนยันพิกัด GPS สำเร็จ ✓' : 'กดปุ่มยืนยันพิกัด GPS'}
-                            </button>
-                            {currentGeo && (
-                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-center animate-slide-up">
-                                    <p className="text-xs font-bold text-blue-900">ระยะห่างจากศูนย์กลางโรงเรียน: {currentGeo.distance} เมตร</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl">
-                                <button onClick={() => setCheckInType('check_in')} className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${checkInType === 'check_in' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>เริ่มปฏิบัติหน้าที่</button>
-                                <button onClick={() => setCheckInType('check_out')} className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${checkInType === 'check_out' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>สิ้นสุดหน้าที่</button>
                             </div>
-                            <button onClick={handleConfirmCheckIn} disabled={isProcessing || !currentGeo} className={`w-full py-4 rounded-2xl font-black text-lg transition-all ${isProcessing ? 'bg-slate-300' : (!currentGeo ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : (checkInType === 'check_in' ? 'bg-blue-600 text-white' : 'bg-rose-600 text-white'))}`}>
-                                {isProcessing ? 'กำลังประมวลผล...' : 'ยืนยันบันทึกเวลา'}
+
+                            {/* GPS Verify Button */}
+                            <button 
+                                onClick={verifyLocation}
+                                disabled={isLocating}
+                                className={`w-full py-5 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all border-2 mb-6 ${currentGeo ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-blue-600 border-blue-500 hover:bg-blue-50'}`}
+                            >
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                {isLocating ? 'กำลังค้นหาพิกัด...' : currentGeo ? `ยืนยันพิกัดเรียบร้อย (${currentGeo.distance} ม.)` : 'กดปุ่มยืนยันพิกัด GPS'}
+                            </button>
+
+                            {/* Start/End Duty Toggle Pills */}
+                            <div className="w-full flex bg-gray-100/80 p-1.5 rounded-2xl mb-8">
+                                <button 
+                                    onClick={() => setCheckInType('check_in')} 
+                                    className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${checkInType === 'check_in' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-gray-400'}`}
+                                >
+                                    เริ่มปฏิบัติหน้าที่
+                                </button>
+                                <button 
+                                    onClick={() => setCheckInType('check_out')} 
+                                    className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${checkInType === 'check_out' ? 'bg-white text-rose-600 shadow-md scale-105' : 'text-gray-400'}`}
+                                >
+                                    สิ้นสุดหน้าที่
+                                </button>
+                            </div>
+
+                            {/* Final Confirm Button */}
+                            <button 
+                                onClick={handleConfirmCheckIn}
+                                disabled={isProcessing || !capturedImage || !currentGeo}
+                                className={`w-full py-5 rounded-3xl font-black text-lg transition-all active:scale-[0.98] ${
+                                    isProcessing || !capturedImage || !currentGeo 
+                                    ? 'bg-[#E5E7EB] text-[#9CA3AF]' 
+                                    : 'bg-blue-600 text-white shadow-2xl shadow-blue-600/30 hover:bg-blue-700'
+                                }`}
+                            >
+                                {isProcessing ? 'กำลังบันทึก...' : 'ยืนยันบันทึกเวลา'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* LIST TAB */}
             {activeTab === 'list' && (
-                <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 animate-fade-in no-print">
-                    <h2 className="text-xl font-black text-navy mb-6">ประวัติปฏิบัติหน้าที่</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 border-b">
-                                <tr>
-                                    <th className="p-4">รูปภาพ</th>
-                                    <th className="p-4">วัน/เวลา</th>
-                                    <th className="p-4">ชื่อ-นามสกุล</th>
-                                    <th className="p-4">รายการ</th>
-                                    <th className="p-4">ระยะห่าง</th>
-                                    <th className="p-4">สถานะ</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredRecords.map(r => (
-                                    <tr key={r.id} className="border-b hover:bg-slate-50 transition-colors">
-                                        <td className="p-3">
-                                            <div className="w-12 h-14 bg-slate-100 rounded overflow-hidden border">
-                                                {r.image ? <img src={getDirectDriveImageSrc(r.image as string)} className="w-full h-full object-cover" /> : null}
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col text-xs md:text-sm">
-                                                <span className="font-medium text-gray-500 leading-tight mb-1">{formatThaiDate(r.date)}</span>
-                                                <span className="font-bold text-navy">{formatOnlyTime(r.time)} น.</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-4 font-bold">{r.personnelName}</td>
-                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.type === 'check_in' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-rose-100 text-rose-600 border border-rose-200'}`}>{r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน'}</span></td>
-                                        <td className="p-4">{r.distance} ม.</td>
-                                        <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold ${r.status === 'within_range' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>{r.status === 'within_range' ? 'ในเขต' : 'นอกเขต'}</span></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'settings' && isAdmin && (
-                <div className="max-w-lg mx-auto bg-white p-8 rounded-[2.5rem] shadow-2xl border animate-fade-in">
-                    <h2 className="text-2xl font-black text-purple-900 mb-6 flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-xl text-purple-600"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
-                        ตั้งค่าพิกัดโรงเรียน
-                    </h2>
-
-                    <div className="space-y-6">
-                        <div className="bg-purple-600 p-6 rounded-2xl shadow-lg text-white">
-                            <p className="text-xs font-bold opacity-80 mb-3">ดึงตำแหน่งปัจจุบันอัตโนมัติ</p>
-                            <button onClick={handleAdminGetLocation} disabled={isLocating} className="w-full bg-white text-purple-700 font-black py-3 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50">
-                                {isLocating ? 'กำลังค้นหา...' : 'ดึงพิกัดที่ฉันยืนอยู่ตอนนี้'}
-                            </button>
+                <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-end no-print">
+                        <div className="flex-grow min-w-[200px]">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">ค้นหาชื่อบุคลากร</label>
+                            <input type="text" placeholder="พิมพ์ชื่อเพื่อค้นหา..." value={searchName} onChange={e => setSearchName(e.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-blue outline-none font-bold" />
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-gray-400 text-[10px] font-black uppercase mb-1 tracking-widest">Latitude</label>
-                                <input type="number" step="0.000001" value={localSettings.schoolLat || ''} onChange={e => setLocalSettings({...localSettings, schoolLat: parseFloat(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-mono text-sm" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-400 text-[10px] font-black uppercase mb-1 tracking-widest">Longitude</label>
-                                <input type="number" step="0.000001" value={localSettings.schoolLng || ''} onChange={e => setLocalSettings({...localSettings, schoolLng: parseFloat(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-mono text-sm" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-400 text-[10px] font-black uppercase mb-1 tracking-widest">ระยะรัศมีที่อนุญาต (เมตร)</label>
-                            <input type="number" value={localSettings.checkInRadius || ''} onChange={e => setLocalSettings({...localSettings, checkInRadius: parseInt(e.target.value)})} className="w-full border rounded-xl px-4 py-3 font-bold" />
-                        </div>
-
                         <button 
-                            onClick={handleSaveLocalSettings} 
-                            disabled={isSaving}
-                            className="w-full bg-purple-700 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-purple-800 transition-all disabled:opacity-50"
+                            onClick={handleExportExcel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all flex items-center gap-2"
                         >
-                            {isSaving ? 'กำลังบันทึกข้อมูล...' : 'บันทึกการตั้งค่า'}
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Export Excel
                         </button>
                     </div>
+
+                    <div className="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm min-w-[900px]">
+                                <thead className="bg-gray-50 text-gray-400 font-black border-b border-gray-100 uppercase text-[10px] tracking-widest">
+                                    <tr>
+                                        <th className="p-8">รูปภาพ</th>
+                                        <th className="p-8">วัน/เวลา</th>
+                                        <th className="p-8">ชื่อ-นามสกุล</th>
+                                        <th className="p-8">ประเภท</th>
+                                        <th className="p-8">ระยะห่าง</th>
+                                        {isAdmin && <th className="p-8 text-center">จัดการ</th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {filteredRecords.map(r => (
+                                        <tr key={r.id} className="hover:bg-blue-50/30 transition-all font-bold">
+                                            <td className="p-8">
+                                                <div className="w-12 h-14 rounded-xl bg-gray-100 overflow-hidden border border-gray-200">
+                                                    {r.image ? (
+                                                        <img src={getDirectDriveImageSrc(r.image)} className="w-full h-full object-cover" />
+                                                    ) : <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-300 italic">N/A</div>}
+                                                </div>
+                                            </td>
+                                            <td className="p-8">
+                                                <div className="text-gray-400 text-[11px] leading-tight mb-1">{r.date}</div>
+                                                <div className="text-navy text-base">{formatOnlyTime(r.time)} น.</div>
+                                            </td>
+                                            <td className="p-8">
+                                                <div className="text-navy text-base leading-tight">{r.personnelName}</div>
+                                            </td>
+                                            <td className="p-8">
+                                                <span className={`px-4 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest border ${r.type === 'check_in' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                                    {r.type === 'check_in' ? 'เริ่มงาน' : 'เลิกงาน'}
+                                                </span>
+                                            </td>
+                                            <td className="p-8">
+                                                <div className={`text-sm ${r.status === 'within_range' ? 'text-emerald-600' : 'text-rose-500'}`}>{r.distance} ม.</div>
+                                            </td>
+                                            {isAdmin && (
+                                                <td className="p-8 text-center">
+                                                    <button onClick={() => onDelete([r.id])} className="p-2 text-rose-300 hover:text-rose-600 transition-colors"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             )}
-            
-            <canvas ref={canvasRef} className="hidden" />
+
+            {/* SETTINGS TAB */}
+            {activeTab === 'settings' && isAdmin && (
+                <div className="max-w-2xl mx-auto bg-white p-10 rounded-[3rem] shadow-xl border border-gray-100 animate-fade-in no-print">
+                    <h3 className="text-2xl font-black text-navy mb-8">ตั้งค่าพิกัดโรงเรียน (GPS Center)</h3>
+                    <div className="space-y-8">
+                        <div className="grid grid-cols-2 gap-6">
+                            <div><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Latitude</label><input type="number" step="any" value={localSettings.schoolLat} onChange={e => setLocalSettings({...localSettings, schoolLat: parseFloat(e.target.value)})} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 font-bold" /></div>
+                            <div><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Longitude</label><input type="number" step="any" value={localSettings.schoolLng} onChange={e => setLocalSettings({...localSettings, schoolLng: parseFloat(e.target.value)})} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 font-bold" /></div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">ระยะอนุญาต (เมตร)</label>
+                            <input type="number" value={localSettings.checkInRadius} onChange={e => setLocalSettings({...localSettings, checkInRadius: parseInt(e.target.value)})} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 font-bold" />
+                        </div>
+                        <div className="pt-6 flex gap-4">
+                            <button onClick={handleAdminGetLocation} className="flex-1 py-4 bg-white border-2 border-blue-500 text-blue-600 font-black rounded-2xl hover:bg-blue-50 transition-all">ดึงพิกัดปัจจุบัน</button>
+                            <button onClick={handleSaveLocalSettings} disabled={isSaving} className="flex-[2] py-4 bg-navy text-white rounded-2xl font-black shadow-xl shadow-blue-900/20 hover:bg-blue-900 transition-all">{isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
