@@ -97,7 +97,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
             if (!apiKey) throw new Error("Missing API KEY");
             
-            const ai = new GoogleGenAI({ apiKey });
+            const ai = new GoogleGenAI({ apiKey: apiKey });
             const prompt = `Analyze school attendance for ${buddhistDate} at ${schoolName}. Students: ${students.length}, Present: ${totalStudentsReport}, Sick: ${totalSick}, Away: ${totalHome}. Personnel: ${personnel.length}, Present: ${personnelStatsSummary.present}. Provide summary in Thai.`;
             const response = await ai.models.generateContent({ 
                 model: 'gemini-3-flash-preview', 

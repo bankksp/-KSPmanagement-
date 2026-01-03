@@ -62,17 +62,18 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         setIsTyping(true);
 
         try {
-            // Support both API_KEY and GOOGLE_API_KEY (from user screenshot)
+            // ดึง API Key จากสภาพแวดล้อม รองรับทั้งชื่อมาตรฐาน และชื่อที่ผู้ใช้ตั้งใน Vercel
             const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
             
             if (!apiKey) {
-                throw new Error("Missing API key in environment variables.");
+                throw new Error("Missing API Key. Please configure API_KEY or GOOGLE_API_KEY in environment variables.");
             }
 
-            const ai = new GoogleGenAI({ apiKey });
+            // เริ่มต้นใช้งาน SDK ตาม Coding Guidelines
+            const ai = new GoogleGenAI({ apiKey: apiKey });
             const modelName = 'gemini-3-flash-preview';
             
-            // Prepare history: ensure it starts with a user message and roles alternate
+            // เตรียมรูปแบบ Content ให้ Gemini โดยตัด greeting แรกที่เป็น model ออกถ้าเป็นข้อความเริ่ม
             const apiContents = newMessages
                 .filter((m, i) => !(i === 0 && m.role === 'model'))
                 .map(m => ({
@@ -107,7 +108,7 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             console.error("AI Chat Error:", error);
             setMessages(prev => [...prev, { 
                 role: 'model', 
-                text: 'ขออภัยครับ ไม่สามารถเชื่อมต่อกับ AI ได้ในขณะนี้ กรุณาตรวจสอบให้แน่ใจว่าได้ตั้งชื่อตัวแปรใน Vercel ว่า GOOGLE_API_KEY และสถานะของ API Key ยังใช้งานได้ปกติ' 
+                text: 'ขออภัยครับ ไม่สามารถเชื่อมต่อกับ AI ได้ในขณะนี้ กรุณาตรวจสอบสถานะของ API Key ใน Google AI Studio และตรวจสอบการตั้งค่า GOOGLE_API_KEY ใน Vercel อีกครั้ง' 
             }]);
         } finally {
             setIsTyping(false);
