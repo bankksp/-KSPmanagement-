@@ -62,17 +62,17 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         setIsTyping(true);
 
         try {
-            // Check if API_KEY exists to provide better feedback
-            if (!process.env.API_KEY) {
-                throw new Error("Missing API_KEY environment variable.");
+            // Support both API_KEY and GOOGLE_API_KEY (from user screenshot)
+            const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
+            
+            if (!apiKey) {
+                throw new Error("Missing API key in environment variables.");
             }
 
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            // Use gemini-flash-latest for better compatibility as per guidelines
-            const modelName = 'gemini-flash-latest';
+            const ai = new GoogleGenAI({ apiKey });
+            const modelName = 'gemini-3-flash-preview';
             
             // Prepare history: ensure it starts with a user message and roles alternate
-            // Filter out the very first greeting if it's from model
             const apiContents = newMessages
                 .filter((m, i) => !(i === 0 && m.role === 'model'))
                 .map(m => ({
@@ -86,7 +86,6 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
                 config: {
                     systemInstruction: getSystemInstruction(),
                     temperature: 0.7,
-                    topP: 0.95,
                 }
             });
 
@@ -108,7 +107,7 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             console.error("AI Chat Error:", error);
             setMessages(prev => [...prev, { 
                 role: 'model', 
-                text: 'ขออภัยครับ เกิดข้อผิดพลาดในการเชื่อมต่อกับ AI กรุณาตรวจสอบการตั้งค่า API Key ใน Vercel Environment Variables หรือลองใหม่อีกครั้ง' 
+                text: 'ขออภัยครับ ไม่สามารถเชื่อมต่อกับ AI ได้ในขณะนี้ กรุณาตรวจสอบให้แน่ใจว่าได้ตั้งชื่อตัวแปรใน Vercel ว่า GOOGLE_API_KEY และสถานะของ API Key ยังใช้งานได้ปกติ' 
             }]);
         } finally {
             setIsTyping(false);
