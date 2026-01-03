@@ -94,20 +94,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     const generateAiSummary = async () => {
         setIsGeneratingAi(true);
         try {
-            const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
-            if (!apiKey) throw new Error("Missing API KEY");
-            
-            const ai = new GoogleGenAI({ apiKey: apiKey });
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Analyze school attendance for ${buddhistDate} at ${schoolName}. Students: ${students.length}, Present: ${totalStudentsReport}, Sick: ${totalSick}, Away: ${totalHome}. Personnel: ${personnel.length}, Present: ${personnelStatsSummary.present}. Provide summary in Thai.`;
-            const response = await ai.models.generateContent({ 
-                model: 'gemini-3-flash-preview', 
-                contents: prompt 
-            });
+            const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
             setAiSummary(response.text || "ไม่สามารถสรุปข้อมูลได้");
-        } catch (error) { 
-            console.error("AI Summary Error:", error);
-            setAiSummary("เกิดข้อผิดพลาดในการวิเคราะห์ด้วย AI กรุณาตรวจสอบการตั้งค่า GOOGLE_API_KEY ใน Vercel"); 
-        } finally { setIsGeneratingAi(false); }
+        } catch (error) { setAiSummary("เกิดข้อผิดพลาดในการวิเคราะห์ด้วย AI"); } finally { setIsGeneratingAi(false); }
     };
 
     const attendanceStatsData = useMemo(() => {

@@ -29,11 +29,12 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         }
     }, [messages, isTyping]);
 
-    const getSystemInstruction = () => {
+    const generateSystemPrompt = () => {
         const today = new Date().toLocaleDateString('th-TH');
         const dorms = settings.dormitories?.join(', ') || '';
         
-        return `
+        // Prepare context summary
+        const summary = `
             You are "D-Bot", an AI assistant for D-school Smart Management Platform (โรงเรียนกาฬสินธุ์ปัญญานุกูล).
             Current Context:
             - School Name: ${settings.schoolName}
@@ -48,45 +49,37 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             2. For stats questions, use the provided context.
             3. If asked about how to use, guide them to the specific menu (e.g., "ไปที่เมนู 'งานบริหารทั่วไป' -> 'งานสารบัญ'").
             4. Keep answers concise but complete.
-            5. ALWAYS start the interaction with the user's message.
         `;
+        return summary;
     };
 
     const handleSend = async () => {
         if (!input.trim() || isTyping) return;
 
         const userMessage = input.trim();
-        const newMessages = [...messages, { role: 'user' as const, text: userMessage }];
-        setMessages(newMessages);
         setInput('');
+        setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
         setIsTyping(true);
 
         try {
-            // ดึง API Key จากสภาพแวดล้อม รองรับทั้งชื่อมาตรฐาน และชื่อที่ผู้ใช้ตั้งใน Vercel
-            const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const model = 'gemini-3-flash-preview';
             
-            if (!apiKey) {
-                throw new Error("Missing API Key. Please configure API_KEY or GOOGLE_API_KEY in environment variables.");
-            }
-
-            // เริ่มต้นใช้งาน SDK ตาม Coding Guidelines
-            const ai = new GoogleGenAI({ apiKey: apiKey });
-            const modelName = 'gemini-3-flash-preview';
-            
-            // เตรียมรูปแบบ Content ให้ Gemini โดยตัด greeting แรกที่เป็น model ออกถ้าเป็นข้อความเริ่ม
-            const apiContents = newMessages
-                .filter((m, i) => !(i === 0 && m.role === 'model'))
-                .map(m => ({
-                    role: m.role,
-                    parts: [{ text: m.text }]
-                }));
+            const chatHistory = messages.map(m => ({
+                role: m.role === 'model' ? 'model' : 'user',
+                parts: [{ text: m.text }]
+            }));
 
             const responseStream = await ai.models.generateContentStream({
-                model: modelName,
-                contents: apiContents,
+                model: model,
+                contents: [
+                    { role: 'user', parts: [{ text: generateSystemPrompt() }] }, // Background Context
+                    ...chatHistory,
+                    { role: 'user', parts: [{ text: userMessage }] }
+                ],
                 config: {
-                    systemInstruction: getSystemInstruction(),
                     temperature: 0.7,
+                    topP: 0.95,
                 }
             });
 
@@ -95,21 +88,16 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             
             for await (const chunk of responseStream) {
                 const chunkText = chunk.text;
-                if (chunkText) {
-                    fullText += chunkText;
-                    setMessages(prev => {
-                        const newMsgs = [...prev];
-                        newMsgs[newMsgs.length - 1] = { role: 'model', text: fullText };
-                        return newMsgs;
-                    });
-                }
+                fullText += chunkText;
+                setMessages(prev => {
+                    const last = prev[prev.length - 1];
+                    const others = prev.slice(0, -1);
+                    return [...others, { role: 'model', text: fullText }];
+                });
             }
         } catch (error) {
-            console.error("AI Chat Error:", error);
-            setMessages(prev => [...prev, { 
-                role: 'model', 
-                text: 'ขออภัยครับ ไม่สามารถเชื่อมต่อกับ AI ได้ในขณะนี้ กรุณาตรวจสอบสถานะของ API Key ใน Google AI Studio และตรวจสอบการตั้งค่า GOOGLE_API_KEY ใน Vercel อีกครั้ง' 
-            }]);
+            console.error("AI Error:", error);
+            setMessages(prev => [...prev, { role: 'model', text: 'ขออภัยครับ เกิดข้อผิดพลาดในการเชื่อมต่อกับสมองกล AI กรุณาลองใหม่อีกครั้ง' }]);
         } finally {
             setIsTyping(false);
         }
@@ -192,7 +180,7 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
                 ) : (
                     <div className="relative">
                         <span className="text-3xl group-hover:animate-bounce inline-block">🤖</span>
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-50 border-2 border-white rounded-full"></div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></div>
                     </div>
                 )}
             </button>
