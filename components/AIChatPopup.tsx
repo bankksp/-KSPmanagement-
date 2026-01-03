@@ -29,12 +29,11 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         }
     }, [messages, isTyping]);
 
-    const generateSystemPrompt = () => {
+    const generateSystemInstruction = () => {
         const today = new Date().toLocaleDateString('th-TH');
         const dorms = settings.dormitories?.join(', ') || '';
         
-        // Prepare context summary
-        const summary = `
+        return `
             You are "D-Bot", an AI assistant for D-school Smart Management Platform (โรงเรียนกาฬสินธุ์ปัญญานุกูล).
             Current Context:
             - School Name: ${settings.schoolName}
@@ -42,42 +41,41 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             - Total Students: ${students.length}
             - Total Personnel: ${personnel.length}
             - Dormitories: ${dorms}
-            - App Sections: Dashboard, Student Records, Attendance (Student/Staff), Reports, Academic Plans, Finance/Supplies, Durable Goods, General Documents, Repair Requests, Construction, Nutrition.
+            - App Sections: Dashboard, Student Records, Attendance, Reports, Academic Plans, Finance, Supplies, Durable Goods, General Documents, Repair Requests, Construction, Nutrition.
             
             Guidelines:
             1. Answer in Thai language professionally and helpfully.
             2. For stats questions, use the provided context.
-            3. If asked about how to use, guide them to the specific menu (e.g., "ไปที่เมนู 'งานบริหารทั่วไป' -> 'งานสารบัญ'").
+            3. If asked about how to use, guide them to the specific menu.
             4. Keep answers concise but complete.
         `;
-        return summary;
     };
 
     const handleSend = async () => {
         if (!input.trim() || isTyping) return;
 
         const userMessage = input.trim();
+        const newMessages = [...messages, { role: 'user' as const, text: userMessage }];
+        
         setInput('');
-        setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+        setMessages(newMessages);
         setIsTyping(true);
 
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const model = 'gemini-3-flash-preview';
             
-            const chatHistory = messages.map(m => ({
-                role: m.role === 'model' ? 'model' : 'user',
+            // Format history for Gemini API (must alternate user/model)
+            // Note: The first message is from model (greeting), so the sequence will be model, user, model, user...
+            const contents = newMessages.map(m => ({
+                role: m.role,
                 parts: [{ text: m.text }]
             }));
 
             const responseStream = await ai.models.generateContentStream({
-                model: model,
-                contents: [
-                    { role: 'user', parts: [{ text: generateSystemPrompt() }] }, // Background Context
-                    ...chatHistory,
-                    { role: 'user', parts: [{ text: userMessage }] }
-                ],
+                model: 'gemini-3-flash-preview',
+                contents: contents,
                 config: {
+                    systemInstruction: generateSystemInstruction(),
                     temperature: 0.7,
                     topP: 0.95,
                 }
@@ -88,16 +86,26 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             
             for await (const chunk of responseStream) {
                 const chunkText = chunk.text;
-                fullText += chunkText;
-                setMessages(prev => {
-                    const last = prev[prev.length - 1];
-                    const others = prev.slice(0, -1);
-                    return [...others, { role: 'model', text: fullText }];
-                });
+                if (chunkText) {
+                    fullText += chunkText;
+                    setMessages(prev => {
+                        const newMsgList = [...prev];
+                        newMsgList[newMsgList.length - 1] = { role: 'model', text: fullText };
+                        return newMsgList;
+                    });
+                }
             }
-        } catch (error) {
-            console.error("AI Error:", error);
-            setMessages(prev => [...prev, { role: 'model', text: 'ขออภัยครับ เกิดข้อผิดพลาดในการเชื่อมต่อกับสมองกล AI กรุณาลองใหม่อีกครั้ง' }]);
+        } catch (error: any) {
+            console.error("AI Error details:", error);
+            let errorMessage = 'ขออภัยครับ เกิดข้อผิดพลาดในการเชื่อมต่อกับสมองกล AI';
+            
+            if (error?.message?.includes('API key not valid')) {
+                errorMessage = 'ขออภัยครับ API Key ไม่ถูกต้อง โปรดตรวจสอบการตั้งค่าใน Vercel';
+            } else if (error?.message?.includes('quota')) {
+                errorMessage = 'ขออภัยครับ โควตาการใช้งาน AI เต็มแล้ว โปรดลองใหม่ในภายหลัง';
+            }
+
+            setMessages(prev => [...prev, { role: 'model', text: errorMessage }]);
         } finally {
             setIsTyping(false);
         }
