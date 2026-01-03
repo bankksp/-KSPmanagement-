@@ -157,6 +157,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 absent: records.filter(r => r.status === 'absent').length,
                 sick: records.filter(r => r.status === 'sick').length,
                 leave: records.filter(r => r.status === 'leave').length,
+                // Add home property to satisfy CalculatedStats type
+                home: records.filter(r => r.status === 'home').length,
             };
         });
         const personnelStats = periods.map(period => {
@@ -170,6 +172,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 absent: records.filter(r => r.status === 'absent').length,
                 sick: records.filter(r => r.status === 'sick').length,
                 leave: records.filter(r => r.status === 'leave').length,
+                // Add home property to satisfy CalculatedStats type
+                home: records.filter(r => r.status === 'home').length,
                 tidy: presentOrActivity.filter(r => r.dressCode !== 'untidy').length, 
                 untidy: presentOrActivity.filter(r => r.dressCode === 'untidy').length
             };

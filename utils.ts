@@ -22,7 +22,7 @@ export const toThaiNumerals = (str: string | number | undefined): string => {
 };
 
 /**
- * Extract time from Google Sheets date string (handles 1899-12-30 cases and full ISO)
+ * Extract time from Google Sheets date string
  */
 export const formatOnlyTime = (timeStr: string | undefined): string => {
     if (!timeStr) return '';
@@ -167,57 +167,59 @@ export const safeParseArray = (input: any): any[] => {
 };
 
 /**
- * Normalizes date from various formats including ISO strings with Buddhist years
+ * Normalizes date from various formats avoiding Timezone shifts and double BE offsets
  */
 export const normalizeDate = (input: any): Date | null => {
     if (!input) return null;
-    if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+    if (input instanceof Date) {
+        if (isNaN(input.getTime())) return null;
+        // If the date object already has a BE year, correct it to Gregorian
+        if (input.getFullYear() > 2400) {
+            return new Date(input.getFullYear() - 543, input.getMonth(), input.getDate(), input.getHours(), input.getMinutes());
+        }
+        return input;
+    }
     
     const str = String(input).trim();
     
-    // 1. Handle ISO formats like 2535-12-09T... or 1992-12-09
-    if (str.includes('T') || str.match(/^\d{4}-\d{2}-\d{2}/)) {
-        const datePart = str.split('T')[0];
-        const parts = datePart.split(/[-/]/).map(Number);
-        
-        if (parts.length === 3) {
-            let y = parts[0], m = parts[1], d = parts[2];
-            
-            // Detect Buddhist Year in ISO-like string
-            if (y > 2400) y -= 543;
-            // Handle case where it might be DD-MM-YYYY
-            else if (y < 31 && d > 2400) {
-                const temp = y; y = d - 543; d = temp;
+    // 1. Handle full ISO string (from Google Script)
+    if (str.includes('T')) {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+            // Check if ISO year was accidentally saved as BE
+            if (d.getFullYear() > 2400) {
+                return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
             }
-
-            const dateObj = new Date(y, m - 1, d);
-            if (str.includes('T')) {
-                const timeStr = str.split('T')[1];
-                const timeMatch = timeStr.match(/(\d{2}):(\d{2})/);
-                if (timeMatch) {
-                    dateObj.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]));
-                }
-            }
-            return isNaN(dateObj.getTime()) ? null : dateObj;
+            return d;
         }
     }
+
+    // 2. Handle plain YYYY-MM-DD (BE or Gregorian)
+    const isoMatch = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+    if (isoMatch) {
+        let y = parseInt(isoMatch[1]);
+        const m = parseInt(isoMatch[2]);
+        const d = parseInt(isoMatch[3]);
+        if (y > 2400) y -= 543;
+        const dateObj = new Date(y, m - 1, d);
+        return isNaN(dateObj.getTime()) ? null : dateObj;
+    }
     
-    // 2. Check Thai format (DD/MM/YYYY)
-    const parts = str.split('/');
-    if (parts.length === 3) {
-        const d = parseInt(parts[0]);
-        const m = parseInt(parts[1]) - 1;
-        let y = parseInt(parts[2]);
+    // 3. Handle Thai format (DD/MM/YYYY)
+    const thaiMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (thaiMatch) {
+        const d = parseInt(thaiMatch[1]);
+        const m = parseInt(thaiMatch[2]) - 1;
+        let y = parseInt(thaiMatch[3]);
         if (y > 2400) y -= 543;
         const dateObj = new Date(y, m, d);
         return isNaN(dateObj.getTime()) ? null : dateObj;
     }
     
-    // 3. Fallback for potential raw timestamps
+    // 4. Final fallback
     const timestamp = Date.parse(str);
     if (!isNaN(timestamp)) {
         const d = new Date(timestamp);
-        // If year ended up in 2500s due to parsing
         if (d.getFullYear() > 2400) {
             return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
         }
@@ -303,9 +305,9 @@ export const postToGoogleScript = async (payload: any, retries = 3) => {
         try {
             const response = await fetch(scriptUrl, {
                 method: 'POST',
-                mode: 'cors', // Ensure CORS is enabled
+                mode: 'cors', 
                 headers: { 
-                    'Content-Type': 'text/plain;charset=utf-8' // Use text/plain to avoid preflight
+                    'Content-Type': 'text/plain;charset=utf-8' 
                 },
                 body: JSON.stringify(payload)
             });
@@ -313,7 +315,6 @@ export const postToGoogleScript = async (payload: any, retries = 3) => {
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const text = await response.text();
             
-            // Check if response is HTML (login page redirect) vs JSON
             if (text.trim().startsWith('<!DOCTYPE')) {
                 throw new Error('Google Script session expired or restricted access. Please check script deployment permissions.');
             }

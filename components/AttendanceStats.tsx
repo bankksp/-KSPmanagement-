@@ -11,6 +11,7 @@ interface CalculatedStats {
         absent: number;
         sick: number;
         leave: number;
+        home: number;
     }[];
     personnelStats: {
         period: string;
@@ -20,6 +21,7 @@ interface CalculatedStats {
         absent: number;
         sick: number;
         leave: number;
+        home: number;
         tidy: number;
         untidy: number;
     }[];
@@ -40,10 +42,11 @@ interface StatRowProps {
     absent: number;
     sick?: number;
     leave: number;
+    home?: number;
     color: string;
 }
 
-const StatRow: React.FC<StatRowProps> = ({ period, present, absent, sick, leave, color }) => (
+const StatRow: React.FC<StatRowProps> = ({ period, present, absent, sick, leave, home, color }) => (
     <div className="flex items-center justify-between py-3 border-b last:border-0">
         <div className="w-16 font-semibold text-gray-700">{period}</div>
         <div className="flex-1 flex justify-end gap-2 md:gap-4 text-xs md:text-sm">
@@ -51,6 +54,12 @@ const StatRow: React.FC<StatRowProps> = ({ period, present, absent, sick, leave,
                 <span className="text-green-600 font-bold text-lg">{present}</span>
                 <span className="text-gray-400 text-[10px]">มา</span>
             </div>
+            {home !== undefined && (
+                <div className="flex flex-col items-center min-w-[40px]">
+                    <span className="text-indigo-500 font-bold text-lg">{home}</span>
+                    <span className="text-gray-400 text-[10px]">อยู่บ้าน</span>
+                </div>
+            )}
             <div className="flex flex-col items-center min-w-[40px]">
                 <span className="text-red-500 font-bold text-lg">{absent}</span>
                 <span className="text-gray-400 text-[10px]">ขาด</span>
@@ -94,6 +103,7 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                 absent: records.filter(r => r.status === 'absent').length,
                 sick: records.filter(r => r.status === 'sick').length,
                 leave: records.filter(r => r.status === 'leave').length,
+                home: records.filter(r => r.status === 'home').length,
             };
         });
 
@@ -108,6 +118,7 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                 absent: records.filter(r => r.status === 'absent').length,
                 sick: records.filter(r => r.status === 'sick').length,
                 leave: records.filter(r => r.status === 'leave').length,
+                home: records.filter(r => r.status === 'home').length,
                 tidy: presentOrActivity.filter(r => r.dressCode !== 'untidy').length, 
                 untidy: presentOrActivity.filter(r => r.dressCode === 'untidy').length
             };
@@ -135,6 +146,7 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                             absent={stat.absent} 
                             sick={stat.sick}
                             leave={stat.leave}
+                            home={stat.home}
                             color="blue" 
                         />
                     ))}
@@ -158,6 +170,7 @@ const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                             absent={stat.absent} 
                             leave={stat.leave}
                             sick={stat.sick} 
+                            home={stat.home}
                             color="purple" 
                         />
                     ))}

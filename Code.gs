@@ -150,6 +150,12 @@ function routeGenericAction(action, request, uploadFolder) {
 
   if (action.startsWith('add') || action.startsWith('update') || action.startsWith('save')) {
     const records = Array.isArray(data) ? data : [data];
+    
+    // ตรวจสอบและสร้าง Header ครั้งเดียวสำหรับทั้งชุดข้อมูลเพื่อความรวดเร็วและแม่นยำ
+    if (records.length > 0) {
+      ensureHeadersExist(sheet, records[0]);
+    }
+    
     const results = records.map(r => saveRecord(sheet, r, uploadFolder));
     return responseJSON({ status: 'success', data: Array.isArray(data) ? results : results[0] });
   }
@@ -186,6 +192,23 @@ function readSheet(sheet) {
   });
 }
 
+function ensureHeadersExist(sheet, dataObj) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(Object.keys(dataObj));
+    return;
+  }
+  
+  const headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+  const objKeys = Object.keys(dataObj);
+  
+  objKeys.forEach(key => {
+    if (headers.indexOf(key) === -1) {
+      sheet.getRange(1, headers.length + 1).setValue(key);
+      headers.push(key);
+    }
+  });
+}
+
 function saveRecord(sheet, dataObj, uploadFolder) {
   // Handle file uploads
   for (const key in dataObj) {
@@ -206,28 +229,8 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     }
   }
 
-  // Ensure headers exist and match object keys
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(Object.keys(dataObj));
-  }
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
-  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  
-  // Check for missing headers and add them
-  const objKeys = Object.keys(dataObj);
-  let headersChanged = false;
-  objKeys.forEach(key => {
-    if (headers.indexOf(key) === -1) {
-      sheet.getRange(1, headers.length + 1).setValue(key);
-      headers.push(key);
-      headersChanged = true;
-    }
-  });
-  
-  if (headersChanged) {
-    headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  }
-
   // Find row to update or append
   let rowIndex = -1;
   const idIndex = headers.indexOf('id');

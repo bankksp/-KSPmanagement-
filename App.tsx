@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// ... (imports remain same as original file)
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -94,7 +95,7 @@ const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<Personnel | null>(null);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
-    
+
     useEffect(() => {
         const root = document.documentElement;
         root.style.setProperty('--color-primary', settings.themeColors.primary);
@@ -293,6 +294,34 @@ const App: React.FC = () => {
         return () => clearInterval(intervalId);
     }, [fetchData, isUIBusy, isAuthenticated]);
 
+    const handleSaveAttendance = async (t: 'student' | 'personnel', d: any) => { 
+        setIsSaving(true);
+        try {
+            const action = t === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
+            const response = await postToGoogleScript({ action, data: d });
+            const savedRaw = Array.isArray(response.data) ? response.data : [response.data];
+            const saved = savedRaw.map((r:any) => ({ ...r, date: normalizeDateString(r.date) }));
+            
+            if(t === 'student') {
+                setStudentAttendance(prev => {
+                    const ids = new Set(saved.map((x:any) => String(x.id)));
+                    return [...prev.filter(r => !ids.has(String(r.id))), ...saved];
+                });
+            } else {
+                setPersonnelAttendance(prev => {
+                    const ids = new Set(saved.map((x:any) => String(x.id)));
+                    return [...prev.filter(r => !ids.has(String(r.id))), ...saved];
+                });
+            }
+            return Promise.resolve(); 
+        } catch(e) { 
+            console.error(e);
+            return Promise.reject(e); 
+        } finally { 
+            setIsSaving(false); 
+        }
+    }; 
+    
     const handleSaveAdminSettings = async (newSettings: Settings, redirect: boolean = true) => {
         setIsSaving(true);
         try {
@@ -355,32 +384,6 @@ const App: React.FC = () => {
             handleCloseReportModal();
         } catch(e) { console.error(e); alert('Error saving report'); } finally { setIsSaving(false); }
     };
-
-    const handleSaveAttendance = async (t: 'student' | 'personnel', d: any) => { 
-        setIsSaving(true);
-        try {
-            const action = t === 'student' ? 'saveStudentAttendance' : 'savePersonnelAttendance';
-            const response = await postToGoogleScript({ action, data: d });
-            const savedRaw = Array.isArray(response.data) ? response.data : [response.data];
-            const saved = savedRaw.map((r:any) => ({ ...r, date: normalizeDateString(r.date) }));
-            if(t === 'student') {
-                setStudentAttendance(prev => {
-                    const ids = new Set(saved.map((x:any) => String(x.id)));
-                    return [...prev.filter(r => !ids.has(String(r.id))), ...saved];
-                });
-            } else {
-                setPersonnelAttendance(prev => {
-                    const ids = new Set(saved.map((x:any) => String(x.id)));
-                    return [...prev.filter(r => !ids.has(String(r.id))), ...saved];
-                });
-            }
-        } catch(e) { 
-            console.error(e);
-            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
-        } finally { 
-            setIsSaving(false); 
-        }
-    }; 
 
     const handleDeleteAttendance = async (t: 'student' | 'personnel', ids: string[]) => {
         if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายการนี้?')) return;
