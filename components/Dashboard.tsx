@@ -82,15 +82,27 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         return { dormitoryData: finalDormitoryData, totalStudentsReport: accPresent, totalSick: accSick, totalHome: accHome, buddhistDate: bDateStr };
     }, [reports, dormitories, selectedDate, students]);
+
+    const personnelStatsSummary = useMemo(() => {
+        const records = personnelAttendance.filter(r => r.date === buddhistDate && r.period === 'morning_act');
+        return {
+            present: records.filter(r => r.status === 'present' || r.status === 'activity').length,
+            absent: records.filter(r => r.status === 'absent' || r.status === 'sick' || r.status === 'leave').length
+        };
+    }, [personnelAttendance, buddhistDate]);
     
     const generateAiSummary = async () => {
         setIsGeneratingAi(true);
         try {
+            if (!process.env.API_KEY) throw new Error("Missing API KEY");
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const prompt = `Analyze school attendance for ${buddhistDate} at ${schoolName}. Students: ${students.length}, Present: ${totalStudentsReport}, Sick: ${totalSick}, Away: ${totalHome}. Provide summary in Thai.`;
-            const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+            const prompt = `Analyze school attendance for ${buddhistDate} at ${schoolName}. Students: ${students.length}, Present: ${totalStudentsReport}, Sick: ${totalSick}, Away: ${totalHome}. Personnel: ${personnel.length}, Present: ${personnelStatsSummary.present}. Provide summary in Thai.`;
+            const response = await ai.models.generateContent({ model: 'gemini-flash-latest', contents: prompt });
             setAiSummary(response.text || "ไม่สามารถสรุปข้อมูลได้");
-        } catch (error) { setAiSummary("เกิดข้อผิดพลาดในการวิเคราะห์ด้วย AI"); } finally { setIsGeneratingAi(false); }
+        } catch (error) { 
+            console.error("AI Summary Error:", error);
+            setAiSummary("เกิดข้อผิดพลาดในการวิเคราะห์ด้วย AI กรุณาตรวจสอบการตั้งค่า API Key"); 
+        } finally { setIsGeneratingAi(false); }
     };
 
     const attendanceStatsData = useMemo(() => {
@@ -221,6 +233,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Stats Section */}
                 <div className="lg:col-span-1 space-y-4">
+                    {/* Student Card */}
                     <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
                         <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">นักเรียนทั้งหมด</p>
                         <h3 className="text-5xl font-black text-navy">{students.length}</h3>
@@ -229,12 +242,47 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <div className="bg-pink-50 px-3 py-1 rounded-lg text-[10px] font-bold text-pink-600">หญิง: {students.filter(s => ['เด็กหญิง', 'นางสาว'].includes(s.studentTitle)).length}</div>
                         </div>
                     </div>
+
+                    {/* Personnel Card */}
                     <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-                        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">สถานะประจำวัน</p>
-                        <div className="grid grid-cols-3 gap-3 text-center mt-2">
-                            <div className="bg-emerald-50 p-3 rounded-2xl"><p className="text-xl font-black text-emerald-600">{totalStudentsReport}</p><p className="text-[9px] font-bold text-emerald-500">มา</p></div>
-                            <div className="bg-rose-50 p-3 rounded-2xl"><p className="text-xl font-black text-rose-600">{totalSick}</p><p className="text-[9px] font-bold text-rose-500">ป่วย</p></div>
-                            <div className="bg-slate-50 p-3 rounded-2xl"><p className="text-xl font-black text-slate-600">{totalHome}</p><p className="text-[9px] font-bold text-slate-500">อื่นๆ</p></div>
+                        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">บุคลากรทั้งหมด</p>
+                        <h3 className="text-5xl font-black text-navy">{personnel.length}</h3>
+                        <div className="mt-6 flex gap-2">
+                            <div className="bg-indigo-50 px-3 py-1 rounded-lg text-[10px] font-bold text-indigo-600">ชาย: {personnel.filter(p => p.personnelTitle === 'นาย').length}</div>
+                            <div className="bg-purple-50 px-3 py-1 rounded-lg text-[10px] font-bold text-purple-600">หญิง: {personnel.filter(p => ['นาง', 'นางสาว'].includes(p.personnelTitle)).length}</div>
+                        </div>
+                    </div>
+
+                    {/* Daily Status Summary */}
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
+                        <div className="flex justify-between items-baseline mb-4">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none">สถานะมาเรียน/มาทำงานวันนี้</p>
+                            <span className="text-[9px] font-bold text-blue-500 uppercase">Real-time</span>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-gray-500 mb-2">นักเรียน</p>
+                                <div className="grid grid-cols-3 gap-3 text-center">
+                                    <div className="bg-emerald-50 p-3 rounded-2xl"><p className="text-xl font-black text-emerald-600">{totalStudentsReport}</p><p className="text-[9px] font-bold text-emerald-500">มา</p></div>
+                                    <div className="bg-rose-50 p-3 rounded-2xl"><p className="text-xl font-black text-rose-600">{totalSick}</p><p className="text-[9px] font-bold text-rose-500">ป่วย</p></div>
+                                    <div className="bg-slate-50 p-3 rounded-2xl"><p className="text-xl font-black text-slate-600">{totalHome}</p><p className="text-[9px] font-bold text-slate-500">อื่นๆ</p></div>
+                                </div>
+                            </div>
+                            
+                            <div className="pt-4 border-t border-gray-50">
+                                <p className="text-[10px] font-bold text-gray-500 mb-2">บุคลากร</p>
+                                <div className="grid grid-cols-2 gap-3 text-center">
+                                    <div className="bg-blue-50 p-3 rounded-2xl flex justify-between items-center px-4">
+                                        <span className="text-[9px] font-bold text-blue-500">มาปฏิบัติหน้าที่</span>
+                                        <p className="text-xl font-black text-blue-600">{personnelStatsSummary.present}</p>
+                                    </div>
+                                    <div className="bg-orange-50 p-3 rounded-2xl flex justify-between items-center px-4">
+                                        <span className="text-[9px] font-bold text-orange-500">ลา/ขาด/ป่วย</span>
+                                        <p className="text-xl font-black text-orange-600">{personnelStatsSummary.absent}</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
