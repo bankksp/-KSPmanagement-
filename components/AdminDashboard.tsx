@@ -73,6 +73,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
 
+    /* Fix: Corrected typo in type 'studentClassroom' to 'studentClassrooms' to match Settings interface and fix type mismatch on line 98 */
     const handleRemoveItem = (
         key: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms', 
         index: number
@@ -218,6 +219,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                             <input type="password" name="adminPassword" value={localSettings.adminPassword || ''} onChange={handleSettingsChange} placeholder="กำหนดรหัสผ่านสำหรับยืนยันการลบ" className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
                             <p className="text-xs text-gray-500 mt-1">ใช้สำหรับการยืนยันการลบข้อมูลสำคัญ</p>
                         </div>
+                        
+                        {/* Auto-Hide Sidebar Setting Enhanced */}
+                        <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 mt-4 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-indigo-900 tracking-tight">ซ่อนแถบเมนูอัตโนมัติ (Auto-Hide Sidebar)</h3>
+                                        <p className="text-xs text-indigo-500 font-bold uppercase tracking-widest mt-1">ระบบจะซ่อนเมนูเมื่อใช้งานหน้าจอกว้าง และแสดงเมื่อนำเมาส์ไปวางที่ขอบจอ</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setLocalSettings(prev => ({ ...prev, autoHideSidebar: !prev.autoHideSidebar }))}
+                                    className={`w-16 h-8 rounded-full relative transition-all duration-500 ease-in-out flex-shrink-0 shadow-inner ${localSettings.autoHideSidebar ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                >
+                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transition-all duration-500 transform ${localSettings.autoHideSidebar ? 'translate-x-9' : 'translate-x-1'}`}></div>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 );
             default: return null;
@@ -225,7 +248,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
     };
     
     return (
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-gray-100">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-gray-100 animate-fade-in">
             <div className="flex flex-col md:flex-row gap-8">
                 {/* Sidebar */}
                 <aside className="md:w-1/4">
@@ -244,7 +267,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                 {/* Main Content */}
                 <main className="md:w-3/4">
                     <div className="mb-8 pb-4 border-b">
-                         <h2 className="text-2xl font-black text-navy">
+                         <h2 className="text-2xl font-black text-navy tracking-tight">
                              {
                                 {general: 'ตั้งค่าทั่วไป', appearance: 'ปรับแต่งหน้าตาเว็บ', lists: 'จัดการรายการข้อมูล', attendance: 'ตั้งค่าระบบเช็คชื่อ', system: 'ตั้งค่าระบบ'}[activeTab]
                              }
@@ -263,7 +286,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                     type="button" 
                     onClick={() => onSave(localSettings)} 
                     disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-10 rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-10 rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50 active:scale-95 transition-all"
                 >
                     {isSaving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
                 </button>

@@ -14,11 +14,14 @@ interface SidebarProps {
     isOpen: boolean;
     onCloseMobile: () => void;
     isDesktopOpen: boolean;
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
     onNavigate, currentPage, schoolName, schoolLogo, 
-    currentUser, personnel, isOpen, onCloseMobile, isDesktopOpen
+    currentUser, personnel, isOpen, onCloseMobile, isDesktopOpen,
+    onMouseEnter, onMouseLeave
 }) => {
     const [expandedMenu, setExpandedMenu] = useState<string | null>('studentAffairs');
 
@@ -102,11 +105,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="fixed inset-0 bg-black/30 z-40 lg:hidden backdrop-blur-sm transition-opacity" onClick={onCloseMobile}></div>
             )}
 
-            <div className={`
-                fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out flex flex-col
-                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-                ${isDesktopOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'}
-            `}>
+            <div 
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`
+                    fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out flex flex-col
+                    ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+                    ${isDesktopOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'}
+                `}
+            >
                 {/* Sidebar Header: School Brand */}
                 <div className="p-6 flex flex-col items-center justify-center border-b border-gray-100 shrink-0">
                     <div className="relative group cursor-pointer" onClick={() => { onNavigate('stats'); onCloseMobile(); }}>

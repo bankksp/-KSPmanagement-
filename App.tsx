@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-// ... (imports remain same as original file)
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -37,6 +36,7 @@ import NutritionPage from './components/NutritionPage';
 import DutyPage from './components/DutyPage';
 import LeavePage from './components/LeavePage';
 import WorkflowPage from './components/WorkflowPage';
+import AIChatPopup from './components/AIChatPopup'; // New Import
 
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
@@ -53,6 +53,7 @@ const App: React.FC = () => {
     
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
     const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); 
+    const [isMouseInSidebarZone, setIsMouseInSidebarZone] = useState(false);
 
     const [reports, setReports] = useState<Report[]>([]);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
@@ -100,7 +101,11 @@ const App: React.FC = () => {
         const root = document.documentElement;
         root.style.setProperty('--color-primary', settings.themeColors.primary);
         root.style.setProperty('--color-primary-hover', settings.themeColors.primaryHover);
-    }, [settings.themeColors]);
+        
+        if (settings.autoHideSidebar) {
+            setIsDesktopSidebarOpen(false);
+        }
+    }, [settings.themeColors, settings.autoHideSidebar]);
     
     useEffect(() => {
         const storedUser = localStorage.getItem('dschool_user');
@@ -121,6 +126,19 @@ const App: React.FC = () => {
             setIsAuthenticated(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (!settings.autoHideSidebar) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (e.clientX <= 30) {
+                setIsDesktopSidebarOpen(true);
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, [settings.autoHideSidebar]);
 
     const normalizeDateString = (dateInput: any): string => {
         if (!dateInput) return '';
@@ -146,7 +164,6 @@ const App: React.FC = () => {
             const response = await postToGoogleScript({ action: 'getAllData' });
             const data = response.data || {};
             
-            // Normalize Reports
             const normalizedReports = (data.reports || []).map((r: any) => {
                 if (r.studentDetails && typeof r.studentDetails !== 'string') {
                     r.studentDetails = JSON.stringify(r.studentDetails);
@@ -156,10 +173,8 @@ const App: React.FC = () => {
             });
             setReports(normalizedReports);
 
-            // Students
             setStudents(data.students || []);
             
-            // Personnel
             let fetchedPersonnel: Personnel[] = data.personnel || [];
             fetchedPersonnel = fetchedPersonnel.map(p => {
                 const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
@@ -578,11 +593,38 @@ const App: React.FC = () => {
         }
         setCurrentPage(page);
         setIsSidebarOpen(false); 
+        if (settings.autoHideSidebar) {
+            setIsDesktopSidebarOpen(false);
+        }
+    };
+
+    const handleSidebarMouseEnter = () => {
+        if (settings.autoHideSidebar) {
+            setIsDesktopSidebarOpen(true);
+        }
+    };
+
+    const handleSidebarMouseLeave = () => {
+        if (settings.autoHideSidebar) {
+            setIsDesktopSidebarOpen(false);
+        }
     };
 
     return (
-        <div className="flex h-screen overflow-hidden bg-[#F3F4F6] font-sarabun">
-            <Sidebar onNavigate={navigateTo} currentPage={currentPage} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} personnel={personnel} isOpen={isSidebarOpen} onCloseMobile={() => setIsSidebarOpen(false)} isDesktopOpen={isDesktopSidebarOpen} />
+        <div className="flex h-screen overflow-hidden bg-[#F3F4F6] font-sarabun text-navy">
+            <Sidebar 
+                onNavigate={navigateTo} 
+                currentPage={currentPage} 
+                schoolName={settings.schoolName} 
+                schoolLogo={settings.schoolLogo} 
+                currentUser={currentUser} 
+                personnel={personnel} 
+                isOpen={isSidebarOpen} 
+                onCloseMobile={() => setIsSidebarOpen(false)} 
+                isDesktopOpen={isDesktopSidebarOpen}
+                onMouseEnter={handleSidebarMouseEnter}
+                onMouseLeave={handleSidebarMouseLeave}
+            />
             <div className={`flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300 ${isDesktopSidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
                 <Header onReportClick={() => setIsReportModalOpen(true)} onNavigate={navigateTo} currentPage={currentPage} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} onLoginClick={() => setIsLoginModalOpen(true)} onLogoutClick={handleLogout} personnel={personnel} onToggleSidebar={() => setIsSidebarOpen(true)} isDesktopSidebarOpen={isDesktopSidebarOpen} onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)} isSyncing={isSyncing} />
                 <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
@@ -590,6 +632,14 @@ const App: React.FC = () => {
                     <div className="h-10"></div> 
                     <Footer />
                 </main>
+                {/* AI Assistant Popup */}
+                <AIChatPopup 
+                    students={students} 
+                    personnel={personnel} 
+                    reports={reports} 
+                    settings={settings} 
+                    studentAttendance={studentAttendance} 
+                />
             </div>
             <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleSessionLogin} personnelList={personnel} onRegisterClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }} />
             <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} positions={settings.positions} isSaving={isSaving} />

@@ -73,7 +73,8 @@ export const DEFAULT_SETTINGS: Settings = {
     checkInRadius: 200,
     leaveTypes: LEAVE_TYPES,
     leaveApproverIds: [],
-    attendancePeriods: DEFAULT_ATTENDANCE_PERIODS
+    attendancePeriods: DEFAULT_ATTENDANCE_PERIODS,
+    autoHideSidebar: false
 };
 
 export const THAI_PROVINCES = [

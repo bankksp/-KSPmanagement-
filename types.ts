@@ -184,6 +184,7 @@ export interface Settings {
     leaveTypes?: string[];
     leaveApproverIds?: number[];
     attendancePeriods?: AttendancePeriodConfig[];
+    autoHideSidebar?: boolean;
 }
 
 export type TimePeriod = 
