@@ -497,14 +497,14 @@ const LeavePage: React.FC<LeavePageProps> = ({
 
             {/* MODAL: SUBMIT LEAVE */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[80] p-4">
                     <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl flex flex-col max-h-[95vh] overflow-hidden animate-fade-in-up">
                         <div className="p-8 bg-primary-blue text-white flex justify-between items-center shrink-0">
                             <div>
                                 <h3 className="text-2xl font-black">ยื่นใบลาอิเล็กทรอนิกส์</h3>
                                 <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mt-1">Official Digital Leave Form</p>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                            <button onClick={() => setIsModalOpen(false)} className="relative z-20 hover:bg-white/20 p-2 rounded-full transition-colors"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
                         <form onSubmit={handleSaveRecord} className="p-10 overflow-y-auto space-y-8 bg-gray-50/50 flex-grow">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -573,7 +573,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
 
             {/* VIEW MODAL */}
             {isViewModalOpen && viewRecord && (
-                <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[70] p-4 no-print" onClick={() => setIsViewModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[80] p-4 no-print" onClick={() => { setIsViewModalOpen(false); setViewRecord(null); }}>
                     <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
                         <div className="p-10 bg-slate-900 text-white flex justify-between items-start shrink-0 relative overflow-hidden">
                              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
@@ -582,7 +582,7 @@ const LeavePage: React.FC<LeavePageProps> = ({
                                 <h3 className="text-4xl font-black tracking-tighter mt-4">{viewRecord.personnelName}</h3>
                                 <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1 opacity-70">{viewRecord.position}</p>
                              </div>
-                             <button onClick={() => setIsViewModalOpen(false)} className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all active:scale-90"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                             <button onClick={() => { setIsViewModalOpen(false); setViewRecord(null); }} className="relative z-20 bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all active:scale-90"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
 
                         <div className="flex-grow overflow-y-auto p-12 bg-gray-50/50 space-y-10">
@@ -645,12 +645,12 @@ const LeavePage: React.FC<LeavePageProps> = ({
                                     บันทึกข้อความ (Word)
                                 </button>
                                 <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95">
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                     พิมพ์ใบลา (PDF)
                                 </button>
                             </div>
 
-                            <button onClick={() => setIsViewModalOpen(false)} className="bg-gray-100 text-gray-500 px-8 py-3 rounded-2xl font-black text-xs hover:bg-gray-200 transition-all uppercase tracking-widest">ปิดหน้าต่าง</button>
+                            <button onClick={() => { setIsViewModalOpen(false); setViewRecord(null); }} className="bg-gray-100 text-gray-500 px-8 py-3 rounded-2xl font-black text-xs hover:bg-gray-200 transition-all uppercase tracking-widest">ปิดหน้าต่าง</button>
                         </div>
                     </div>
                 </div>

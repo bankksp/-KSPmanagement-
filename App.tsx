@@ -582,7 +582,6 @@ const App: React.FC = () => {
                 ) : null;
             case 'personnel_sar': 
                 return currentUser ? (
-                    /* Fix: Corrected typo in state setter from setSARReports to setSarReports on line 585 */
                     <PersonnelSARPage currentUser={currentUser} personnel={personnel} reports={sarReports} onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)} onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
                 ) : null;
             case 'personnel_duty':
@@ -655,7 +654,7 @@ const App: React.FC = () => {
                 <header className="no-print">
                 <Header onReportClick={() => setIsReportModalOpen(true)} onNavigate={navigateTo} currentPage={currentPage} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} onLoginClick={() => setIsLoginModalOpen(true)} onLogoutClick={handleLogout} personnel={personnel} onToggleSidebar={() => setIsSidebarOpen(true)} isDesktopSidebarOpen={isDesktopSidebarOpen} onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)} isSyncing={isSyncing} />
                 </header>
-                <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
+                <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative">
                     <div className="max-w-7xl mx-auto">{renderPage()}</div>
                     <div className="h-10"></div> 
                     <Footer />
