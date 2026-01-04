@@ -22,7 +22,7 @@ export const toThaiNumerals = (str: string | number | undefined): string => {
 };
 
 /**
- * Extract time from Google Sheets date string
+ * Extract time from string
  */
 export const formatOnlyTime = (timeStr: string | undefined): string => {
     if (!timeStr) return '';
@@ -47,9 +47,6 @@ export const formatOnlyTime = (timeStr: string | undefined): string => {
     return s;
 };
 
-/**
- * Extracts Google Drive ID from various URL formats
- */
 export const getDriveId = (url: any): string | null => {
     if (!url || typeof url !== 'string') return null;
     const cleanUrl = url.trim().replace(/[\[\]"'\\]/g, '');
@@ -58,64 +55,35 @@ export const getDriveId = (url: any): string | null => {
     return match ? match[1] : null;
 };
 
-/**
- * URL for embedding images or small previews.
- */
 export const getDirectDriveImageSrc = (url: string | File | undefined | null): string => {
     if (!url) return '';
-    if (url instanceof File) {
-        return URL.createObjectURL(url);
-    }
-    
+    if (url instanceof File) return URL.createObjectURL(url);
     const id = getDriveId(url);
-    if (id) {
-        return `https://lh3.googleusercontent.com/d/${id}`;
-    }
-    
+    if (id) return `https://lh3.googleusercontent.com/d/${id}`;
     return String(url).trim().replace(/[\[\]"\\]/g, '').replace(/^'|'$/g, '');
 };
 
-/**
- * URL for downloading files directly.
- */
 export const getDriveDownloadUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) return URL.createObjectURL(url);
-    
     const id = getDriveId(url);
-    if (id) {
-        return `https://drive.google.com/uc?export=download&id=${id}`;
-    }
+    if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
     return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
-/**
- * URL for opening the file in Google Drive's native viewer.
- */
 export const getDriveViewUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
     if (url instanceof File) return URL.createObjectURL(url);
-    
     const id = getDriveId(url);
-    if (id) {
-        return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
-    }
+    if (id) return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
     return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
-/**
- * Gets a preview URL for Google Drive documents.
- */
 export const getDrivePreviewUrl = (url: string | File | undefined | null): string => {
     if (!url) return '';
-    if (url instanceof File) {
-        return URL.createObjectURL(url);
-    }
-
+    if (url instanceof File) return URL.createObjectURL(url);
     const id = getDriveId(url);
-    if (id) {
-        return `https://drive.google.com/file/d/${id}/preview`;
-    }
+    if (id) return `https://drive.google.com/file/d/${id}/preview`;
     return String(url).trim().replace(/[\[\]"']/g, '');
 };
 
@@ -133,9 +101,7 @@ export const getFirstImageSource = (source: any): string | null => {
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
             try {
                 const parsed = JSON.parse(trimmed);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    return getDirectDriveImageSrc(parsed[0]);
-                }
+                if (Array.isArray(parsed) && parsed.length > 0) return getDirectDriveImageSrc(parsed[0]);
             } catch (e) {
                 const match = trimmed.match(/"([^"]+)"/);
                 if (match) return getDirectDriveImageSrc(match[1]);
@@ -151,9 +117,6 @@ export const safeParseArray = (input: any): any[] => {
     if (Array.isArray(input)) return input;
     if (typeof input === 'string') {
         let clean = input.trim();
-        while (clean.startsWith('"') && clean.endsWith('"')) {
-            clean = clean.substring(1, clean.length - 1).trim();
-        }
         if (clean.startsWith('[') && clean.endsWith(']')) {
             try {
                if (clean.includes("'")) clean = clean.replace(/'/g, '"');
@@ -167,63 +130,55 @@ export const safeParseArray = (input: any): any[] => {
 };
 
 /**
- * Normalizes date from various formats avoiding Timezone shifts and double BE offsets
+ * ปรับปรุงให้รองรับวันที่หลากหลายรูปแบบมากขึ้น รวมถึง ISO String
  */
 export const normalizeDate = (input: any): Date | null => {
     if (!input) return null;
     if (input instanceof Date) {
         if (isNaN(input.getTime())) return null;
-        // If the date object already has a BE year, correct it to Gregorian
+        // หากปีเป็น พ.ศ. (เช่น 2569) ให้ลบ 543 เพื่อเป็น ค.ศ. สำหรับ JavaScript Date
         if (input.getFullYear() > 2400) {
-            return new Date(input.getFullYear() - 543, input.getMonth(), input.getDate(), input.getHours(), input.getMinutes());
+            return new Date(input.getFullYear() - 543, input.getMonth(), input.getDate());
         }
         return input;
     }
     
     const str = String(input).trim();
-    
-    // 1. Handle full ISO string (from Google Script)
+    if (!str) return null;
+
+    // 1. ISO Format (2025-01-03T...)
     if (str.includes('T')) {
         const d = new Date(str);
         if (!isNaN(d.getTime())) {
-            // Check if ISO year was accidentally saved as BE
-            if (d.getFullYear() > 2400) {
-                return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
-            }
-            return d;
+            // ป้องกันปัญหาการเก็บปีเป็น พ.ศ. ในรูปแบบ ISO String จากบาง Library
+            let year = d.getFullYear();
+            if (year > 2400) year -= 543;
+            return new Date(year, d.getMonth(), d.getDate());
         }
     }
 
-    // 2. Handle plain YYYY-MM-DD (BE or Gregorian)
-    const isoMatch = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
-    if (isoMatch) {
-        let y = parseInt(isoMatch[1]);
-        const m = parseInt(isoMatch[2]);
-        const d = parseInt(isoMatch[3]);
-        if (y > 2400) y -= 543;
-        const dateObj = new Date(y, m - 1, d);
-        return isNaN(dateObj.getTime()) ? null : dateObj;
-    }
-    
-    // 3. Handle Thai format (DD/MM/YYYY)
-    const thaiMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (thaiMatch) {
-        const d = parseInt(thaiMatch[1]);
-        const m = parseInt(thaiMatch[2]) - 1;
-        let y = parseInt(thaiMatch[3]);
+    // 2. YYYY-MM-DD or DD/MM/YYYY
+    const separators = /[-/.]/;
+    const parts = str.split(separators);
+    if (parts.length === 3) {
+        let d, m, y;
+        if (parts[0].length === 4) { // YYYY-MM-DD
+            y = parseInt(parts[0]); m = parseInt(parts[1]) - 1; d = parseInt(parts[2]);
+        } else { // DD/MM/YYYY
+            d = parseInt(parts[0]); m = parseInt(parts[1]) - 1; y = parseInt(parts[2]);
+        }
         if (y > 2400) y -= 543;
         const dateObj = new Date(y, m, d);
         return isNaN(dateObj.getTime()) ? null : dateObj;
     }
     
-    // 4. Final fallback
+    // 3. Fallback to Date.parse
     const timestamp = Date.parse(str);
     if (!isNaN(timestamp)) {
         const d = new Date(timestamp);
-        if (d.getFullYear() > 2400) {
-            return new Date(d.getFullYear() - 543, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
-        }
-        return d;
+        let year = d.getFullYear();
+        if (year > 2400) year -= 543;
+        return new Date(year, d.getMonth(), d.getDate());
     }
     
     return null;
@@ -232,8 +187,7 @@ export const normalizeDate = (input: any): Date | null => {
 export const formatThaiDate = (dateString: string | undefined): string => {
     if (!dateString) return '-';
     const date = normalizeDate(dateString);
-    if (!date) return dateString;
-    
+    if (!date) return String(dateString).split('T')[0]; // หาก Parse ไม่ได้จริงๆ ให้ตัดเอาแค่ส่วนวันที่
     const d = date.getDate();
     const m = date.getMonth();
     const y = date.getFullYear() + 543;
@@ -244,34 +198,19 @@ export const formatThaiDateTime = (dateStr: string, timeStr?: string): string =>
     if (!dateStr) return '-';
     const date = normalizeDate(dateStr);
     if (!date) return dateStr;
-    
     const d = date.getDate();
     const m = date.getMonth();
     const y = date.getFullYear() + 543;
-    
-    let hourStr = '';
-    let minuteStr = '';
-
     const cleanTime = formatOnlyTime(timeStr || (dateStr.includes('T') ? dateStr : ''));
-    if (cleanTime && cleanTime.includes(':')) {
-        [hourStr, minuteStr] = cleanTime.split(':');
-    }
-
-    let timePart = '';
-    if (hourStr && minuteStr && (hourStr !== '00' || minuteStr !== '00')) {
-        timePart = ` ${hourStr}:${minuteStr} น.`;
-    }
-    
-    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}${timePart}`;
+    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}${cleanTime ? ' ' + cleanTime + ' น.' : ''}`;
 };
 
 export const prepareDataForApi = async (data: any) => {
     const apiData: any = { ...data }; 
     for (const key in data) {
         const value = data[key];
-        if (value instanceof File) {
-            apiData[key] = await fileToObject(value);
-        } else if (Array.isArray(value)) {
+        if (value instanceof File) apiData[key] = await fileToObject(value);
+        else if (Array.isArray(value)) {
              apiData[key] = await Promise.all(value.map(async (item) => {
                  if (item instanceof File) return await fileToObject(item);
                  return item;
@@ -287,11 +226,7 @@ export const fileToObject = async (file: File): Promise<{ filename: string, mime
         reader.readAsDataURL(file);
         reader.onload = () => {
             const result = reader.result as string;
-            resolve({
-                filename: file.name,
-                mimeType: file.type,
-                data: result.split(',')[1] 
-            });
+            resolve({ filename: file.name, mimeType: file.type, data: result.split(',')[1] });
         };
         reader.onerror = error => reject(error);
     });
@@ -300,25 +235,16 @@ export const fileToObject = async (file: File): Promise<{ filename: string, mime
 export const postToGoogleScript = async (payload: any, retries = 3) => {
     const scriptUrl = GOOGLE_SCRIPT_URL;
     let lastError: any;
-
     for (let i = 0; i < retries; i++) {
         try {
             const response = await fetch(scriptUrl, {
                 method: 'POST',
                 mode: 'cors', 
-                headers: { 
-                    'Content-Type': 'text/plain;charset=utf-8' 
-                },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             });
-            
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const text = await response.text();
-            
-            if (text.trim().startsWith('<!DOCTYPE')) {
-                throw new Error('Google Script session expired or restricted access. Please check script deployment permissions.');
-            }
-            
             const result = JSON.parse(text);
             if (result.status === 'error') throw new Error(result.message);
             return result;

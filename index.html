@@ -58,6 +58,7 @@
     
     .font-sarabun {
         font-family: "Sarabun", sans-serif;
+        line-height: 1.4;
     }
     
     .font-kanit {
@@ -80,48 +81,27 @@
       background: #D1D5DB;
     }
 
-    /* Leaflet Popup Styling - Compact Ultra Glass */
-    .custom-leaflet-popup .leaflet-popup-content-wrapper {
-        background: rgba(255, 255, 255, 0.85) !important;
-        backdrop-filter: blur(16px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-        border-radius: 1.5rem !important;
-        padding: 0 !important;
-        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2) !important;
-        border: 1px solid rgba(255, 255, 255, 0.5) !important;
-    }
-    .custom-leaflet-popup .leaflet-popup-content {
-        margin: 0 !important;
-        width: 220px !important; /* Smaller width */
-    }
-    .custom-leaflet-popup .leaflet-popup-tip {
-        background: rgba(255, 255, 255, 0.85) !important;
-    }
-    .custom-leaflet-popup .leaflet-popup-close-button {
-        top: 10px !important;
-        right: 10px !important;
-        color: #ffffff !important; /* Better contrast with blue header */
-        font-size: 16px !important;
-        z-index: 100 !important;
-    }
-
     @media print {
       @page {
-        size: A4 portrait;
-        margin: 2cm;
+        size: A4 landscape;
+        margin: 0;
       }
       body {
         background-color: white !important;
         margin: 0 !important;
         padding: 0 !important;
         font-family: "Sarabun", sans-serif !important;
-        font-size: 16pt !important;
-        color: black !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
       nav, header, footer, button, input, select, .no-print {
         display: none !important;
+      }
+      .print-area {
+        width: 297mm;
+        height: 210mm;
+        margin: 0;
+        border: none;
       }
     }
   </style>

@@ -55,8 +55,8 @@ export interface WorkflowDocument {
   id: number;
   date: string;
   title: string;
-  group: string; // New field
-  category: string; // New field
+  group: string; 
+  category: string; 
   description?: string;
   file: (File | string)[];
   submitterId: number;
@@ -125,7 +125,50 @@ export interface Student {
   height?: number; 
 }
 
-export type SpecialRank = 'director' | 'deputy' | 'head' | 'staff';
+export interface SpeakerConfig {
+  name: string;
+  position: string;
+  signature?: (File | string)[];
+}
+
+export interface CertificateProject {
+    id: number;
+    year: string;
+    title: string;
+    background?: (File | string)[];
+    directorName: string;
+    directorSignature?: (File | string)[];
+    speakers: SpeakerConfig[];
+    prefix: string;
+    status: 'active' | 'archived';
+}
+
+export interface Settings {
+    schoolName: string;
+    schoolLogo: string; 
+    themeColors: ThemeColors;
+    dormitories: string[];
+    positions: string[];
+    academicYears: string[];
+    studentClasses: string[];
+    studentClassrooms: string[];
+    googleScriptUrl: string;
+    adminPassword?: string;
+    serviceLocations?: string[]; 
+    projectGroups?: string[]; 
+    projectManagerIds?: number[]; 
+    schoolLat?: number;
+    schoolLng?: number;
+    checkInRadius?: number;
+    leaveTypes?: string[];
+    leaveApproverIds?: number[];
+    attendancePeriods?: AttendancePeriodConfig[];
+    autoHideSidebar?: boolean;
+    directorName?: string;
+    directorSignature?: (File | string)[];
+    certBackground?: (File | string)[];
+    speakers?: SpeakerConfig[];
+}
 
 export interface Personnel {
   id: number;
@@ -162,29 +205,6 @@ export interface AttendancePeriodConfig {
     id: string;
     label: string;
     enabled: boolean;
-}
-
-export interface Settings {
-    schoolName: string;
-    schoolLogo: string; 
-    themeColors: ThemeColors;
-    dormitories: string[];
-    positions: string[];
-    academicYears: string[];
-    studentClasses: string[];
-    studentClassrooms: string[];
-    googleScriptUrl: string;
-    adminPassword?: string;
-    serviceLocations?: string[]; 
-    projectGroups?: string[]; 
-    projectManagerIds?: number[]; 
-    schoolLat?: number;
-    schoolLng?: number;
-    checkInRadius?: number;
-    leaveTypes?: string[];
-    leaveApproverIds?: number[];
-    attendancePeriods?: AttendancePeriodConfig[];
-    autoHideSidebar?: boolean;
 }
 
 export type TimePeriod = 
@@ -248,26 +268,23 @@ export interface AcademicPlan {
   approvedDate?: string;
 }
 
-export interface ServiceStudent {
-    id: number;
-    name: string;
-    class: string;
-    nickname?: string;
-}
-
 export interface ServiceRecord {
   id: number;
   date: string; 
   time: string; 
   students: ServiceStudent[];
-  studentId?: number;
-  studentName?: string;
-  studentClass?: string;
   location: string;
   purpose: string;
   teacherId: number;
   teacherName: string;
   images?: (File | string)[];
+}
+
+export interface ServiceStudent {
+    id: number;
+    name: string;
+    class: string;
+    nickname?: string;
 }
 
 export interface SupplyItem {
@@ -278,14 +295,6 @@ export interface SupplyItem {
   unitPrice: number;
   initialStock: number; 
   addedStock: number; 
-}
-
-export interface SupplyRequestItem {
-  itemId: number;
-  itemName: string;
-  quantity: number;
-  unit: string;
-  price: number; 
 }
 
 export interface SupplyRequest {
@@ -303,14 +312,12 @@ export interface SupplyRequest {
   approvedDate?: string;
 }
 
-export type DurableGoodStatus = 'available' | 'in_use' | 'repair' | 'write_off';
-
-export interface MaintenanceLog {
-  id: number;
-  date: string;
-  description: string;
-  cost: number;
-  technician: string;
+export interface SupplyRequestItem {
+  itemId: number;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  price: number; 
 }
 
 export interface DurableGood {
@@ -327,8 +334,19 @@ export interface DurableGood {
   maintenanceHistory?: MaintenanceLog[];
 }
 
+export type DurableGoodStatus = 'available' | 'in_use' | 'repair' | 'write_off';
+
+export interface MaintenanceLog {
+  id: number;
+  date: string;
+  description: string;
+  cost: number;
+  technician: string;
+}
+
 export interface CertificateRequest {
   id: number;
+  projectId: number; // Linked to a specific design
   requesterName: string; 
   date: string; 
   activityName: string; 
@@ -337,10 +355,16 @@ export interface CertificateRequest {
   activityNo: string; 
   prefix: string; 
   generatedNumber: string; 
-  note?: string; 
+  note?: string;
+  startDate?: string;
+  endDate?: string;
+  totalDays?: number;
+  status: 'pending' | 'approved' | 'rejected';
+  approverName?: string;
+  approvedDate?: string;
+  selectedSpeakerIndices?: number[];
+  certType?: 'number_only' | 'actual_cert';
 }
-
-export type MaintenanceStatus = 'pending' | 'in_progress' | 'completed' | 'cannot_repair';
 
 export interface MaintenanceRequest {
   id: number;
@@ -356,6 +380,8 @@ export interface MaintenanceRequest {
   cost?: number; 
   remark?: string;
 }
+
+export type MaintenanceStatus = 'pending' | 'in_progress' | 'completed' | 'cannot_repair';
 
 export interface PerformanceReport {
   id: number;
@@ -424,11 +450,6 @@ export interface Ingredient {
     price?: number; 
 }
 
-export interface MealPlanItem {
-    ingredientId: number;
-    amount: number; 
-}
-
 export interface MealPlan {
     id: number;
     date: string; 
@@ -442,6 +463,11 @@ export interface MealPlan {
     totalCarbs: number;
 }
 
+export interface MealPlanItem {
+    ingredientId: number;
+    amount: number; 
+}
+
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 export type LeaveSession = 'full' | 'morning' | 'afternoon';
 
@@ -450,7 +476,7 @@ export interface LeaveRecord {
     personnelId: number;
     personnelName: string;
     position: string;
-    type: string; // e.g., ลาป่วย, ลากิจ
+    type: string; 
     startDate: string;
     endDate: string;
     session: LeaveSession;
@@ -509,8 +535,6 @@ export interface HomeVisit {
   longitude?: number;
 }
 
-export type ConstructionStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed';
-
 export interface ConstructionRecord {
   id: number;
   date: string;
@@ -530,8 +554,7 @@ export interface ConstructionRecord {
   supervisors: number[];
 }
 
-export type ProjectStatus = 'pending_approval' | 'approved' | 'rejected';
-export type ProjectProcessStatus = 'not_started' | 'in_progress' | 'completed';
+export type ConstructionStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed';
 
 export interface ProjectProposal {
   id: number;
@@ -550,3 +573,8 @@ export interface ProjectProposal {
   approverName?: string;
   approvedDate?: string;
 }
+
+export type ProjectStatus = 'pending_approval' | 'approved' | 'rejected';
+export type ProjectProcessStatus = 'not_started' | 'in_progress' | 'completed';
+
+export type SpecialRank = 'director' | 'deputy' | 'head' | 'staff';

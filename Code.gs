@@ -20,6 +20,7 @@ const SHEET_NAMES = {
   SUPPLY_ITEMS: "SupplyItems",
   SUPPLY_REQUESTS: "SupplyRequests",
   DURABLE_GOODS: "DurableGoods",
+  CERTIFICATE_PROJECTS: "CertificateProjects",
   CERTIFICATE_REQUESTS: "CertificateRequests",
   MAINTENANCE_REQUESTS: "MaintenanceRequests",
   PERFORMANCE_REPORTS: "PerformanceReports",
@@ -95,6 +96,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveSupplyItem': SHEET_NAMES.SUPPLY_ITEMS,
     'saveSupplyRequest': SHEET_NAMES.SUPPLY_REQUESTS,
     'saveDurableGood': SHEET_NAMES.DURABLE_GOODS,
+    'saveCertificateProject': SHEET_NAMES.CERTIFICATE_PROJECTS,
     'saveCertificateRequest': SHEET_NAMES.CERTIFICATE_REQUESTS,
     'saveMaintenanceRequest': SHEET_NAMES.MAINTENANCE_REQUESTS,
     'savePerformanceReport': SHEET_NAMES.PERFORMANCE_REPORTS,
@@ -118,6 +120,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS,
     'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
     'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
+    'deleteCertificateProjects': SHEET_NAMES.CERTIFICATE_PROJECTS,
     'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
     'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
     'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
@@ -144,18 +147,16 @@ function routeGenericAction(action, request, uploadFolder) {
   }
 
   if (action === 'updateSettings') {
+    ensureHeadersExist(sheet, data);
     const result = saveRecord(sheet, data, uploadFolder);
     return responseJSON({ status: 'success', data: result });
   }
 
   if (action.startsWith('add') || action.startsWith('update') || action.startsWith('save')) {
     const records = Array.isArray(data) ? data : [data];
-    
-    // ตรวจสอบและสร้าง Header ครั้งเดียวสำหรับทั้งชุดข้อมูลเพื่อความรวดเร็วและแม่นยำ
     if (records.length > 0) {
       ensureHeadersExist(sheet, records[0]);
     }
-    
     const results = records.map(r => saveRecord(sheet, r, uploadFolder));
     return responseJSON({ status: 'success', data: Array.isArray(data) ? results : results[0] });
   }
@@ -218,6 +219,7 @@ function saveRecord(sheet, dataObj, uploadFolder) {
         if (item && item.data && item.filename) {
           const blob = Utilities.newBlob(Utilities.base64Decode(item.data), item.mimeType, item.filename);
           const file = uploadFolder.createFile(blob);
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
           return file.getUrl();
         }
         return item;
@@ -225,13 +227,12 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     } else if (val && val.data && val.filename) {
        const blob = Utilities.newBlob(Utilities.base64Decode(val.data), val.mimeType, val.filename);
        const file = uploadFolder.createFile(blob);
+       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
        dataObj[key] = file.getUrl();
     }
   }
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  
-  // Find row to update or append
   let rowIndex = -1;
   const idIndex = headers.indexOf('id');
   

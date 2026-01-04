@@ -16,7 +16,7 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([
-        { role: 'model', text: 'สวัสดีครับ! ผมคือ AI ผู้ช่วยประจำ D-school ยินดีให้คำแนะนำทั้งเรื่องสถิตินักเรียน หรือวิธีการใช้งานเมนูต่างๆ สอบถามได้เลยครับ' }
+        { role: 'model', text: 'สวัสดีครับ! ผมคือ "D-Bot" AI ผู้ช่วยส่วนตัวประจำแอป D-school ยินดีที่ได้พบคุณครับ มีอะไรให้ผมช่วยวิเคราะห์ข้อมูล หรือแนะนำการใช้งานเมนูไหนไหมครับ?' }
     ]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
@@ -32,22 +32,27 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
     const generateSystemInstruction = () => {
         const today = new Date().toLocaleDateString('th-TH');
         const dorms = settings.dormitories?.join(', ') || '';
+        const studentCount = students.length;
+        const personnelCount = personnel.length;
         
         return `
-            You are "D-Bot", an AI assistant for D-school Smart Management Platform (โรงเรียนกาฬสินธุ์ปัญญานุกูล).
-            Current Context:
+            You are "D-Bot", a high-end AI assistant for the D-school Smart Management Platform (โรงเรียนกาฬสินธุ์ปัญญานุกูล).
+            You have access to current school data provided in the prompt context.
+            
+            Current School Context:
             - School Name: ${settings.schoolName}
             - Today's Date: ${today}
-            - Total Students: ${students.length}
-            - Total Personnel: ${personnel.length}
+            - Total Students: ${studentCount} (Male: ${students.filter(s => ['เด็กชาย', 'นาย'].includes(s.studentTitle)).length}, Female: ${students.filter(s => ['เด็กหญิง', 'นางสาว'].includes(s.studentTitle)).length})
+            - Total Personnel: ${personnelCount}
             - Dormitories: ${dorms}
-            - App Sections: Dashboard, Student Records, Attendance, Reports, Academic Plans, Finance, Supplies, Durable Goods, General Documents, Repair Requests, Construction, Nutrition.
+            - App Modules: แดชบอร์ด, ทะเบียนนักเรียน, เช็คชื่อ, รายงานเรือนนอน, แผนการสอน, พัสดุ, ครุภัณฑ์, งานสารบัญ, แจ้งซ่อม, งานก่อสร้าง, โภชนาการ, เยี่ยมบ้านนักเรียน, ประเมิน SDQ
             
-            Guidelines:
-            1. Answer in Thai language professionally and helpfully.
-            2. For stats questions, use the provided context.
-            3. If asked about how to use, guide them to the specific menu.
-            4. Keep answers concise but complete.
+            Guidelines for answering:
+            1. Language: ALWAYS answer in Thai. Use polite particles like "ครับ".
+            2. Style: Professional yet friendly, helpful, and concise.
+            3. Accuracy: Use the provided student and personnel counts when asked for stats.
+            4. Guidance: If users ask "how to...", explain which sidebar menu to click.
+            5. Limitations: You cannot perform write operations (add/edit/delete data) directly, but you can guide the user how to do it in the app.
         `;
     };
 
@@ -64,24 +69,25 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            // Format history for Gemini API (must alternate user/model)
-            // Note: The first message is from model (greeting), so the sequence will be model, user, model, user...
-            const contents = newMessages.map(m => ({
+            // Format history for Gemini API. 
+            const chatContents = newMessages.map(m => ({
                 role: m.role,
                 parts: [{ text: m.text }]
             }));
 
             const responseStream = await ai.models.generateContentStream({
                 model: 'gemini-3-flash-preview',
-                contents: contents,
+                contents: chatContents,
                 config: {
                     systemInstruction: generateSystemInstruction(),
-                    temperature: 0.7,
+                    temperature: 0.8,
                     topP: 0.95,
+                    maxOutputTokens: 1024,
                 }
             });
 
             let fullText = '';
+            // Add initial empty model message for streaming
             setMessages(prev => [...prev, { role: 'model', text: '' }]);
             
             for await (const chunk of responseStream) {
@@ -96,13 +102,13 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
                 }
             }
         } catch (error: any) {
-            console.error("AI Error details:", error);
-            let errorMessage = 'ขออภัยครับ เกิดข้อผิดพลาดในการเชื่อมต่อกับสมองกล AI';
+            console.error("D-Bot Error:", error);
+            let errorMessage = 'ขออภัยครับ การสื่อสารกับสมองกลขัดข้องชั่วคราว โปรดลองใหม่อีกครั้ง';
             
-            if (error?.message?.includes('API key not valid')) {
-                errorMessage = 'ขออภัยครับ API Key ไม่ถูกต้อง โปรดตรวจสอบการตั้งค่าใน Vercel';
+            if (error?.message?.includes('API_KEY_INVALID')) {
+                errorMessage = 'ขออภัยครับ ระบบ AI ยังไม่ได้ตั้งค่า API Key ที่ถูกต้อง (AIzaSy...)';
             } else if (error?.message?.includes('quota')) {
-                errorMessage = 'ขออภัยครับ โควตาการใช้งาน AI เต็มแล้ว โปรดลองใหม่ในภายหลัง';
+                errorMessage = 'ขออภัยครับ ขณะนี้มีการใช้งาน AI หนาแน่นจนเกินโควตา โปรดรอสักครู่แล้วถามใหม่นะครับ';
             }
 
             setMessages(prev => [...prev, { role: 'model', text: errorMessage }]);
@@ -115,65 +121,71 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         <div className="fixed bottom-6 right-6 z-[100] font-sarabun no-print">
             {/* Chat Window */}
             {isOpen && (
-                <div className="absolute bottom-20 right-0 w-[350px] sm:w-[400px] h-[550px] bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-white/50 flex flex-col overflow-hidden animate-fade-in-up ring-1 ring-black/5">
+                <div className="absolute bottom-20 right-0 w-[350px] sm:w-[420px] h-[600px] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/40 flex flex-col overflow-hidden animate-fade-in-up ring-1 ring-black/5">
                     {/* Header */}
-                    <div className="p-6 bg-gradient-to-r from-navy to-blue-700 text-white flex justify-between items-center shadow-lg">
+                    <div className="p-6 bg-gradient-to-r from-navy to-indigo-700 text-white flex justify-between items-center shadow-lg">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-xl animate-pulse">🤖</div>
+                            <div className="w-12 h-12 bg-white/20 rounded-[1.25rem] flex items-center justify-center text-2xl animate-pulse border border-white/30">🤖</div>
                             <div>
-                                <h3 className="font-black text-sm leading-tight">D-Bot Assistant</h3>
-                                <p className="text-[10px] opacity-70 uppercase tracking-widest font-bold">Smart AI Helper</p>
+                                <h3 className="font-black text-base leading-tight">D-Bot Assistant</h3>
+                                <p className="text-[10px] opacity-70 uppercase tracking-widest font-black">Powered by Gemini AI</p>
                             </div>
                         </div>
-                        <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors">
+                        <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-2.5 rounded-full transition-all active:scale-90 bg-black/5">
                             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
 
                     {/* Messages Area */}
-                    <div ref={scrollRef} className="flex-grow p-6 overflow-y-auto space-y-4 bg-gray-50/30 custom-scrollbar">
+                    <div ref={scrollRef} className="flex-grow p-6 overflow-y-auto space-y-5 bg-gray-50/50 custom-scrollbar relative">
+                        <div className="absolute top-0 left-0 w-full h-10 bg-gradient-to-b from-gray-50/50 to-transparent pointer-events-none z-10"></div>
                         {messages.map((m, i) => (
-                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm border ${
+                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                                <div className={`max-w-[90%] px-5 py-3.5 rounded-[1.5rem] text-sm leading-relaxed shadow-sm border ${
                                     m.role === 'user' 
-                                    ? 'bg-primary-blue text-white border-blue-400 rounded-tr-none' 
+                                    ? 'bg-primary-blue text-white border-blue-400 rounded-tr-none shadow-blue-500/10' 
                                     : 'bg-white text-navy border-gray-100 rounded-tl-none'
                                 }`}>
-                                    {m.text}
+                                    <div className="whitespace-pre-wrap">{m.text}</div>
                                 </div>
                             </div>
                         ))}
                         {isTyping && (
                             <div className="flex justify-start">
-                                <div className="bg-white border border-gray-100 px-4 py-2 rounded-2xl rounded-tl-none shadow-sm flex gap-1">
-                                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
+                                <div className="bg-white border border-gray-100 px-5 py-3 rounded-[1.5rem] rounded-tl-none shadow-sm flex gap-1.5 items-center">
+                                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0s]"></div>
                                     <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
                                     <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Thinking</span>
                                 </div>
                             </div>
                         )}
+                        <div className="h-4"></div>
                     </div>
 
                     {/* Input Area */}
-                    <div className="p-4 bg-white border-t border-gray-100">
-                        <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl border border-gray-200 focus-within:ring-2 focus-within:ring-primary-blue focus-within:bg-white transition-all">
+                    <div className="p-5 bg-white border-t border-gray-100">
+                        <div className="flex gap-2 bg-gray-100 p-2 rounded-[1.5rem] border border-gray-200 focus-within:ring-4 focus-within:ring-primary-blue/10 focus-within:bg-white focus-within:border-primary-blue transition-all shadow-inner">
                             <input 
                                 type="text" 
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                placeholder="สอบถาม AI ได้ที่นี่..."
-                                className="flex-grow bg-transparent border-none px-4 py-2 text-sm outline-none font-medium text-navy placeholder:text-gray-400"
+                                placeholder="ถามสถิตินักเรียน หรือวิธีใช้งาน..."
+                                className="flex-grow bg-transparent border-none px-4 py-2 text-sm outline-none font-bold text-navy placeholder:text-gray-400"
                             />
                             <button 
                                 onClick={handleSend}
                                 disabled={!input.trim() || isTyping}
-                                className="bg-navy text-white p-2 rounded-xl hover:bg-blue-900 active:scale-90 transition-all disabled:opacity-30"
+                                className="bg-navy text-white p-3 rounded-[1.25rem] hover:bg-blue-900 active:scale-90 transition-all disabled:opacity-30 shadow-lg shadow-blue-900/10"
                             >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                             </button>
                         </div>
-                        <p className="text-[9px] text-gray-400 text-center mt-2 font-bold uppercase tracking-tighter">AI may generate inaccurate information. Check important info.</p>
+                        <div className="flex justify-center items-center gap-1 mt-3">
+                            <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">D-Bot Secure • Private AI System</p>
+                        </div>
                     </div>
                 </div>
             )}
@@ -181,14 +193,14 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             {/* Toggle Button */}
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-16 h-16 rounded-[2rem] flex items-center justify-center shadow-2xl transition-all duration-500 transform hover:scale-110 active:scale-90 border-2 border-white/50 group ${isOpen ? 'bg-rose-500 rotate-90' : 'bg-navy'}`}
+                className={`w-16 h-16 rounded-[1.8rem] flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.3)] transition-all duration-500 transform hover:scale-110 active:scale-95 border-2 border-white/50 group relative ${isOpen ? 'bg-rose-500 rotate-90' : 'bg-navy'}`}
             >
                 {isOpen ? (
                     <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                 ) : (
                     <div className="relative">
-                        <span className="text-3xl group-hover:animate-bounce inline-block">🤖</span>
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></div>
+                        <span className="text-3xl group-hover:animate-bounce inline-block filter drop-shadow-md">🤖</span>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm"></div>
                     </div>
                 )}
             </button>

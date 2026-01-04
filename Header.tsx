@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getDirectDriveImageSrc, getFirstImageSource } from '../utils';
 import { Personnel, Page } from '../types';
@@ -134,7 +132,7 @@ const Header: React.FC<HeaderProps> = ({
                 { label: 'หนังสือ/คำสั่ง', page: 'general_docs' as Page },
                 { label: 'แจ้งซ่อม', page: 'general_repair' as Page },
                 { label: 'บันทึกงานก่อสร้าง', page: 'general_construction' as Page },
-                { label: 'ขอเลขเกียรติบัตร', page: 'general_certs' as Page }
+                { label: 'ระบบเกียรติบัตร', page: 'general_certs' as Page }
             ]
         },
         {
@@ -295,7 +293,7 @@ const Header: React.FC<HeaderProps> = ({
                                 onClick={onLoginClick}
                                 className={`${glassBtnPrimary} ml-3 px-5 py-2 rounded-full text-sm font-bold`}
                              >
-                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" /></svg>
+                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                                  เข้าสู่ระบบ
                              </button>
                          )}
@@ -425,14 +423,14 @@ const Header: React.FC<HeaderProps> = ({
                                     <div className="grid grid-cols-2 gap-3">
                                         <button 
                                             onClick={() => handleNav('profile')}
-                                            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 shadow-sm transition-all active:scale-95"
+                                            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 shadow-sm transition-all active:scale-[0.95]"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                             ข้อมูลส่วนตัว
                                         </button>
                                         <button 
                                             onClick={() => { onLogoutClick(); setIsMobileMenuOpen(false); }}
-                                            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-red-500/90 hover:bg-red-600 rounded-xl border border-red-400 shadow-sm transition-all active:scale-95 backdrop-blur-md"
+                                            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-red-500/90 hover:bg-red-600 rounded-xl border border-red-400 shadow-sm transition-all active:scale-[0.95] backdrop-blur-md"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                                             ออกจากระบบ
@@ -442,9 +440,9 @@ const Header: React.FC<HeaderProps> = ({
                             ) : (
                                 <button 
                                     onClick={() => { onLoginClick(); setIsMobileMenuOpen(false); }}
-                                    className="w-full bg-gradient-to-r from-primary-blue/90 to-blue-600/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200/50 active:scale-95 transition-transform flex items-center justify-center gap-2 text-lg backdrop-blur-sm border border-white/20"
+                                    className="w-full bg-gradient-to-r from-primary-blue/90 to-blue-600/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200/50 active:scale-[0.95] transition-transform flex items-center justify-center gap-2 text-lg backdrop-blur-sm border border-white/20"
                                 >
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" /></svg>
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                                     เข้าสู่ระบบ
                                 </button>
                             )}

@@ -38,7 +38,7 @@ import LeavePage from './components/LeavePage';
 import WorkflowPage from './components/WorkflowPage';
 import AIChatPopup from './components/AIChatPopup'; // New Import
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument, CertificateProject } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript, isoToBuddhist, normalizeDate, safeParseArray, getCurrentThaiDate } from './utils';
 
@@ -78,6 +78,7 @@ const App: React.FC = () => {
     const [supplyItems, setSupplyItems] = useState<SupplyItem[]>([]);
     const [supplyRequests, setSupplyRequests] = useState<SupplyRequest[]>([]);
     const [durableGoods, setDurableGoods] = useState<DurableGood[]>([]);
+    const [certificateProjects, setCertificateProjects] = useState<CertificateProject[]>([]);
     const [certificateRequests, setCertificateRequests] = useState<CertificateRequest[]>([]);
     const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
     const [performanceReports, setPerformanceReports] = useState<PerformanceReport[]>([]);
@@ -102,8 +103,11 @@ const App: React.FC = () => {
         root.style.setProperty('--color-primary', settings.themeColors.primary);
         root.style.setProperty('--color-primary-hover', settings.themeColors.primaryHover);
         
+        // Correctly handle desktop sidebar state based on auto-hide setting
         if (settings.autoHideSidebar) {
             setIsDesktopSidebarOpen(false);
+        } else {
+            setIsDesktopSidebarOpen(true);
         }
     }, [settings.themeColors, settings.autoHideSidebar]);
     
@@ -225,6 +229,7 @@ const App: React.FC = () => {
             setSupplyRequests(data.supplyRequests || []);
             setDurableGoods(data.durableGoods || []); 
             
+            setCertificateProjects(data.certificateProjects || []);
             setCertificateRequests(data.certificateRequests || []); 
             setMaintenanceRequests(data.maintenanceRequests || []);
             setPerformanceReports(data.performanceReports || []);
@@ -260,7 +265,12 @@ const App: React.FC = () => {
             if (data.ingredients) setIngredients(data.ingredients);
 
             if (data.settings) {
-                setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+                // More resilient boolean parsing from Sheet values
+                const apiSettings = { ...data.settings };
+                if (typeof apiSettings.autoHideSidebar === 'string') {
+                    apiSettings.autoHideSidebar = apiSettings.autoHideSidebar.toLowerCase() === 'true';
+                }
+                setSettings({ ...DEFAULT_SETTINGS, ...apiSettings });
             }
             
             setHasInitialData(true);
@@ -300,9 +310,9 @@ const App: React.FC = () => {
     }, [isAuthenticated, fetchData]);
 
     useEffect(() => {
-        if (!isAuthenticated || isUIBusy) return;
+        if (isAuthenticated && isUIBusy) return;
         const intervalId = setInterval(() => {
-            if (!document.hidden) {
+            if (isAuthenticated && !document.hidden) {
                 fetchData(true);
             }
         }, 60000); 
@@ -342,9 +352,24 @@ const App: React.FC = () => {
         try {
             const apiPayload = await prepareDataForApi(newSettings);
             const response = await postToGoogleScript({ action: 'updateSettings', data: apiPayload });
-            setSettings(response.data);
-            if (redirect) { setCurrentPage('stats'); alert('บันทึกการตั้งค่าเรียบร้อยแล้ว'); }
-        } catch (error) { console.error(error); alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า'); } finally { setIsSaving(false); }
+            
+            // Ensure boolean conversion after save
+            const savedSettings = { ...response.data };
+            if (typeof savedSettings.autoHideSidebar === 'string') {
+                savedSettings.autoHideSidebar = savedSettings.autoHideSidebar.toLowerCase() === 'true';
+            }
+            setSettings(savedSettings);
+            
+            if (redirect) { 
+                setCurrentPage('stats'); 
+                alert('บันทึกการตั้งค่าเรียบร้อยแล้ว'); 
+            }
+        } catch (error) { 
+            console.error(error); 
+            alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า'); 
+        } finally { 
+            setIsSaving(false); 
+        }
     };
     
     const handleLoginSuccess = (user: Personnel) => {
@@ -541,7 +566,7 @@ const App: React.FC = () => {
                 ) : null;
             case 'general_certs': 
                 return currentUser ? (
-                    <CertificatePage currentUser={currentUser} requests={certificateRequests} onSave={(r) => handleGenericSave('saveCertificateRequest', r, setCertificateRequests)} onDelete={(ids) => handleGenericDelete('deleteCertificateRequests', ids, setCertificateRequests)} isSaving={isSaving} />
+                    <CertificatePage currentUser={currentUser} projects={certificateProjects} requests={certificateRequests} onSaveProject={(p) => handleGenericSave('saveCertificateProject', p, setCertificateProjects)} onDeleteProject={(ids) => handleGenericDelete('deleteCertificateProjects', ids, setCertificateProjects)} onSaveRequest={(r) => handleGenericSave('saveCertificateRequest', r, setCertificateRequests)} onDeleteRequest={(ids) => handleGenericDelete('deleteCertificateRequests', ids, setCertificateRequests)} isSaving={isSaving} settings={settings} />
                 ) : null;
             case 'student_home_visit':
                 return currentUser ? (
@@ -557,11 +582,12 @@ const App: React.FC = () => {
                 ) : null;
             case 'personnel_sar': 
                 return currentUser ? (
+                    /* Fix: Corrected typo in state setter from setSARReports to setSarReports on line 585 */
                     <PersonnelSARPage currentUser={currentUser} personnel={personnel} reports={sarReports} onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)} onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
                 ) : null;
             case 'personnel_duty':
                 return currentUser ? (
-                    <DutyPage currentUser={currentUser} records={dutyRecords} onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)} onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} />
+                    <DutyPage currentUser={currentUser} records={dutyRecords} onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)} onDelete={(ids) => handleGenericDelete('dutyRecords', ids, setDutyRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} />
                 ) : null;
             case 'personnel_leave':
                 return currentUser ? (
@@ -626,7 +652,9 @@ const App: React.FC = () => {
                 onMouseLeave={handleSidebarMouseLeave}
             />
             <div className={`flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300 ${isDesktopSidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                <header className="no-print">
                 <Header onReportClick={() => setIsReportModalOpen(true)} onNavigate={navigateTo} currentPage={currentPage} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} onLoginClick={() => setIsLoginModalOpen(true)} onLogoutClick={handleLogout} personnel={personnel} onToggleSidebar={() => setIsSidebarOpen(true)} isDesktopSidebarOpen={isDesktopSidebarOpen} onToggleDesktopSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)} isSyncing={isSyncing} />
+                </header>
                 <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
                     <div className="max-w-7xl mx-auto">{renderPage()}</div>
                     <div className="h-10"></div> 
