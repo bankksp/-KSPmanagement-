@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Page, Personnel } from '../types';
 import { getDirectDriveImageSrc } from '../utils';
@@ -101,14 +102,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     return (
         <>
             {isOpen && (
-                <div className="fixed inset-0 bg-black/30 z-40 lg:hidden backdrop-blur-sm transition-opacity" onClick={onCloseMobile}></div>
+                <div className="fixed inset-0 bg-black/30 z-[1050] lg:hidden backdrop-blur-sm transition-opacity" onClick={onCloseMobile}></div>
             )}
 
             <div 
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
                 className={`
-                    fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-50 w-72 transition-transform duration-300 ease-out flex flex-col
+                    fixed top-0 left-0 h-full bg-white/90 backdrop-blur-xl border-r border-white/50 shadow-2xl z-[1060] w-72 transition-transform duration-300 ease-out flex flex-col
                     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                     ${isDesktopOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'}
                 `}

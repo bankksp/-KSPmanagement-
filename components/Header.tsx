@@ -45,7 +45,7 @@ const Header: React.FC<HeaderProps> = ({
     }, []);
 
     return (
-        <header className="w-full px-4 md:px-6 py-4 flex justify-between items-center z-40 bg-transparent no-print">
+        <header className="w-full px-4 md:px-6 py-4 flex justify-between items-center z-[1050] bg-transparent no-print">
             {/* Left: Sidebar Toggle & System Logo */}
             <div className="flex items-center gap-4">
                 <button

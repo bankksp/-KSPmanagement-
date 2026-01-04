@@ -34,7 +34,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     
     // Map Filtering States
     const [mapSearch, setMapSearch] = useState('');
-    const [mapFilterDorm, setMapFilterDorm] = useState('');
     const [mapFilterClass, setMapFilterClass] = useState('');
     
     const mapRef = useRef<any>(null);
@@ -49,7 +48,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         const targetYear = targetDateObj.getFullYear();
         const bDateStr = `${String(targetDay).padStart(2, '0')}/${String(targetMonth + 1).padStart(2, '0')}/${targetYear + 543}`;
 
-        // ปรับปรุงการกรองวันที่ให้แม่นยำขึ้นสำหรับข้อมูลเก่า
         const dayReports = reports.filter(r => {
             const d = normalizeDate(r.reportDate);
             return d && d.getDate() === targetDay && d.getMonth() === targetMonth && d.getFullYear() === targetYear;
@@ -70,7 +68,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             if (report) {
                 present = Number(report.presentCount) || 0;
                 sick = Number(report.sickCount) || 0;
-                // ปรับปรุง Logic การดึงข้อมูล "อยู่บ้าน" ให้รองรับข้อมูลเก่าที่ไม่มี homeCount
                 if (report.homeCount !== undefined && report.homeCount !== null && String(report.homeCount) !== "") {
                     home = Number(report.homeCount);
                 } else {
@@ -101,12 +98,27 @@ const Dashboard: React.FC<DashboardProps> = ({
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const dormStatsString = dormitoryData.map(d => `${d.name}: มา ${d.present}, ป่วย ${d.sick}, อื่นๆ ${d.home}`).join(' | ');
-            const prompt = `วิเคราะห์สถิติสถานศึกษาประจำวันที่ ${buddhistDate} ของ ${schoolName}: ข้อมูลนักเรียน: ทั้งหมด ${students.length} คน, รายงานว่ามาเรียน ${totalStudentsReport} คน, ป่วย ${totalSick} คน, อื่นๆ ${totalHome} คน ข้อมูลรายเรือนนอน: ${dormStatsString} ข้อมูลบุคลากร: ทั้งหมด ${personnel.length} คน, มาปฏิบัติหน้าที่ ${personnelStatsSummary.present} คน, ลา/ขาด ${personnelStatsSummary.absent} คน คำสั่ง: 1. สรุปภาพรวมสั้นๆ 2. แจ้งเตือนเรือนที่ป่วยสูง (>10%) 3. คำแนะนำผู้บริหาร ตอบเป็นภาษาไทยที่สุภาพ กระชับ เป็นข้อๆ`;
-            const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-            setAiSummary(response.text || "ไม่สามารถสรุปข้อมูลได้ในขณะนี้");
-        } catch (error) { 
-            console.error(error);
-            setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบ AI"); 
+            
+            const prompt = `วิเคราะห์สถิติสถานศึกษาประจำวันที่ ${buddhistDate} ของ ${schoolName}: 
+            ข้อมูลนักเรียน: ทั้งหมด ${students.length} คน, รายงานว่ามาเรียน ${totalStudentsReport} คน, ป่วย ${totalSick} คน, อื่นๆ ${totalHome} คน 
+            ข้อมูลรายเรือนนอน: ${dormStatsString} 
+            ข้อมูลบุคลากร: มา ${personnelStatsSummary.present} คน, ลา/ขาด ${personnelStatsSummary.absent} คน 
+            คำสั่ง: 1. สรุปภาพรวมสั้นๆ 2. แจ้งเตือนเรือนที่ป่วยสูง (>10%) 3. คำแนะนำผู้บริหาร ตอบเป็นภาษาไทยที่สุภาพ กระชับ เป็นข้อๆ`;
+            
+            const response = await ai.models.generateContent({ 
+                model: 'gemini-3-flash-preview', 
+                contents: prompt,
+                config: { temperature: 0.7 }
+            });
+            
+            if (response.text) {
+                setAiSummary(response.text);
+            } else {
+                throw new Error("Empty AI response");
+            }
+        } catch (error: any) { 
+            console.error("AI Generation Error:", error);
+            setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบ AI กรุณาลองใหม่อีกครั้ง"); 
         } finally { 
             setIsGeneratingAi(false); 
         }
@@ -132,10 +144,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     const filteredMapStudents = useMemo(() => students.filter(s => {
         if (!s.latitude || !s.longitude) return false;
         const matchSearch = !mapSearch || s.studentName.includes(mapSearch) || s.studentNickname.includes(mapSearch);
-        const matchDorm = !mapFilterDorm || s.dormitory === mapFilterDorm;
         const matchClass = !mapFilterClass || s.studentClass === mapFilterClass;
-        return matchSearch && matchDorm && matchClass;
-    }), [students, mapSearch, mapFilterDorm, mapFilterClass]);
+        return matchSearch && matchClass;
+    }), [students, mapSearch, mapFilterClass]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -176,7 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="flex-grow overflow-hidden whitespace-nowrap">
                     <div className="inline-block animate-marquee">
                         {reports.slice(-5).reverse().map((r, i) => (
-                            <span key={i} className="mx-8 text-white font-medium text-sm">📢 [{r.dormitory}] {r.reporterName}: มา {r.presentCount}, ป่วย {r.sickCount} ({formatThaiDate(r.reportDate)})</span>
+                            <span key={i} className="mx-8 text-white font-medium text-sm">📢 [{r.dormitory}] {r.reporterName}: มา {r.presentCount}, ป่วย {r.sickCount} ({r.reportDate})</span>
                         ))}
                     </div>
                 </div>
@@ -252,16 +263,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 relative h-full min-h-[500px] rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-200">
-                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-lg pointer-events-none">
+                <div className="lg:col-span-2 relative h-full min-h-[500px] rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-200 z-0">
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] w-[90%] max-w-lg pointer-events-none">
                         <div className="bg-white/10 backdrop-blur-xl border border-white/40 p-2 rounded-full shadow-2xl flex items-center gap-2 pointer-events-auto ring-1 ring-black/5">
                             <div className="flex-shrink-0 bg-red-500 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg"><div className="w-2 h-2 bg-white rounded-full animate-ping"></div><span className="text-[10px] font-black uppercase tracking-widest">LIVE GPS</span></div>
-                            <input type="text" placeholder="ค้นหาชื่อนักเรียน..." value={mapSearch} onChange={e => setMapSearch(e.target.value)} className="flex-grow bg-transparent border-none px-4 py-2 text-sm text-navy placeholder:text-navy/50 font-bold focus:ring-0" />
+                            <input type="text" hide-focus="true" placeholder="ค้นหาชื่อนักเรียน..." value={mapSearch} onChange={e => setMapSearch(e.target.value)} className="flex-grow bg-transparent border-none px-4 py-2 text-sm text-navy placeholder:text-navy/50 font-bold focus:ring-0" />
                             <div className="flex gap-1 pr-2"><select value={mapFilterClass} onChange={e => setMapFilterClass(e.target.value)} className="bg-white/40 border-none rounded-full px-3 py-1.5 text-[10px] font-black text-navy outline-none"><option value="">ทุกชั้น</option>{allStudentClasses.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                         </div>
                     </div>
-                    <div className="absolute bottom-6 left-6 z-[1000] bg-white/20 backdrop-blur-lg border border-white/30 px-4 py-2 rounded-2xl shadow-xl"><div className="flex items-center gap-3"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div><span className="text-[10px] font-black text-navy uppercase">Student Home</span></div><div className="w-px h-3 bg-navy/20"></div><p className="text-[9px] font-bold text-navy/60">พิกัด GPS ล่าสุดจากการเยี่ยมบ้าน</p></div></div>
-                    <div id="dashboard-map" className="w-full h-full"></div>
+                    <div className="absolute bottom-6 left-6 z-[400] bg-white/20 backdrop-blur-lg border border-white/30 px-4 py-2 rounded-2xl shadow-xl"><div className="flex items-center gap-3"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div><span className="text-[10px] font-black text-navy uppercase">Student Home</span></div><div className="w-px h-3 bg-navy/20"></div><p className="text-[9px] font-bold text-navy/60">พิกัด GPS ล่าสุดจากการเยี่ยมบ้าน</p></div></div>
+                    <div id="dashboard-map" className="w-full h-full z-0"></div>
                 </div>
             </div>
 

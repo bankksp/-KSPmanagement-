@@ -39,9 +39,6 @@
                     '0%': { transform: 'translateX(0%)' },
                     '100%': { transform: 'translateX(-100%)' },
                 }
-            },
-            screens: {
-              'print': {'raw': 'print'},
             }
           }
         }
@@ -58,7 +55,6 @@
     
     .font-sarabun {
         font-family: "Sarabun", sans-serif;
-        line-height: 1.4;
     }
     
     .font-kanit {
@@ -86,22 +82,46 @@
         size: A4 landscape;
         margin: 0;
       }
-      body {
-        background-color: white !important;
+      html, body {
+        width: 297mm;
+        height: 210mm;
+        background: #fff !important;
         margin: 0 !important;
         padding: 0 !important;
-        font-family: "Sarabun", sans-serif !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-      nav, header, footer, button, input, select, .no-print {
+      .no-print {
         display: none !important;
       }
+      .print-visible {
+        display: block !important;
+        visibility: visible !important;
+      }
+      #root > div > div > main {
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      #root > div > div {
+        margin-left: 0 !important;
+      }
       .print-area {
-        width: 297mm;
-        height: 210mm;
-        margin: 0;
-        border: none;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 297mm !important;
+        height: 210mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        page-break-after: always;
+      }
+      /* Ensure images are printed */
+      img {
+        max-width: 100% !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
     }
   </style>

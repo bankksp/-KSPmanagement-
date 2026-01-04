@@ -42,17 +42,16 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             Current School Context:
             - School Name: ${settings.schoolName}
             - Today's Date: ${today}
-            - Total Students: ${studentCount} (Male: ${students.filter(s => ['เด็กชาย', 'นาย'].includes(s.studentTitle)).length}, Female: ${students.filter(s => ['เด็กหญิง', 'นางสาว'].includes(s.studentTitle)).length})
+            - Total Students: ${studentCount}
             - Total Personnel: ${personnelCount}
             - Dormitories: ${dorms}
-            - App Modules: แดชบอร์ด, ทะเบียนนักเรียน, เช็คชื่อ, รายงานเรือนนอน, แผนการสอน, พัสดุ, ครุภัณฑ์, งานสารบัญ, แจ้งซ่อม, งานก่อสร้าง, โภชนาการ, เยี่ยมบ้านนักเรียน, ประเมิน SDQ
             
             Guidelines for answering:
             1. Language: ALWAYS answer in Thai. Use polite particles like "ครับ".
-            2. Style: Professional yet friendly, helpful, and concise.
-            3. Accuracy: Use the provided student and personnel counts when asked for stats.
-            4. Guidance: If users ask "how to...", explain which sidebar menu to click.
-            5. Limitations: You cannot perform write operations (add/edit/delete data) directly, but you can guide the user how to do it in the app.
+            2. Style: Professional, friendly, helpful, and concise.
+            3. Data Source: Use the provided counts for accuracy.
+            4. Guidance: If users ask "how to...", explain which menu to click.
+            5. Limitations: You cannot modify data directly.
         `;
     };
 
@@ -69,9 +68,9 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            // Format history for Gemini API. 
+            // Format history for Gemini API correctly
             const chatContents = newMessages.map(m => ({
-                role: m.role,
+                role: m.role === 'model' ? 'model' : 'user',
                 parts: [{ text: m.text }]
             }));
 
@@ -80,14 +79,12 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
                 contents: chatContents,
                 config: {
                     systemInstruction: generateSystemInstruction(),
-                    temperature: 0.8,
-                    topP: 0.95,
-                    maxOutputTokens: 1024,
+                    temperature: 0.7,
+                    maxOutputTokens: 800,
                 }
             });
 
             let fullText = '';
-            // Add initial empty model message for streaming
             setMessages(prev => [...prev, { role: 'model', text: '' }]);
             
             for await (const chunk of responseStream) {
@@ -103,14 +100,7 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
             }
         } catch (error: any) {
             console.error("D-Bot Error:", error);
-            let errorMessage = 'ขออภัยครับ การสื่อสารกับสมองกลขัดข้องชั่วคราว โปรดลองใหม่อีกครั้ง';
-            
-            if (error?.message?.includes('API_KEY_INVALID')) {
-                errorMessage = 'ขออภัยครับ ระบบ AI ยังไม่ได้ตั้งค่า API Key ที่ถูกต้อง (AIzaSy...)';
-            } else if (error?.message?.includes('quota')) {
-                errorMessage = 'ขออภัยครับ ขณะนี้มีการใช้งาน AI หนาแน่นจนเกินโควตา โปรดรอสักครู่แล้วถามใหม่นะครับ';
-            }
-
+            const errorMessage = 'ขออภัยครับ การสื่อสารกับสมองกลขัดข้องชั่วคราว โปรดลองใหม่อีกครั้ง';
             setMessages(prev => [...prev, { role: 'model', text: errorMessage }]);
         } finally {
             setIsTyping(false);
@@ -118,7 +108,7 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
     };
 
     return (
-        <div className="fixed bottom-6 right-6 z-[100] font-sarabun no-print">
+        <div className="fixed bottom-6 right-6 z-[1100] font-sarabun no-print">
             {/* Chat Window */}
             {isOpen && (
                 <div className="absolute bottom-20 right-0 w-[350px] sm:w-[420px] h-[600px] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/40 flex flex-col overflow-hidden animate-fade-in-up ring-1 ring-black/5">
@@ -181,10 +171,6 @@ const AIChatPopup: React.FC<AIChatPopupProps> = ({
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                             </button>
-                        </div>
-                        <div className="flex justify-center items-center gap-1 mt-3">
-                            <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">D-Bot Secure • Private AI System</p>
                         </div>
                     </div>
                 </div>
