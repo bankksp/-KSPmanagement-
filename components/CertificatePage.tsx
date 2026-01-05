@@ -10,7 +10,7 @@ interface CertificatePageProps {
     requests: CertificateRequest[];
     onSaveProject: (project: CertificateProject) => void;
     onDeleteProject: (ids: number[]) => void;
-    onSaveRequest: (request: CertificateRequest) => void;
+    onSaveRequest: (request: CertificateRequest | CertificateRequest[]) => void;
     onDeleteRequest: (ids: number[]) => void;
     isSaving: boolean;
     settings: Settings;
@@ -186,7 +186,7 @@ const CertificatePage: React.FC<CertificatePageProps> = ({
         setRequestType(null);
     };
 
-    // ฟังก์ชันจัดการการอนุมัติ/ปฏิเสธ แบบกลุ่ม
+    // ฟังก์ชันจัดการการอนุมัติ/ปฏิเสธ แบบกลุ่ม (Updated for Batch)
     const handleBatchApprovalAction = (status: 'approved' | 'rejected') => {
         if (selectedApprovalIds.size === 0) return alert('กรุณาเลือกรายการที่ต้องการดำเนินการ');
         
@@ -194,17 +194,17 @@ const CertificatePage: React.FC<CertificatePageProps> = ({
         if (!window.confirm(confirmMsg)) return;
 
         const selectedItems = requests.filter(r => selectedApprovalIds.has(r.id));
-        selectedItems.forEach(item => {
-            onSaveRequest({
-                ...item,
-                status,
-                approverName: currentUser.personnelName,
-                approvedDate: getCurrentThaiDate()
-            });
-        });
+        const updates = selectedItems.map(item => ({
+            ...item,
+            status,
+            approverName: currentUser.personnelName,
+            approvedDate: getCurrentThaiDate()
+        }));
+
+        // Send array to batch save
+        onSaveRequest(updates);
 
         setSelectedApprovalIds(new Set());
-        alert(`ดำเนินการสำเร็จ ${selectedItems.length} รายการ`);
     };
 
     const toggleSelectApproval = (id: number) => {
@@ -389,13 +389,15 @@ const CertificatePage: React.FC<CertificatePageProps> = ({
                             <div className="flex gap-2 animate-fade-in">
                                 <button 
                                     onClick={() => handleBatchApprovalAction('approved')}
-                                    className="bg-emerald-600 text-white px-6 py-2 rounded-2xl font-bold shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2"
+                                    disabled={isSaving}
+                                    className="bg-emerald-600 text-white px-6 py-2 rounded-2xl font-bold shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2 disabled:opacity-50"
                                 >
                                     ✅ อนุมัติ ({selectedApprovalIds.size})
                                 </button>
                                 <button 
                                     onClick={() => handleBatchApprovalAction('rejected')}
-                                    className="bg-rose-600 text-white px-6 py-2 rounded-2xl font-bold shadow-lg hover:bg-rose-700 transition-all flex items-center gap-2"
+                                    disabled={isSaving}
+                                    className="bg-rose-600 text-white px-6 py-2 rounded-2xl font-bold shadow-lg hover:bg-rose-700 transition-all flex items-center gap-2 disabled:opacity-50"
                                 >
                                     ❌ ปฏิเสธ
                                 </button>

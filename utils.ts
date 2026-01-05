@@ -206,6 +206,10 @@ export const formatThaiDateTime = (dateStr: string, timeStr?: string): string =>
 };
 
 export const prepareDataForApi = async (data: any) => {
+    if (Array.isArray(data)) {
+        return Promise.all(data.map(async (item) => await prepareDataForApi(item)));
+    }
+
     const apiData: any = { ...data }; 
     for (const key in data) {
         const value = data[key];

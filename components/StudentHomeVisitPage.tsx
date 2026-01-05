@@ -96,9 +96,8 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
     useEffect(() => {
         if (activeTab === 'dashboard' && typeof window !== 'undefined') {
             const L = (window as any).L;
-            if (!L) return; // Leaflet not loaded
+            if (!L) return; 
 
-            // Short delay to ensure DOM is ready
             const timer = setTimeout(() => {
                 const mapContainer = document.getElementById('visit-map');
                 if (mapContainer) {
@@ -107,14 +106,12 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                         mapRef.current = null;
                     }
 
-                    // Center on Kalasin or avg of points
-                    const map = L.map('visit-map').setView([16.4322, 103.5061], 9); // Default Kalasin
+                    const map = L.map('visit-map').setView([16.4322, 103.5061], 9);
                     
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     }).addTo(map);
 
-                    const markers: any[] = [];
                     const validPoints: [number, number][] = [];
 
                     stats.visitedList.forEach(item => {
@@ -133,25 +130,34 @@ const StudentHomeVisitPage: React.FC<StudentHomeVisitPageProps> = ({
                                 </div>
                             `;
 
-                            const marker = L.marker([lat, lng])
+                            L.marker([lat, lng])
                                 .addTo(map)
                                 .bindPopup(popupContent);
                             
-                            markers.push(marker);
                             validPoints.push([lat, lng]);
                         }
                     });
 
                     if (validPoints.length > 0) {
-                        const bounds = L.latLngBounds(validPoints);
-                        map.fitBounds(bounds, { padding: [50, 50] });
+                        try {
+                            const bounds = L.latLngBounds(validPoints);
+                            map.fitBounds(bounds, { padding: [50, 50] });
+                        } catch (e) {
+                            console.warn("fitBounds failed in home visit", e);
+                        }
                     }
 
                     mapRef.current = map;
                 }
             }, 100);
 
-            return () => clearTimeout(timer);
+            return () => {
+                clearTimeout(timer);
+                if (mapRef.current) {
+                    mapRef.current.remove();
+                    mapRef.current = null;
+                }
+            };
         }
     }, [activeTab, stats.visitedList]);
 

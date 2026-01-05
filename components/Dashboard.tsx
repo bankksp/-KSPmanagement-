@@ -1,10 +1,8 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Report, Student, Personnel, StudentAttendance, PersonnelAttendance, DormitoryStat, HomeVisit, TimePeriod } from '../types';
 import ReportChart from './ReportChart';
 import AttendanceStats from './AttendanceStats';
 import { getDirectDriveImageSrc, buddhistToISO, isoToBuddhist, getFirstImageSource, normalizeDate, formatThaiDate } from '../utils';
-import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
     reports: Report[];
@@ -29,8 +27,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         const day = String(now.getDate()).padStart(2, '0');
         return `${day}/${month}/${year}`;
     });
-    const [aiSummary, setAiSummary] = useState<string | null>(null);
-    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
     
     // Map Filtering States
     const [mapSearch, setMapSearch] = useState('');
@@ -93,36 +89,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         };
     }, [personnelAttendance, buddhistDate]);
     
-    const generateAiSummary = async () => {
-        setIsGeneratingAi(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const dormStatsString = dormitoryData.map(d => `${d.name}: มา ${d.present}, ป่วย ${d.sick}, อื่นๆ ${d.home}`).join(' | ');
-            
-            const prompt = `วิเคราะห์สถิติสถานศึกษาประจำวันที่ ${buddhistDate} ของ ${schoolName}: 
-            ข้อมูลนักเรียน: ทั้งหมด ${students.length} คน, รายงานว่ามาเรียน ${totalStudentsReport} คน, ป่วย ${totalSick} คน, อื่นๆ ${totalHome} คน 
-            ข้อมูลรายเรือนนอน: ${dormStatsString} 
-            ข้อมูลบุคลากร: มา ${personnelStatsSummary.present} คน, ลา/ขาด ${personnelStatsSummary.absent} คน 
-            คำสั่ง: 1. สรุปภาพรวมสั้นๆ 2. แจ้งเตือนเรือนที่ป่วยสูง (>10%) 3. คำแนะนำผู้บริหาร ตอบเป็นภาษาไทยที่สุภาพ กระชับ เป็นข้อๆ`;
-            
-            const response = await ai.models.generateContent({ 
-                model: 'gemini-3-flash-preview', 
-                contents: prompt,
-                config: { temperature: 0.7 }
-            });
-            
-            if (response.text) {
-                setAiSummary(response.text);
-            } else {
-                throw new Error("Empty AI response");
-            }
-        } catch (error: any) { 
-            console.error("AI Generation Error:", error);
-            setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบ AI กรุณาลองใหม่อีกครั้ง"); 
-        } finally { 
-            setIsGeneratingAi(false); 
-        }
-    };
+    const highSickDorms = useMemo(() => {
+        return dormitoryData.filter(d => d.sick > 3).map(d => `${d.name} (${d.sick} คน)`);
+    }, [dormitoryData]);
 
     const attendanceStatsData = useMemo(() => {
         const periods = ['morning_act', 'lunch_act', 'evening_act'] as TimePeriod[];
@@ -152,12 +121,22 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (typeof window !== 'undefined') {
             const L = (window as any).L;
             if (!L) return;
+            
             const timer = setTimeout(() => {
                 const mapContainer = document.getElementById('dashboard-map');
                 if (mapContainer) {
-                    if (mapRef.current) mapRef.current.remove();
-                    const map = L.map('dashboard-map', { zoomControl: false, attributionControl: false }).setView([16.4322, 103.5061], 10);
+                    if (mapRef.current) {
+                        mapRef.current.remove();
+                        mapRef.current = null;
+                    }
+                    
+                    const map = L.map('dashboard-map', { 
+                        zoomControl: false, 
+                        attributionControl: false 
+                    }).setView([16.4322, 103.5061], 10);
+                    
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    
                     const validPoints: [number, number][] = [];
                     filteredMapStudents.forEach(s => {
                         const icon = L.divIcon({
@@ -171,11 +150,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                         L.marker([s.latitude!, s.longitude!], { icon }).addTo(map).bindPopup(popupContent, { className: 'custom-leaflet-popup' });
                         validPoints.push([s.latitude!, s.longitude!]);
                     });
-                    if (validPoints.length > 0) map.fitBounds(L.latLngBounds(validPoints), { padding: [80, 80] });
+                    
+                    if (validPoints.length > 0) {
+                        try {
+                            map.fitBounds(L.latLngBounds(validPoints), { padding: [80, 80] });
+                        } catch (e) {
+                            console.warn("fitBounds failed", e);
+                        }
+                    }
                     mapRef.current = map;
                 }
             }, 500);
-            return () => clearTimeout(timer);
+            
+            return () => {
+                clearTimeout(timer);
+                if (mapRef.current) {
+                    mapRef.current.remove();
+                    mapRef.current = null;
+                }
+            };
         }
     }, [filteredMapStudents]);
 
@@ -200,23 +193,30 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <p className="text-gray-500 text-sm mt-1 font-medium">ข้อมูลประจำวันที่ {formatThaiDate(buddhistDate)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={generateAiSummary} disabled={isGeneratingAi} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-2xl shadow-xl shadow-indigo-100 transition-all text-sm disabled:opacity-50 active:scale-95">
-                        {isGeneratingAi ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : '⚡ วิเคราะห์ด้วย AI'}
-                    </button>
                     <input type="date" value={buddhistToISO(selectedDate)} onChange={(e) => setSelectedDate(isoToBuddhist(e.target.value))} className="pl-4 pr-4 py-2.5 bg-white border border-gray-200 rounded-2xl shadow-sm text-navy font-bold text-sm outline-none focus:ring-2 focus:ring-primary-blue" />
                 </div>
             </div>
 
-            {aiSummary && (
-                <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl text-white animate-fade-in-up relative overflow-hidden">
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-4"><span className="text-2xl">🤖</span><h3 className="text-xl font-black uppercase tracking-wider">AI Insight Analysis</h3></div>
-                        <div className="text-indigo-50 leading-relaxed font-medium whitespace-pre-wrap">{aiSummary}</div>
-                        <button onClick={() => setAiSummary(null)} className="absolute top-4 right-4 text-white/50 hover:text-white">&times;</button>
+            <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl text-white animate-fade-in-up relative overflow-hidden">
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">📊</span>
+                        <h3 className="text-xl font-black uppercase tracking-wider">สรุปภาพรวมสำหรับผู้บริหาร</h3>
                     </div>
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+                    <ul className="text-indigo-50 leading-relaxed font-medium space-y-2 list-disc list-inside">
+                        <li>ข้อมูลนักเรียนประจำวันที่ {buddhistDate}: มาเรียน {totalStudentsReport} คน, ป่วย {totalSick} คน, กลับบ้าน/อื่นๆ {totalHome} คน จากทั้งหมด {students.length} คน</li>
+                        <li>ข้อมูลบุคลากร: มาปฏิบัติหน้าที่ {personnelStatsSummary.present} คน, ลา/ขาด {personnelStatsSummary.absent} คน จากทั้งหมด {personnel.length} คน</li>
+                        {highSickDorms.length > 0 ? (
+                            <li>
+                                <span className="font-bold text-yellow-300">ข้อควรระวัง:</span> เรือนนอนที่มีนักเรียนป่วยจำนวนมาก ได้แก่ {highSickDorms.join(', ')}
+                            </li>
+                        ) : (
+                            <li>สถานการณ์จำนวนนักเรียนป่วยในเรือนนอนอยู่ในเกณฑ์ปกติ</li>
+                        )}
+                    </ul>
                 </div>
-            )}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-4">

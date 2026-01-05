@@ -1,4 +1,54 @@
 
+export interface Settings {
+    schoolName: string;
+    schoolLogo: string; 
+    themeColors: ThemeColors;
+    dormitories: string[];
+    positions: string[];
+    academicYears: string[];
+    studentClasses: string[];
+    studentClassrooms: string[];
+    googleScriptUrl: string;
+    // Webhook URLs separated by system
+    webhookAttendance?: string;
+    webhookDormitory?: string;
+    webhookAcademic?: string;
+    webhookFinance?: string;
+    webhookGeneral?: string;
+    webhookStudentSupport?: string;
+    
+    adminPassword?: string;
+    serviceLocations?: string[]; 
+    projectGroups?: string[]; 
+    projectManagerIds?: number[]; 
+    schoolLat?: number;
+    schoolLng?: number;
+    checkInRadius?: number;
+    leaveTypes?: string[];
+    leaveApproverIds?: number[];
+    attendancePeriods?: AttendancePeriodConfig[];
+    autoHideSidebar?: boolean;
+    directorName?: string;
+    directorSignature?: (File | string)[];
+    certBackground?: (File | string)[];
+    speakers?: SpeakerConfig[];
+    durableGoodsCategories?: string[];
+}
+
+export interface ChatMessage {
+  id: number;
+  senderId: number;
+  senderName: string;
+  receiverId: number | 'admin' | 'all';
+  text: string;
+  attachments?: string[]; 
+  timestamp: string;
+  isRead: boolean;
+  isAutoReply?: boolean;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+}
+
 export interface Endorsement {
   signature?: string; 
   comment: string; 
@@ -141,33 +191,6 @@ export interface CertificateProject {
     speakers: SpeakerConfig[];
     prefix: string;
     status: 'active' | 'archived';
-}
-
-export interface Settings {
-    schoolName: string;
-    schoolLogo: string; 
-    themeColors: ThemeColors;
-    dormitories: string[];
-    positions: string[];
-    academicYears: string[];
-    studentClasses: string[];
-    studentClassrooms: string[];
-    googleScriptUrl: string;
-    adminPassword?: string;
-    serviceLocations?: string[]; 
-    projectGroups?: string[]; 
-    projectManagerIds?: number[]; 
-    schoolLat?: number;
-    schoolLng?: number;
-    checkInRadius?: number;
-    leaveTypes?: string[];
-    leaveApproverIds?: number[];
-    attendancePeriods?: AttendancePeriodConfig[];
-    autoHideSidebar?: boolean;
-    directorName?: string;
-    directorSignature?: (File | string)[];
-    certBackground?: (File | string)[];
-    speakers?: SpeakerConfig[];
 }
 
 export interface Personnel {
@@ -346,7 +369,7 @@ export interface MaintenanceLog {
 
 export interface CertificateRequest {
   id: number;
-  projectId: number; // Linked to a specific design
+  projectId: number; 
   requesterName: string; 
   date: string; 
   activityName: string; 

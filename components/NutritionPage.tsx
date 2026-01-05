@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { Personnel, MealPlan, Ingredient, NutritionTargetGroup, Student, MealPlanItem } from '../types';
 import { NUTRITION_STANDARDS } from '../constants';
-// Fix: Added safeParseArray to imports
-import { getCurrentThaiDate, buddhistToISO, isoToBuddhist, getFirstImageSource, safeParseArray } from '../utils';
-// Fix: Added PieChart and Pie to Recharts imports
+import { getCurrentThaiDate, buddhistToISO, isoToBuddhist, safeParseArray, formatThaiDate } from '../utils';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
     RadialBarChart, RadialBar, PolarAngleAxis, Cell, PieChart, Pie
@@ -18,16 +17,19 @@ interface NutritionPageProps {
     onSaveIngredient: (ingredient: Ingredient) => void;
     onDeleteIngredient: (ids: number[]) => void;
     isSaving: boolean;
-    students?: Student[];
+    students: Student[];
 }
 
 const NutritionPage: React.FC<NutritionPageProps> = ({
     currentUser, mealPlans, ingredients, onSaveMealPlan, onDeleteMealPlan, 
     onSaveIngredient, onDeleteIngredient, isSaving, students = []
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'planner' | 'ingredients' | 'personal'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'planner' | 'ingredients' | 'shopping_list'>('dashboard');
     const [filterDate, setFilterDate] = useState(getCurrentThaiDate());
-    const [filterGroup, setFilterGroup] = useState<NutritionTargetGroup>('primary');
+    const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1);
+    const [filterYear, setFilterYear] = useState(new Date().getFullYear() + 543);
+    const [studentCount, setStudentCount] = useState(students.length || 100);
+    const [targetGroup, setTargetGroup] = useState<NutritionTargetGroup>('primary');
     
     // Planner State
     const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
@@ -38,24 +40,63 @@ const NutritionPage: React.FC<NutritionPageProps> = ({
         mealType: 'lunch',
         items: []
     });
-    
-    // Ingredient Modal State
+
+    // Fix: Added missing state variables for ingredient management
+    // Ingredient State
     const [isIngModalOpen, setIsIngModalOpen] = useState(false);
     const [currentIng, setCurrentIng] = useState<Partial<Ingredient>>({});
 
-    // Personal State
-    const [selectedStudentId, setSelectedStudentId] = useState<number | ''>('');
-    const [personalData, setPersonalData] = useState({ weight: 0, height: 0, age: 0, gender: 'male', activity: 'moderate' });
+    // --- Derived Data ---
+    const monthPlans = useMemo(() => {
+        return mealPlans.filter(p => {
+            const parts = p.date.split('/');
+            return Number(parts[1]) === filterMonth && Number(parts[2]) === filterYear;
+        });
+    }, [mealPlans, filterMonth, filterYear]);
 
-    // --- Computed Data ---
     const dailyPlans = useMemo(() => {
-        return mealPlans.filter(p => p.date === filterDate && p.targetGroup === filterGroup);
-    }, [mealPlans, filterDate, filterGroup]);
+        return mealPlans.filter(p => p.date === filterDate);
+    }, [mealPlans, filterDate]);
+
+    // คำนวณรายการซื้อของประจำเดือน (หรือวันที่เลือก)
+    const shoppingList = useMemo(() => {
+        const itemMap: Record<number, { name: string, unit: string, amount: number, price: number }> = {};
+        
+        // กรองตามแท็บ ถ้าอยู่ที่ planner/dashboard ให้ดูเป็นวัน ถ้าอยู่ที่ shopping_list ให้ดูเป็นเดือน
+        const targetPlans = activeTab === 'shopping_list' ? monthPlans : dailyPlans;
+
+        targetPlans.forEach(plan => {
+            safeParseArray(plan.items).forEach((item: MealPlanItem) => {
+                const ing = ingredients.find(i => i.id === item.ingredientId);
+                if (ing) {
+                    const totalNeeded = (item.amount || 0) * studentCount;
+                    if (!itemMap[ing.id]) {
+                        itemMap[ing.id] = { 
+                            name: ing.name, 
+                            unit: ing.unit, 
+                            amount: 0, 
+                            price: ing.price || 0 
+                        };
+                    }
+                    itemMap[ing.id].amount += totalNeeded;
+                }
+            });
+        });
+
+        return Object.entries(itemMap).map(([id, data]) => ({
+            id: Number(id),
+            ...data,
+            totalPrice: data.amount * data.price
+        })).sort((a, b) => b.totalPrice - a.totalPrice);
+    }, [monthPlans, dailyPlans, ingredients, studentCount, activeTab]);
+
+    const totalEstimatedCost = useMemo(() => {
+        return shoppingList.reduce((sum, item) => sum + item.totalPrice, 0);
+    }, [shoppingList]);
 
     const dailyNutrition = useMemo(() => {
         let cal = 0, pro = 0, fat = 0, carbs = 0;
         dailyPlans.forEach(plan => {
-            // Fix: safeParseArray is now imported and available
             safeParseArray(plan.items).forEach((item: MealPlanItem) => {
                 const ing = ingredients.find(i => i.id === item.ingredientId);
                 if (ing) {
@@ -69,52 +110,24 @@ const NutritionPage: React.FC<NutritionPageProps> = ({
         return { cal, pro, fat, carbs };
     }, [dailyPlans, ingredients]);
 
-    const targetStandard = NUTRITION_STANDARDS[filterGroup];
-
-    // --- Handlers ---
-    // Fix: Added handleOpenMenuModal to define it before use
-    const handleOpenMenuModal = (plan?: MealPlan) => {
+    const handleOpenMenuModal = (plan?: MealPlan, type?: 'breakfast' | 'lunch' | 'dinner') => {
         if (plan) {
             setCurrentPlan({ ...plan });
         } else {
             setCurrentPlan({
-                date: getCurrentThaiDate(),
-                targetGroup: 'primary',
+                date: filterDate,
+                targetGroup: targetGroup,
                 menuName: '',
-                mealType: 'lunch',
+                mealType: type || 'lunch',
                 items: []
             });
         }
         setIsMenuModalOpen(true);
     };
 
-    // Fix: Added handleDeletePlan to define it before use
-    const handleDeletePlan = (id: number) => {
-        if (window.confirm('ยืนยันการลบเมนูอาหาร?')) {
-            onDeleteMealPlan([id]);
-        }
-    };
-
     const handleSavePlan = (e: React.FormEvent) => {
         e.preventDefault();
-        // Calculate totals before saving
-        let cal = 0, pro = 0, fat = 0, carbs = 0;
-        (currentPlan.items || []).forEach(item => {
-            const ing = ingredients.find(i => i.id === item.ingredientId);
-            if (ing) {
-                cal += ing.calories * item.amount;
-                pro += ing.protein * item.amount;
-                fat += ing.fat * item.amount;
-                carbs += ing.carbs * item.amount;
-            }
-        });
-
-        const planToSave = {
-            ...currentPlan,
-            id: currentPlan.id || Date.now(),
-            totalCalories: cal, totalProtein: pro, totalFat: fat, totalCarbs: carbs
-        } as MealPlan;
-        onSaveMealPlan(planToSave);
+        onSaveMealPlan({ ...currentPlan, id: currentPlan.id || Date.now() } as MealPlan);
         setIsMenuModalOpen(false);
     };
 
@@ -125,101 +138,270 @@ const NutritionPage: React.FC<NutritionPageProps> = ({
         }));
     };
 
-    const updateItem = (idx: number, field: string, val: any) => {
-        const next = [...(currentPlan.items || [])];
-        next[idx] = { ...next[idx], [field]: val };
-        setCurrentPlan({ ...currentPlan, items: next });
-    };
-
     return (
-        <div className="space-y-6 animate-fade-in font-sarabun pb-10">
-            <div className="flex bg-white/50 p-1 rounded-2xl border border-gray-200 w-fit no-print shadow-sm">
-                <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'dashboard' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>แดชบอร์ด</button>
-                <button onClick={() => setActiveTab('planner')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'planner' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>จัดเมนู</button>
-                <button onClick={() => setActiveTab('ingredients')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'ingredients' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>วัตถุดิบ</button>
-                <button onClick={() => setActiveTab('personal')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'personal' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>โภชนาการ นร.</button>
+        <div className="space-y-6 font-sarabun pb-10">
+            {/* Header / Tabs */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
+                <div className="flex bg-white/50 p-1 rounded-2xl border border-gray-200 shadow-sm">
+                    <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'dashboard' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>แดชบอร์ด</button>
+                    <button onClick={() => setActiveTab('planner')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'planner' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>วางแผนเมนู 3 มื้อ</button>
+                    <button onClick={() => setActiveTab('shopping_list')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'shopping_list' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>ใบสั่งซื้อวัตถุดิบ</button>
+                    <button onClick={() => setActiveTab('ingredients')} className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'ingredients' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>คลังข้อมูลวัตถุดิบ</button>
+                </div>
+
+                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-sm">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">จำนวนนักเรียน:</span>
+                    <input 
+                        type="number" 
+                        value={studentCount} 
+                        onChange={e => setStudentCount(Number(e.target.value))} 
+                        className="w-20 text-center font-black text-navy border-none focus:ring-0"
+                    />
+                </div>
             </div>
 
+            {/* DASHBOARD TAB */}
             {activeTab === 'dashboard' && (
-                <div className="space-y-8">
-                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between">
-                         <div className="flex gap-4">
-                            <input type="date" value={buddhistToISO(filterDate)} onChange={e => setFilterDate(isoToBuddhist(e.target.value))} className="border rounded-xl px-4 py-2 text-sm font-bold text-navy" />
-                            <select value={filterGroup} onChange={e => setFilterGroup(e.target.value as any)} className="border rounded-xl px-4 py-2 text-sm font-bold text-emerald-600 bg-emerald-50">
+                <div className="space-y-6 animate-fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">งบประมาณที่ต้องใช้ (วันนี้)</p>
+                            <h3 className="text-3xl font-black text-navy">{totalEstimatedCost.toLocaleString()} <span className="text-xs font-normal">บาท</span></h3>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">เมนูที่จัดแล้ว (วันนี้)</p>
+                            <h3 className="text-3xl font-black text-blue-600">{dailyPlans.length} / 3</h3>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">พลังงานรวมต่อคน</p>
+                            <h3 className="text-3xl font-black text-emerald-600">{Math.round(dailyNutrition.cal)} <span className="text-xs font-normal">Kcal</span></h3>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">กลุ่มเป้าหมาย</p>
+                            <select value={targetGroup} onChange={e => setTargetGroup(e.target.value as any)} className="w-full mt-1 border-none font-bold text-navy p-0 focus:ring-0 cursor-pointer">
                                 <option value="kindergarten">อนุบาล</option>
                                 <option value="primary">ประถม</option>
                                 <option value="secondary">มัธยม</option>
                             </select>
-                         </div>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                         <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex flex-col items-center">
-                            <h3 className="text-lg font-black text-navy mb-8 uppercase tracking-widest text-gray-400">Calories Balance</h3>
-                            <div className="h-64 w-full relative flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <RadialBarChart 
-                                        innerRadius="70%" outerRadius="100%" 
-                                        data={[{ value: (dailyNutrition.cal / targetStandard.calories) * 100, fill: dailyNutrition.cal > targetStandard.calories ? '#EF4444' : '#10B981' }]} 
-                                        startAngle={180} endAngle={0}
-                                    >
-                                        <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                                        <RadialBar dataKey="value" cornerRadius={10} isAnimationActive={false} />
-                                    </RadialBarChart>
-                                </ResponsiveContainer>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center pt-8">
-                                    <span className="text-4xl font-black text-navy">{Math.round(dailyNutrition.cal)}</span>
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kcal / {targetStandard.calories}</span>
-                                </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 h-96">
+                            <h3 className="text-lg font-black text-navy mb-6">ความเหมาะสมของสารอาหารประจำวัน</h3>
+                            <ResponsiveContainer width="100%" height="80%">
+                                <BarChart data={[
+                                    { name: 'โปรตีน', val: dailyNutrition.pro, target: NUTRITION_STANDARDS[targetGroup].protein, fill: '#3B82F6' },
+                                    { name: 'ไขมัน', val: dailyNutrition.fat, target: NUTRITION_STANDARDS[targetGroup].fat, fill: '#F59E0B' },
+                                    { name: 'คาร์บฯ', val: dailyNutrition.carbs, target: NUTRITION_STANDARDS[targetGroup].carbs, fill: '#10B981' }
+                                ]} layout="vertical" margin={{ left: 30, right: 30 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 12, fontWeight: 'bold'}} />
+                                    <Tooltip />
+                                    <Bar dataKey="val" name="ได้รับ" radius={[0, 8, 8, 0]} barSize={24} />
+                                    <Bar dataKey="target" name="แนะนำ" fill="#E2E8F0" radius={[0, 8, 8, 0]} barSize={10} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                        
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100">
+                            <h3 className="text-lg font-black text-navy mb-6">เมนูอาหารวันนี้ ({filterDate})</h3>
+                            <div className="space-y-4">
+                                {['breakfast', 'lunch', 'dinner'].map(type => {
+                                    const plan = dailyPlans.find(p => p.mealType === type);
+                                    return (
+                                        <div key={type} className={`flex items-center justify-between p-4 rounded-2xl border ${plan ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-dashed border-gray-200 opacity-60'}`}>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm text-lg">
+                                                    {type === 'breakfast' ? '🌅' : type === 'lunch' ? '☀️' : '🌙'}
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{type === 'breakfast' ? 'เช้า' : type === 'lunch' ? 'กลางวัน' : 'เย็น'}</p>
+                                                    <p className="font-black text-navy">{plan?.menuName || 'ยังไม่ได้กำหนดเมนู'}</p>
+                                                </div>
+                                            </div>
+                                            {plan && <span className="text-xs font-bold text-blue-600">{Math.round(plan.totalCalories)} Kcal</span>}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                         </div>
-                         <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100">
-                             <h3 className="text-lg font-black text-navy mb-8">สารอาหารหลัก (Macro-nutrients)</h3>
-                             <div className="h-64">
-                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={[
-                                        { name: 'โปรตีน', val: dailyNutrition.pro, target: targetStandard.protein, fill: '#3B82F6' },
-                                        { name: 'ไขมัน', val: dailyNutrition.fat, target: targetStandard.fat, fill: '#F59E0B' },
-                                        { name: 'คาร์บฯ', val: dailyNutrition.carbs, target: targetStandard.carbs, fill: '#10B981' }
-                                    ]} layout="vertical" margin={{ left: 30, right: 30 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
-                                        <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 12, fontStyle: 'bold'}} />
-                                        <Tooltip />
-                                        <Bar dataKey="val" name="ได้รับ" radius={[0, 8, 8, 0]} barSize={20} />
-                                        <Bar dataKey="target" name="แนะนำ" fill="#E2E8F0" radius={[0, 8, 8, 0]} barSize={10} />
-                                    </BarChart>
-                                 </ResponsiveContainer>
-                             </div>
-                         </div>
+                        </div>
                     </div>
                 </div>
             )}
 
+            {/* PLANNER TAB */}
             {activeTab === 'planner' && (
+                <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 animate-fade-in">
+                    <div className="flex justify-between items-center mb-10">
+                        <div>
+                            <h3 className="text-2xl font-black text-navy tracking-tight">ปฏิทินเมนูอาหาร</h3>
+                            <p className="text-gray-400 text-xs font-bold mt-1">วางแผนอาหาร 3 มื้อเพื่อโภชนาการที่ดี</p>
+                        </div>
+                        <div className="flex gap-2">
+                             <input type="date" value={buddhistToISO(filterDate)} onChange={e => setFilterDate(isoToBuddhist(e.target.value))} className="border rounded-2xl px-6 py-3 font-bold text-navy focus:ring-4 focus:ring-blue-50" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {['breakfast', 'lunch', 'dinner'].map(type => {
+                            const plan = dailyPlans.find(p => p.mealType === type);
+                            return (
+                                <div key={type} className="flex flex-col h-full bg-gray-50/50 rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-inner p-8">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h4 className="font-black text-navy uppercase tracking-[0.2em] text-xs">{type}</h4>
+                                        {plan && (
+                                            <button onClick={() => onDeleteMealPlan([plan.id])} className="text-rose-400 hover:text-rose-600 transition-colors">
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    {plan ? (
+                                        <div className="flex-grow space-y-6 animate-fade-in">
+                                            <div className="relative group">
+                                                <h5 className="text-2xl font-black text-navy leading-tight group-hover:text-primary-blue transition-colors">{plan.menuName}</h5>
+                                                <div className="h-1 w-12 bg-primary-blue mt-3 rounded-full"></div>
+                                            </div>
+                                            <div className="space-y-3 bg-white p-6 rounded-3xl shadow-sm border border-gray-50">
+                                                <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-2">ส่วนประกอบหลัก</p>
+                                                {safeParseArray(plan.items).map((item: any, i: number) => (
+                                                    <div key={i} className="flex justify-between items-center text-sm">
+                                                        <span className="text-gray-600 font-bold">{ingredients.find(ig => ig.id === item.ingredientId)?.name}</span>
+                                                        <span className="text-navy font-black">x {item.amount}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-auto pt-6 flex justify-between items-end">
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Energy</p>
+                                                    <p className="text-xl font-black text-emerald-500">{Math.round(plan.totalCalories)}</p>
+                                                </div>
+                                                <button onClick={() => handleOpenMenuModal(plan, type as any)} className="bg-white text-navy px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 hover:shadow-md transition-all active:scale-95">แก้ไขเมนู</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex-grow flex flex-col items-center justify-center text-center space-y-4">
+                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-2xl shadow-sm opacity-40">🍽️</div>
+                                            <p className="text-gray-400 font-bold italic text-sm">ยังไม่ได้กำหนดเมนู</p>
+                                            <button onClick={() => handleOpenMenuModal(undefined, type as any)} className="bg-navy text-white px-8 py-3 rounded-2xl font-black text-xs hover:bg-blue-900 shadow-xl shadow-blue-900/10 active:scale-95 transition-all">+ เพิ่มเมนู</button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* SHOPPING LIST TAB (The Bill Section) */}
+            {activeTab === 'shopping_list' && (
+                <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 animate-fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 no-print">
+                        <div>
+                            <h3 className="text-2xl font-black text-navy tracking-tight">ใบสั่งซื้อวัตถุดิบ (ประจำเดือน)</h3>
+                            <p className="text-gray-400 text-xs font-bold mt-1">สรุปรายการและปริมาณที่ต้องจัดซื้อทั้งหมด</p>
+                        </div>
+                        <div className="flex gap-4">
+                            <select value={filterMonth} onChange={e => setFilterMonth(Number(e.target.value))} className="border rounded-2xl px-6 py-3 font-bold text-navy focus:ring-4 focus:ring-blue-50">
+                                {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                                    <option key={m} value={m}>เดือน{new Date(0, m - 1).toLocaleString('th-TH', { month: 'long' })}</option>
+                                ))}
+                            </select>
+                            <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black text-sm shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                พิมพ์ใบสั่งซื้อ
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="shopping-bill" className="space-y-8">
+                        {/* Bill Header (Visible on print) */}
+                        <div className="hidden print:block text-center border-b-2 border-navy pb-6 mb-8">
+                            <h1 className="text-2xl font-black text-navy">{currentUser.position}</h1>
+                            <h2 className="text-xl font-bold">ใบสรุปรายการจัดซื้อวัตถุดิบประกอบอาหาร</h2>
+                            <p className="text-sm">ประจำเดือน {new Date(0, filterMonth - 1).toLocaleString('th-TH', { month: 'long' })} ปี {filterYear}</p>
+                            <p className="text-xs mt-2 text-gray-500">คำนวณสำหรับนักเรียน {studentCount} คน</p>
+                        </div>
+
+                        <div className="bg-gray-50/50 rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-inner">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-navy text-white">
+                                    <tr>
+                                        <th className="p-6 text-center w-16">#</th>
+                                        <th className="p-6">รายการวัตถุดิบ</th>
+                                        <th className="p-6 text-right">ปริมาณรวม</th>
+                                        <th className="p-6 text-center">หน่วย</th>
+                                        <th className="p-6 text-right">ราคา/หน่วย</th>
+                                        <th className="p-6 text-right">รวมเงิน (บ.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {shoppingList.map((item, idx) => (
+                                        <tr key={item.id} className="hover:bg-blue-50/30 transition-colors bg-white">
+                                            <td className="p-6 text-center font-bold text-gray-300">{idx + 1}</td>
+                                            <td className="p-6 font-black text-navy">{item.name}</td>
+                                            <td className="p-6 text-right font-black text-indigo-600">{item.amount.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                                            <td className="p-6 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">{item.unit}</td>
+                                            <td className="p-6 text-right font-bold text-gray-600">{item.price.toLocaleString()}</td>
+                                            <td className="p-6 text-right font-black text-navy">{item.totalPrice.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                    {shoppingList.length === 0 && (
+                                        <tr><td colSpan={6} className="p-20 text-center text-gray-300 italic">ไม่มีรายการที่ต้องจัดซื้อในเดือนนี้</td></tr>
+                                    )}
+                                </tbody>
+                                <tfoot className="bg-navy/5">
+                                    <tr>
+                                        <td colSpan={5} className="p-8 text-right font-black text-navy uppercase tracking-widest text-base">รวมงบประมาณทั้งสิ้น</td>
+                                        <td className="p-8 text-right font-black text-navy text-2xl">{totalEstimatedCost.toLocaleString()} บ.</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        {/* Bill Footer (Signatures - visible on print) */}
+                        <div className="hidden print:grid grid-cols-2 gap-20 mt-20 text-center">
+                            <div className="space-y-12">
+                                <p className="font-bold">ลงชื่อ.......................................................ผู้จัดทำ<br/>({currentUser.personnelName})</p>
+                            </div>
+                            <div className="space-y-12">
+                                <p className="font-bold">ลงชื่อ.......................................................ผู้เห็นชอบ<br/>(เจ้าหน้าที่โภชนาการ)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* INGREDIENTS TAB */}
+            {activeTab === 'ingredients' && (
                 <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 animate-fade-in">
                     <div className="flex justify-between items-center mb-10">
-                        <h3 className="text-2xl font-black text-navy">จัดตารางเมนูอาหาร</h3>
-                        <button onClick={() => handleOpenMenuModal()} className="bg-navy text-white px-8 py-3 rounded-2xl font-black text-sm shadow-xl shadow-blue-900/10 hover:bg-blue-900 active:scale-95 transition-all">เพิ่มเมนู</button>
+                        <h3 className="text-2xl font-black text-navy">คลังข้อมูลวัตถุดิบและราคา</h3>
+                        <button onClick={() => { setCurrentIng({}); setIsIngModalOpen(true); }} className="bg-primary-blue text-white px-8 py-3 rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all">เพิ่มวัตถุดิบใหม่</button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {mealPlans.filter(p => p.date === filterDate).map(p => (
-                            <div key={p.id} className="bg-gray-50 p-6 rounded-[2rem] border border-gray-200 space-y-4">
-                                <div className="flex justify-between items-start">
-                                    <span className="bg-navy text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">{p.mealType}</span>
-                                    <button onClick={() => handleDeletePlan(p.id)} className="text-rose-500"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        {ingredients.map(ing => (
+                            <div key={ing.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">🥬</div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setCurrentIng(ing); setIsIngModalOpen(true); }} className="p-2 text-gray-300 hover:text-blue-500 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                                        <button onClick={() => onDeleteIngredient([ing.id])} className="p-2 text-gray-300 hover:text-rose-500 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                    </div>
                                 </div>
-                                <h4 className="font-black text-navy text-xl leading-tight">{p.menuName}</h4>
-                                <div className="space-y-1">
-                                    {/* Fix: safeParseArray is now imported and available */}
-                                    {safeParseArray(p.items).map((item: any, i: number) => (
-                                        <p key={i} className="text-xs text-gray-500 font-bold">• {ingredients.find(ig => ig.id === item.ingredientId)?.name} x {item.amount}</p>
-                                    ))}
-                                </div>
-                                <div className="pt-4 border-t border-gray-200 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-indigo-500">
-                                    <span>{p.targetGroup}</span>
-                                    <span>{Math.round(p.totalCalories)} Kcal</span>
+                                <h4 className="font-black text-navy text-lg leading-tight mb-4">{ing.name}</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-3 bg-gray-50 rounded-xl">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Energy</p>
+                                        <p className="font-black text-navy text-sm">{ing.calories} <span className="text-[9px] font-normal">Kcal/{ing.unit}</span></p>
+                                    </div>
+                                    <div className="p-3 bg-emerald-50 rounded-xl">
+                                        <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Price</p>
+                                        <p className="font-black text-emerald-600 text-sm">{ing.price} <span className="text-[9px] font-normal">บ./{ing.unit}</span></p>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -229,13 +411,13 @@ const NutritionPage: React.FC<NutritionPageProps> = ({
 
             {/* MODAL: MENU FORM */}
             {isMenuModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden animate-fade-in-up">
-                        <div className="p-8 bg-emerald-600 text-white flex justify-between items-center">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
+                        <div className="p-8 bg-primary-blue text-white flex justify-between items-center">
                             <h3 className="text-2xl font-black">บันทึกเมนูอาหาร</h3>
                             <button onClick={() => setIsMenuModalOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
-                        <form onSubmit={handleSavePlan} className="p-10 overflow-y-auto space-y-8 bg-gray-50/50">
+                        <form onSubmit={handleSavePlan} className="p-10 overflow-y-auto space-y-8 bg-gray-50/50 flex-grow">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชื่อเมนู *</label>
@@ -253,26 +435,86 @@ const NutritionPage: React.FC<NutritionPageProps> = ({
                             
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">รายการวัตถุดิบหลัก</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">รายการวัตถุดิบหลัก (ปริมาณต่อคน)</label>
                                     <button type="button" onClick={handleAddIngRow} className="text-xs font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl">+ เพิ่มวัตถุดิบ</button>
                                 </div>
                                 <div className="space-y-3">
-                                    {(currentPlan.items || []).map((item, idx) => (
+                                    {safeParseArray(currentPlan.items).map((item: any, idx: number) => (
                                         <div key={idx} className="flex gap-4 items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                            <select value={item.ingredientId} onChange={e => updateItem(idx, 'ingredientId', Number(e.target.value))} className="flex-grow border-none focus:ring-0 text-sm font-bold text-navy">
-                                                {ingredients.map(ig => <option key={ig.id} value={ig.id}>{ig.name} ({ig.calories} cal/{ig.unit})</option>)}
+                                            <select 
+                                                value={item.ingredientId} 
+                                                onChange={e => {
+                                                    const next = [...safeParseArray(currentPlan.items)];
+                                                    next[idx] = { ...item, ingredientId: Number(e.target.value) };
+                                                    setCurrentPlan({ ...currentPlan, items: next });
+                                                }} 
+                                                className="flex-grow border-none focus:ring-0 text-sm font-bold text-navy"
+                                            >
+                                                {ingredients.map(ig => <option key={ig.id} value={ig.id}>{ig.name} ({ig.unit})</option>)}
                                             </select>
-                                            <input type="number" step="0.1" value={item.amount} onChange={e => updateItem(idx, 'amount', Number(e.target.value))} className="w-24 bg-gray-50 border-none rounded-xl px-4 py-2 text-center font-bold" />
-                                            <button type="button" onClick={() => { const next = [...currentPlan.items!]; next.splice(idx,1); setCurrentPlan({...currentPlan, items: next}); }} className="text-rose-500"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                            <input 
+                                                type="number" 
+                                                step="0.1" 
+                                                value={item.amount} 
+                                                onChange={e => {
+                                                    const next = [...safeParseArray(currentPlan.items)];
+                                                    next[idx] = { ...item, amount: Number(e.target.value) };
+                                                    setCurrentPlan({ ...currentPlan, items: next });
+                                                }} 
+                                                className="w-24 bg-gray-50 border-none rounded-xl px-4 py-2 text-center font-bold" 
+                                            />
+                                            <button type="button" onClick={() => { 
+                                                const next = safeParseArray(currentPlan.items).filter((_, i) => i !== idx); 
+                                                setCurrentPlan({...currentPlan, items: next}); 
+                                            }} className="text-rose-500"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-6">
-                                <button type="button" onClick={() => setIsMenuModalOpen(false)} className="bg-white border border-gray-200 text-gray-400 px-12 py-4 rounded-2xl font-black text-sm hover:bg-gray-50 transition-all">ยกเลิก</button>
-                                <button type="submit" disabled={isSaving} className="bg-emerald-600 text-white px-16 py-4 rounded-2xl font-black text-sm shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 active:scale-95 transition-all">ยืนยันบันทึก</button>
+                            <div className="flex gap-4 pt-6">
+                                <button type="button" onClick={() => setIsMenuModalOpen(false)} className="flex-1 bg-white border-2 border-gray-100 text-gray-400 py-4 rounded-2xl font-black text-sm hover:bg-gray-50 transition-all">ยกเลิก</button>
+                                <button type="submit" disabled={isSaving} className="flex-[2] bg-emerald-600 text-white px-16 py-4 rounded-2xl font-black text-sm shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 active:scale-95 transition-all">บันทึกเมนู</button>
                             </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: INGREDIENT FORM */}
+            {isIngModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-fade-in-up">
+                        <div className="p-8 bg-navy text-white flex justify-between items-center">
+                            <h3 className="text-2xl font-black">ข้อมูลวัตถุดิบ</h3>
+                            <button onClick={() => setIsIngModalOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        </div>
+                        <form onSubmit={(e) => { e.preventDefault(); onSaveIngredient({...currentIng, id: currentIng.id || Date.now()} as Ingredient); setIsIngModalOpen(false); }} className="p-10 space-y-6">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชื่อวัตถุดิบ *</label>
+                                <input type="text" required value={currentIng.name || ''} onChange={e => setCurrentIng({...currentIng, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 outline-none focus:ring-4 focus:ring-blue-50 font-bold" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">หน่วยนับ</label>
+                                    <input type="text" required value={currentIng.unit || ''} onChange={e => setCurrentIng({...currentIng, unit: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 font-bold" placeholder="กรัม, ผล, กล่อง..." />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ราคาต่อหน่วย</label>
+                                    <input type="number" required value={currentIng.price || ''} onChange={e => setCurrentIng({...currentIng, price: Number(e.target.value)})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 font-bold" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">แคลอรี่ต่อหน่วย</label>
+                                    <input type="number" required value={currentIng.calories || ''} onChange={e => setCurrentIng({...currentIng, calories: Number(e.target.value)})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 font-bold" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">โปรตีน (g)</label>
+                                    <input type="number" step="0.1" value={currentIng.protein || ''} onChange={e => setCurrentIng({...currentIng, protein: Number(e.target.value)})} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 font-bold" />
+                                </div>
+                            </div>
+                            <button type="submit" disabled={isSaving} className="w-full bg-navy text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-900/20 hover:bg-blue-950 transition-all active:scale-95">บันทึกข้อมูลวัตถุดิบ</button>
                         </form>
                     </div>
                 </div>

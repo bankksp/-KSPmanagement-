@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Settings, AttendancePeriodConfig } from '../types';
-import { getDirectDriveImageSrc } from '../utils';
+import { getDirectDriveImageSrc, postToGoogleScript } from '../utils';
 
 interface AdminDashboardProps {
     settings: Settings;
@@ -15,6 +15,10 @@ type AdminTab = 'general' | 'appearance' | 'lists' | 'attendance' | 'system';
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExit, isSaving }) => {
     const [activeTab, setActiveTab] = useState<AdminTab>('general');
     const [localSettings, setLocalSettings] = useState<Settings>(settings);
+    const [isTesting, setIsTesting] = useState<string | null>(null);
+    const [scriptVersion, setScriptVersion] = useState<string>('');
+    const [checkingVersion, setCheckingVersion] = useState(false);
+    
     const [newItem, setNewItem] = useState({ 
         dormitory: '', 
         position: '', 
@@ -59,6 +63,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
 
+    const handleTestWebhook = async (field: keyof Settings, label: string) => {
+        const url = localSettings[field] as string;
+        if (!url) {
+            alert('กรุณากรอก Webhook URL ก่อนทดสอบ');
+            return;
+        }
+        
+        setIsTesting(field);
+        try {
+            const response = await postToGoogleScript({
+                action: 'testWebhook',
+                data: { url, label }
+            });
+            if (response.status === 'success') {
+                alert(`✅ เชื่อมต่อสำเร็จ! Google Chat ควรจะเด้งแจ้งเตือนแล้ว\nข้อความจากระบบ: ${response.message || 'OK'}`);
+            } else {
+                throw new Error(response.message);
+            }
+        } catch (error: any) {
+            alert('❌ การทดสอบล้มเหลว: ' + error.message + '\n\nสาเหตุที่เป็นไปได้:\n1. URL ผิด หรือยังไม่ได้กดบันทึก\n2. คุณยังไม่ได้ Redeploy Code ล่าสุด (สำคัญ!)\n3. สคริปต์ยังไม่มีสิทธิ์ (Re-authorize)');
+        } finally {
+            setIsTesting(null);
+        }
+    };
+
+    const checkBackendVersion = async () => {
+        setCheckingVersion(true);
+        try {
+            const res = await postToGoogleScript({ action: 'checkVersion' });
+            if (res.version) {
+                setScriptVersion(res.version);
+                alert(`Backend Version: ${res.version}\nเชื่อมต่อได้ปกติ`);
+            } else {
+                setScriptVersion('Unknown');
+                alert('ไม่พบเลขเวอร์ชั่น (อาจเป็นโค้ดเก่า)');
+            }
+        } catch(e) {
+            alert('ไม่สามารถเชื่อมต่อ Backend ได้');
+        } finally {
+            setCheckingVersion(false);
+        }
+    };
+
     const handleAddItem = (
         key: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms', 
         valueKey: 'dormitory' | 'position' | 'academicYear' | 'studentClass' | 'studentClassroom'
@@ -73,7 +120,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
         }
     };
 
-    /* Fix: Corrected typo in type 'studentClassroom' to 'studentClassrooms' to match Settings interface and fix type mismatch on line 98 */
     const handleRemoveItem = (
         key: 'dormitories' | 'positions' | 'academicYears' | 'studentClasses' | 'studentClassrooms', 
         index: number
@@ -111,6 +157,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                     className="flex-grow px-3 py-2 border border-gray-300 rounded-lg"
                 />
                 <button type="button" onClick={() => handleAddItem(itemKey, valueKey)} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg">เพิ่ม</button>
+            </div>
+        </div>
+    );
+
+    const WebhookInput: React.FC<{ label: string; name: keyof Settings }> = ({ label, name }) => (
+        <div className="space-y-1">
+            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest ml-1">{label}</label>
+            <div className="flex gap-2">
+                <input 
+                    type="text" 
+                    name={name} 
+                    value={(localSettings[name] as string) || ''} 
+                    onChange={handleSettingsChange} 
+                    placeholder="https://chat.googleapis.com/..." 
+                    className="flex-grow px-4 py-2 text-xs border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-300 font-mono" 
+                />
+                <button 
+                    type="button" 
+                    onClick={() => handleTestWebhook(name, label)}
+                    disabled={isTesting === name}
+                    className="bg-white border border-indigo-200 text-indigo-600 px-3 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                    {isTesting === name ? '...' : 'ทดสอบ'}
+                </button>
             </div>
         </div>
     );
@@ -210,26 +280,65 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
             case 'system':
                 return (
                     <div className="space-y-6">
+                        <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg shadow-sm">
+                            <div className="flex items-start gap-3">
+                                <div className="text-orange-500 text-xl">⚠️</div>
+                                <div>
+                                    <h4 className="font-bold text-orange-800">สำคัญ: เมื่ออัปเดตโค้ดใน Script Editor</h4>
+                                    <p className="text-sm text-orange-700 mt-1">
+                                        ทุกครั้งที่มีการแก้โค้ด <code>Code.gs</code> คุณต้องกด <b>Deploy &gt; New Deployment</b> และเลือก type เป็น <b>Web app</b> เสมอ
+                                        (Execute as: Me / Access: Anyone) เพื่อให้ระบบอัปเดตความสามารถใหม่ๆ
+                                    </p>
+                                    <button 
+                                        onClick={checkBackendVersion} 
+                                        disabled={checkingVersion}
+                                        className="mt-3 bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow hover:bg-orange-700 transition-all"
+                                    >
+                                        {checkingVersion ? 'Checking...' : 'ตรวจสอบเวอร์ชั่นปัจจุบัน'}
+                                    </button>
+                                    {scriptVersion && <p className="text-xs font-mono mt-2 text-gray-500">Current Version: {scriptVersion}</p>}
+                                </div>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Google Script URL</label>
                             <input type="text" name="googleScriptUrl" value={localSettings.googleScriptUrl} onChange={handleSettingsChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
                         </div>
+
+                        <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 shadow-sm space-y-4">
+                            <h3 className="text-lg font-black text-indigo-900 tracking-tight flex items-center gap-2">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                                ตั้งค่าการแจ้งเตือน Google Chat
+                            </h3>
+                            <p className="text-xs text-indigo-500 mb-4">
+                                * ต้องนำลิ้งค์ Webhook จาก Google Chat มาใส่ให้ครบ และกดปุ่ม <b>"ทดสอบ"</b> เพื่อยืนยันว่าระบบทำงานได้
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <WebhookInput label="ระบบเช็คชื่อ (Attendance)" name="webhookAttendance" />
+                                <WebhookInput label="รายงานเรือนนอน (Dormitory)" name="webhookDormitory" />
+                                <WebhookInput label="งานวิชาการ (Academic)" name="webhookAcademic" />
+                                <WebhookInput label="งบประมาณ/พัสดุ (Finance/Supply)" name="webhookFinance" />
+                                <WebhookInput label="งานทั่วไป/แจ้งซ่อม (General)" name="webhookGeneral" />
+                                <WebhookInput label="ดูแลช่วยเหลือ (Student Support)" name="webhookStudentSupport" />
+                            </div>
+                        </div>
+
                          <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านระบบ (System Password)</label>
                             <input type="password" name="adminPassword" value={localSettings.adminPassword || ''} onChange={handleSettingsChange} placeholder="กำหนดรหัสผ่านสำหรับยืนยันการลบ" className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
-                            <p className="text-xs text-gray-500 mt-1">ใช้สำหรับการยืนยันการลบข้อมูลสำคัญ</p>
                         </div>
                         
-                        {/* Auto-Hide Sidebar Setting Enhanced */}
-                        <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 mt-4 shadow-sm">
+                        <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 mt-4 shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg">
+                                    <div className="p-3 bg-slate-600 text-white rounded-2xl shadow-lg">
                                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-black text-indigo-900 tracking-tight">ซ่อนแถบเมนูอัตโนมัติ (Auto-Hide Sidebar)</h3>
-                                        <p className="text-xs text-indigo-500 font-bold uppercase tracking-widest mt-1">ระบบจะซ่อนเมนูเมื่อใช้งานหน้าจอกว้าง และแสดงเมื่อนำเมาส์ไปวางที่ขอบจอ</p>
+                                        <h3 className="text-lg font-black text-slate-900 tracking-tight">ซ่อนแถบเมนูอัตโนมัติ (Auto-Hide Sidebar)</h3>
+                                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">ระบบจะซ่อนเมนูเมื่อใช้งานหน้าจอกว้าง และแสดงเมื่อนำเมาส์ไปวางที่ขอบจอ</p>
                                     </div>
                                 </div>
                                 <button
@@ -250,7 +359,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
     return (
         <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-gray-100 animate-fade-in">
             <div className="flex flex-col md:flex-row gap-8">
-                {/* Sidebar */}
                 <aside className="md:w-1/4">
                     <h2 className="text-xl font-bold text-navy mb-6 px-4">เมนูตั้งค่า</h2>
                     <nav className="space-y-1">
@@ -264,7 +372,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                         })}
                     </nav>
                 </aside>
-                {/* Main Content */}
                 <main className="md:w-3/4">
                     <div className="mb-8 pb-4 border-b">
                          <h2 className="text-2xl font-black text-navy tracking-tight">

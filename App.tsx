@@ -446,18 +446,30 @@ const App: React.FC = () => {
         try {
             const apiPayload = await prepareDataForApi(data);
             const response = await postToGoogleScript({ action, data: apiPayload });
-            let saved = response.data;
+            const responseData = response.data;
             
-            if (action === 'saveLeaveRecord' || action === 'saveDutyRecord') {
-                saved.date = normalizeDateString(saved.date);
-                if (saved.startDate) saved.startDate = normalizeDateString(saved.startDate);
-                if (saved.endDate) saved.endDate = normalizeDateString(saved.endDate);
-            }
+            const items = Array.isArray(responseData) ? responseData : [responseData];
+            
+            const processedItems = items.map((saved: any) => {
+                 if (action === 'saveLeaveRecord' || action === 'saveDutyRecord') {
+                    saved.date = normalizeDateString(saved.date);
+                    if (saved.startDate) saved.startDate = normalizeDateString(saved.startDate);
+                    if (saved.endDate) saved.endDate = normalizeDateString(saved.endDate);
+                }
+                return saved;
+            });
 
             setter((prev: any[]) => {
-                const index = prev.findIndex(item => String(item.id) === String(saved.id));
-                if (index >= 0) { const n = [...prev]; n[index] = saved; return n; }
-                return [...prev, saved];
+                let newPrev = [...prev];
+                processedItems.forEach((saved: any) => {
+                    const index = newPrev.findIndex(item => String(item.id) === String(saved.id));
+                    if (index >= 0) { 
+                        newPrev[index] = saved; 
+                    } else {
+                        newPrev.push(saved);
+                    }
+                });
+                return newPrev;
             });
             alert('บันทึกเรียบร้อย');
         } catch(e) { console.error(e); alert('Error saving'); } finally { setIsSaving(false); }
@@ -546,7 +558,15 @@ const App: React.FC = () => {
                 ) : null;
             case 'durable_goods': 
                 return currentUser ? (
-                    <DurableGoodsPage currentUser={currentUser} durableGoods={durableGoods} onSave={(i) => handleGenericSave('saveDurableGood', i, setDurableGoods)} onDelete={(ids) => handleGenericDelete('deleteDurableGoods', ids, setDurableGoods)} isSaving={isSaving} settings={settings} />
+                    <DurableGoodsPage 
+                        currentUser={currentUser} 
+                        durableGoods={durableGoods} 
+                        onSave={(i) => handleGenericSave('saveDurableGood', i, setDurableGoods)} 
+                        onDelete={(ids) => handleGenericDelete('deleteDurableGoods', ids, setDurableGoods)} 
+                        isSaving={isSaving} 
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
+                    />
                 ) : null;
             case 'general_docs': 
                 return currentUser ? (
@@ -659,8 +679,9 @@ const App: React.FC = () => {
                     <div className="h-10"></div> 
                     <Footer />
                 </main>
-                {/* AI Assistant Popup */}
+                {/* Fix: Added mandatory currentUser prop to satisfy updated AIChatPopup interface */}
                 <AIChatPopup 
+                    currentUser={currentUser}
                     students={students} 
                     personnel={personnel} 
                     reports={reports} 

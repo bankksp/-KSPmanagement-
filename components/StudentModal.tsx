@@ -170,22 +170,19 @@ const StudentModal: React.FC<StudentModalProps> = ({
             const timer = setTimeout(() => {
                 const mapContainer = document.getElementById('picker-map');
                 if (mapContainer) {
-                    // Clean up existing map instance
                     if (mapRef.current) {
                         mapRef.current.remove();
                         mapRef.current = null;
                         markerRef.current = null;
                     }
 
-                    // Initialize Map
-                    const initialLat = formData.latitude || 16.4322; // Default Kalasin
+                    const initialLat = formData.latitude || 16.4322; 
                     const initialLng = formData.longitude || 103.5061;
                     const zoom = formData.latitude ? 15 : 10;
 
                     const map = L.map('picker-map').setView([initialLat, initialLng], zoom);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                     
-                    // Create Red Pin Icon for Selection
                     const redIcon = L.divIcon({
                         className: 'custom-picker-marker',
                         html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#EF4444" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); width: 100%; height: 100%;">
@@ -193,30 +190,21 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                 <circle cx="12" cy="10" r="3" fill="white"></circle>
                                </svg>`,
                         iconSize: [36, 36],
-                        iconAnchor: [18, 36], // Tip at bottom center
+                        iconAnchor: [18, 36],
                     });
 
-                    // Add existing marker if present
                     if (formData.latitude && formData.longitude) {
                         markerRef.current = L.marker([formData.latitude, formData.longitude], { icon: redIcon }).addTo(map);
                     }
 
-                    // Click handler
                     map.on('click', (e: any) => {
                         const { lat, lng } = e.latlng;
-                        
                         if (markerRef.current) {
                             markerRef.current.setLatLng([lat, lng]);
                         } else {
                             markerRef.current = L.marker([lat, lng], { icon: redIcon }).addTo(map);
                         }
-                        
-                        // Update Form Data immediately
-                        setFormData(prev => ({
-                            ...prev,
-                            latitude: lat,
-                            longitude: lng
-                        }));
+                        setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
                     });
 
                     mapRef.current = map;
@@ -246,7 +234,6 @@ const StudentModal: React.FC<StudentModalProps> = ({
                 if (mapRef.current) {
                     mapRef.current.setView([latitude, longitude], 15);
                     const L = (window as any).L;
-                    
                     const redIcon = L.divIcon({
                         className: 'custom-picker-marker',
                         html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#EF4444" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); width: 100%; height: 100%;">
@@ -256,7 +243,6 @@ const StudentModal: React.FC<StudentModalProps> = ({
                         iconSize: [36, 36],
                         iconAnchor: [18, 36],
                     });
-
                     if (markerRef.current) {
                         markerRef.current.setLatLng([latitude, longitude]);
                     } else {
@@ -278,7 +264,6 @@ const StudentModal: React.FC<StudentModalProps> = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        // Handle number inputs for weight/height
         if (name === 'weight' || name === 'height') {
              setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
         } else {
@@ -286,7 +271,6 @@ const StudentModal: React.FC<StudentModalProps> = ({
         }
     };
 
-    // Handler specifically for AddressSelector
     const handleAddressChange = (fieldName: keyof Student, value: string) => {
         setFormData(prev => ({ ...prev, [fieldName]: value }));
     };
@@ -460,13 +444,13 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                 />
                                 <div className="relative lg:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ครูประจำชั้น</label>
-                                    <button type="button" onClick={() => setIsTeacherDropdownOpen(!isTeacherDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex justify-between items-center">
-                                        <span className="truncate text-gray-700">
+                                    <button type="button" onClick={() => setIsTeacherDropdownOpen(!isTeacherDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex justify-between items-center text-sm">
+                                        <span className="truncate">
                                             {selectedTeachers.length > 0 
                                                 ? `เลือกแล้ว ${selectedTeachers.length} ท่าน` 
                                                 : 'เลือกครู...'}
                                         </span>
-                                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path></svg>
+                                        <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path></svg>
                                     </button>
                                     {isTeacherDropdownOpen && (
                                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
@@ -492,8 +476,8 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                                             type="checkbox"
                                                             id={`teacher-${p.id}`}
                                                             checked={(formData.homeroomTeachers || []).includes(p.id)}
-                                                            onChange={() => {}} 
-                                                            className="h-4 w-4 rounded border-gray-300 text-primary-blue focus:ring-primary-blue pointer-events-none"
+                                                            readOnly
+                                                            className="h-4 w-4 rounded border-gray-300 text-primary-blue focus:ring-primary-blue"
                                                         />
                                                         <label htmlFor={`teacher-${p.id}`} className="ml-2 text-sm text-gray-700 pointer-events-none select-none">
                                                             {`${p.personnelTitle === 'อื่นๆ' ? p.personnelTitleOther : p.personnelTitle} ${p.personnelName}`}
@@ -507,7 +491,7 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                     )}
                                     <div className="mt-2 flex flex-wrap gap-2">
                                         {selectedTeachers.map(p => (
-                                            <div key={p.id} className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">
+                                            <div key={p.id} className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-[10px] font-bold">
                                                 <span>{`${p.personnelTitle === 'อื่นๆ' ? p.personnelTitleOther : p.personnelTitle} ${p.personnelName}`}</span>
                                                 <button type="button" onClick={() => handleHomeroomTeacherChange(p.id)} className="ml-2 text-blue-600 hover:text-blue-800 font-bold">&times;</button>
                                             </div>
@@ -531,14 +515,14 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                         </button>
                                         {formData.latitude && (
                                             <>
-                                                <span className="text-xs text-green-600 flex items-center gap-1 font-medium bg-green-50 px-2 py-1 rounded-md border border-green-100">
+                                                <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium bg-green-50 px-2 py-1 rounded-md border border-green-100">
                                                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                                                     บันทึกพิกัดแล้ว ({formData.latitude.toFixed(6)}, {formData.longitude?.toFixed(6)})
                                                 </span>
                                                 <button
                                                     type="button"
                                                     onClick={handleClearLocation}
-                                                    className="text-xs text-red-500 hover:text-red-700 underline"
+                                                    className="text-[10px] text-red-500 hover:text-red-700 underline"
                                                 >
                                                     ลบพิกัด
                                                 </button>

@@ -1,10 +1,12 @@
 
 /**
  * D-school Management System - Backend Script
+ * Version: 2.0 (Webhook Enhanced)
  */
 
 const FOLDER_NAME = "D-school_Uploads"; 
 const SCHOOL_NAME = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
+const SCRIPT_VERSION = "2.0.1"; // อัปเดตเลขเวอร์ชั่นทุกครั้งที่แก้โค้ด
 
 const SHEET_NAMES = {
   REPORTS: "Reports",
@@ -33,51 +35,205 @@ const SHEET_NAMES = {
   MEAL_PLANS: "MealPlans",
   INGREDIENTS: "Ingredients",
   OTP_STORE: "OTPStore",
-  WORKFLOW_DOCS: "WorkflowDocuments"
+  WORKFLOW_DOCS: "WorkflowDocuments",
+  CHAT_MESSAGES: "ChatMessages"
 };
 
 function doPost(e) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) return responseJSON({ status: 'error', message: 'Server busy' });
+  // ลดเวลารอ Lock เพื่อป้องกัน Timeout ในบางกรณี
+  if (!lock.tryLock(30000)) return responseJSON({ status: 'error', message: 'Server busy, please try again.' });
 
   try {
     const request = JSON.parse(e.postData.contents);
-    const action = request.action;
+    const action = String(request.action || "").trim();
     const data = request.data;
     const uploadFolder = getUploadFolder();
     
-    if (action === 'login') {
-      const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
-      const identifier = String(request.identifier).toLowerCase();
-      const user = personnel.find(p => (String(p.idCard) === identifier) || (String(p.email).toLowerCase() === identifier));
+    // --- Routing System ---
+    switch (action) {
+      case 'checkVersion':
+        return responseJSON({ status: 'success', version: SCRIPT_VERSION });
 
-      if (!user) return responseJSON({ status: 'error', message: 'ไม่พบผู้ใช้งานในระบบ' });
-      if (user.status === 'pending') return responseJSON({ status: 'error', message: 'บัญชีของท่านยังไม่ได้รับอนุมัติ' });
-      
-      const actualPass = user.password || user.idCard;
-      if (String(actualPass) === String(request.password)) return responseJSON({ status: 'success', data: user });
-      return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
+      case 'login':
+        const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
+        const identifier = String(request.identifier || "").toLowerCase();
+        const user = personnel.find(p => (String(p.idCard) === identifier) || (String(p.email).toLowerCase() === identifier));
+
+        if (!user) return responseJSON({ status: 'error', message: 'ไม่พบผู้ใช้งานในระบบ' });
+        if (user.status === 'pending') return responseJSON({ status: 'error', message: 'บัญชีของท่านยังไม่ได้รับอนุมัติ' });
+        
+        const actualPass = user.password || user.idCard;
+        if (String(actualPass) === String(request.password)) return responseJSON({ status: 'success', data: user });
+        return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
+
+      case 'getAllData':
+        const allData = {};
+        for (const key in SHEET_NAMES) {
+          if (key === 'OTP_STORE') continue;
+          const sheetName = SHEET_NAMES[key];
+          const keyName = sheetName.charAt(0).toLowerCase() + sheetName.slice(1);
+          allData[keyName] = readSheet(getSheet(sheetName));
+        }
+        const settingsList = readSheet(getSheet(SHEET_NAMES.SETTINGS));
+        allData.settings = settingsList.length > 0 ? settingsList[0] : null;
+        return responseJSON({ status: 'success', data: allData });
+
+      case 'getChatMessages':
+        const messages = readSheet(getSheet(SHEET_NAMES.CHAT_MESSAGES));
+        const userId = request.userId;
+        const filtered = messages.filter(m => 
+          !m.isDeleted && (
+            m.senderId == userId || 
+            m.receiverId == userId || 
+            m.receiverId == 'all' ||
+            (m.receiverId == 'admin' && isAdmin(userId))
+          )
+        );
+        return responseJSON({ status: 'success', data: filtered });
+
+      case 'sendChatMessage':
+      case 'editChatMessage':
+      case 'deleteChatMessage':
+        const chatSheet = getSheet(SHEET_NAMES.CHAT_MESSAGES);
+        if (action === 'sendChatMessage') ensureHeadersExist(chatSheet, data);
+        const savedChat = saveRecord(chatSheet, data, uploadFolder);
+        return responseJSON({ status: 'success', data: savedChat });
+
+      case 'testWebhook':
+        const { url, label } = data;
+        if (!url || !url.startsWith('http')) {
+           return responseJSON({ status: 'error', message: 'URL ไม่ถูกต้อง' });
+        }
+        const testMsg = `⚡ *D-school Connection Test*\nสถานะ: เชื่อมต่อสำเร็จ\nระบบ: ${label}\nทดสอบโดย: แอดมิน\nเวลา: ${new Date().toLocaleString('th-TH')}`;
+        try {
+          const response = UrlFetchApp.fetch(url, {
+            method: 'post',
+            contentType: 'application/json',
+            payload: JSON.stringify({ text: testMsg }),
+            muteHttpExceptions: true
+          });
+          const responseCode = response.getResponseCode();
+          if (responseCode >= 200 && responseCode < 300) {
+            return responseJSON({ status: 'success', message: 'ส่งข้อความสำเร็จ (Status: ' + responseCode + ')' });
+          } else {
+            return responseJSON({ 
+              status: 'error', 
+              message: 'Google Chat ปฏิเสธการเชื่อมต่อ (HTTP ' + responseCode + '): ' + response.getContentText() 
+            });
+          }
+        } catch (e) {
+          return responseJSON({ status: 'error', message: 'เกิดข้อผิดพลาดในการส่ง: ' + e.toString() });
+        }
+
+      default:
+        return routeGenericAction(action, request, uploadFolder);
     }
-
-    if (action === 'getAllData') {
-      const allData = {};
-      for (const key in SHEET_NAMES) {
-        if (key === 'OTP_STORE') continue;
-        const sheetName = SHEET_NAMES[key];
-        const keyName = sheetName.charAt(0).toLowerCase() + sheetName.slice(1);
-        allData[keyName] = readSheet(getSheet(sheetName));
-      }
-      const settingsList = readSheet(getSheet(SHEET_NAMES.SETTINGS));
-      allData.settings = settingsList.length > 0 ? settingsList[0] : null;
-      return responseJSON({ status: 'success', data: allData });
-    }
-
-    return routeGenericAction(action, request, uploadFolder);
 
   } catch (error) {
     return responseJSON({ status: 'error', message: error.toString() });
   } finally {
     lock.releaseLock();
+  }
+}
+
+function isAdmin(userId) {
+  const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
+  const user = personnel.find(p => p.id == userId);
+  return user && (user.role === 'admin' || user.role === 'pro');
+}
+
+function triggerNotification(action, data, settings) {
+  const exemptActions = ['addPersonnel', 'updatePersonnel', 'addStudent', 'updateStudent'];
+  if (exemptActions.includes(action)) return;
+
+  let webhookUrl = '';
+  let msg = '';
+  const first = Array.isArray(data) ? data[0] : data;
+  if (!first) return;
+
+  // เลือก Webhook ตาม Action
+  if (action === 'saveStudentAttendance' || action === 'savePersonnelAttendance') {
+    webhookUrl = settings.webhookAttendance;
+    const isStudent = action === 'saveStudentAttendance';
+    const periodLabels = { 'morning_act': 'กิจกรรมเช้า', 'p1': 'ชั่วโมงที่ 1', 'lunch_act': 'กิจกรรมเที่ยง', 'evening_act': 'กิจกรรมเย็น' };
+    const stats = { present: 0, absent: 0, sick: 0, leave: 0, activity: 0, home: 0 };
+    const records = Array.isArray(data) ? data : [data];
+    records.forEach(r => { if (stats[r.status] !== undefined) stats[r.status]++; });
+
+    msg = `📢 *รายงานการเช็คชื่อ${isStudent ? 'นักเรียน' : 'บุคลากร'}*\n` +
+          `📅 วันที่: ${first.date} | ช่วงเวลา: ${periodLabels[first.period] || first.period}\n` +
+          `--------------------------------\n` +
+          `✅ มา/ปฏิบัติหน้าที่: ${stats.present + stats.activity} คน\n` +
+          `❌ ขาด: ${stats.absent} คน | 🤒 ป่วย: ${stats.sick} คน\n` +
+          `📝 ลา: ${stats.leave} คน | 🏠 อยู่บ้าน: ${stats.home} คน\n` +
+          `--------------------------------\n` +
+          `บันทึกโดยระบบ D-school Smart Management`;
+  }
+  else if (action === 'addReport' || action === 'updateReport') {
+    webhookUrl = settings.webhookDormitory;
+    let sickList = "-";
+    let homeList = "-";
+    if (first.studentDetails) {
+      try {
+        const details = typeof first.studentDetails === 'string' ? JSON.parse(first.studentDetails) : first.studentDetails;
+        if (Array.isArray(details)) {
+           const sicks = details.filter(s => s.status === 'sick').map(s => s.name);
+           if (sicks.length > 0) sickList = sicks.join(', ');
+           const homes = details.filter(s => s.status === 'home').map(s => s.name);
+           if (homes.length > 0) homeList = homes.join(', ');
+        }
+      } catch (e) {}
+    }
+    msg = `👨‍🏫 ครูเวร: ${first.reporterName}\n` +
+          `🏠 เรือนนอนที่ดูแล: ${first.dormitory}\n` +
+          `🕰️ ช่วงเวลาเวร: ${first.reportTime || 'ไม่ระบุ'}\n` +
+          `🤒🏥 ป่วย: ${sickList}\n` +
+          `🏡📚 เรียนที่บ้าน: ${homeList}\n\n` +
+          `📊 มา: ${first.presentCount} | ป่วย: ${first.sickCount} | อื่นๆ: ${first.homeCount || 0}\n` +
+          `📘 บันทึก: ${first.log || '-'}`;
+  }
+  else if (action === 'saveAcademicPlan') {
+    webhookUrl = settings.webhookAcademic;
+    msg = `📚 *มีการส่งแผนการจัดการเรียนรู้ใหม่*\n📖 วิชา: ${first.subjectName} (${first.subjectCode})\n👨‍🏫 ผู้สอน: ${first.teacherName}\n📂 กลุ่มสาระ: ${first.learningArea}`;
+  }
+  else if (action === 'saveServiceRecord') {
+    webhookUrl = settings.webhookAcademic;
+    msg = `🏫 *ลงทะเบียนใช้บริการแหล่งเรียนรู้*\n📍 สถานที่: ${first.location}\n📝 กิจกรรม: ${first.purpose}\n👨‍🏫 ผู้รับผิดชอบ: ${first.teacherName}`;
+  }
+  else if (action === 'saveSupplyRequest') {
+    webhookUrl = settings.webhookFinance;
+    msg = `📦 *มีการขอเบิกพัสดุใหม่*\n👤 ผู้ขอ: ${first.requesterName}\n🏢 ฝ่าย: ${first.department}\n📝 เหตุผล: ${first.reason}`;
+  }
+  else if (action === 'saveProjectProposal') {
+    webhookUrl = settings.webhookFinance;
+    msg = `📊 *มีการเสนอโครงการ/แผนงานใหม่*\n📋 โครงการ: ${first.name}\n💰 งบประมาณ: ${Number(first.budget).toLocaleString()} บาท\n👤 ผู้รับผิดชอบ: ${first.responsiblePersonName}`;
+  }
+  else if (action === 'saveMaintenanceRequest') {
+    webhookUrl = settings.webhookGeneral;
+    msg = `🔧 *แจ้งซ่อมบำรุง*\n🛠️ รายการ: ${first.itemName}\n📍 สถานที่: ${first.location}\n👤 ผู้แจ้ง: ${first.requesterName}`;
+  }
+  else if (action === 'saveDocument' || action === 'saveWorkflowDoc') {
+    webhookUrl = settings.webhookGeneral;
+    msg = `📄 *หนังสือราชการ/แฟ้มเสนอใหม่*\n📝 เรื่อง: ${first.title}\n📂 ประเภท: ${first.category || first.type}\n👤 ผู้ส่ง: ${first.submitterName || first.from}`;
+  }
+  else if (action === 'saveHomeVisit') {
+    webhookUrl = settings.webhookStudentSupport;
+    msg = `🏠 *บันทึกการเยี่ยมบ้านนักเรียน*\n👤 นักเรียน: ${first.studentName}\n👨‍🏫 ครูผู้เยี่ยม: ${first.visitorName}`;
+  }
+
+  // ส่งข้อมูล (สำคัญ: ตรวจสอบ URL)
+  if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.trim().startsWith('http') && msg) {
+    try {
+      UrlFetchApp.fetch(webhookUrl.trim(), {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ text: msg }),
+        muteHttpExceptions: true
+      });
+    } catch (e) {
+      Logger.log("Webhook Error (" + action + "): " + e.toString());
+    }
   }
 }
 
@@ -111,40 +267,37 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
     'savePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
     'saveWorkflowDoc': SHEET_NAMES.WORKFLOW_DOCS,
-    'updateSettings': SHEET_NAMES.SETTINGS,
-    'deleteReports': SHEET_NAMES.REPORTS,
-    'deleteStudents': SHEET_NAMES.STUDENTS,
-    'deletePersonnel': SHEET_NAMES.PERSONNEL,
-    'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
-    'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS,
-    'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS,
-    'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
-    'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
-    'deleteCertificateProjects': SHEET_NAMES.CERTIFICATE_PROJECTS,
-    'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
-    'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
-    'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
-    'deleteSARReports': SHEET_NAMES.SAR_REPORTS,
-    'deleteDocuments': SHEET_NAMES.DOCUMENTS,
-    'deleteConstructionRecords': SHEET_NAMES.CONSTRUCTION_RECORDS,
-    'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
-    'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS,
-    'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
-    'deleteIngredients': SHEET_NAMES.INGREDIENTS,
-    'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
-    'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
-    'deleteWorkflowDocs': SHEET_NAMES.WORKFLOW_DOCS
+    'updateSettings': SHEET_NAMES.SETTINGS
   };
+
+  if (action.startsWith('delete')) {
+     const sheetMap = {
+        'deleteReports': SHEET_NAMES.REPORTS, 'deleteStudents': SHEET_NAMES.STUDENTS,
+        'deletePersonnel': SHEET_NAMES.PERSONNEL, 'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
+        'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS, 'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS,
+        'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS, 'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
+        'deleteCertificateProjects': SHEET_NAMES.CERTIFICATE_PROJECTS,
+        'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
+        'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
+        'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
+        'deleteSARReports': SHEET_NAMES.SAR_REPORTS, 'deleteDocuments': SHEET_NAMES.DOCUMENTS,
+        'deleteConstructionRecords': SHEET_NAMES.CONSTRUCTION_RECORDS,
+        'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
+        'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS, 'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
+        'deleteIngredients': SHEET_NAMES.INGREDIENTS, 'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
+        'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
+        'deleteWorkflowDocs': SHEET_NAMES.WORKFLOW_DOCS
+     };
+     const targetSheetName = sheetMap[action];
+     if (!targetSheetName) return responseJSON({ status: 'error', message: 'Unknown delete action: ' + action });
+     deleteRecords(getSheet(targetSheetName), ids);
+     return responseJSON({ status: 'success' });
+  }
 
   const sheetName = actionToSheetMap[action];
   if (!sheetName) return responseJSON({ status: 'error', message: 'Unknown action: ' + action });
 
   const sheet = getSheet(sheetName);
-
-  if (action.startsWith('delete')) {
-    deleteRecords(sheet, ids);
-    return responseJSON({ status: 'success' });
-  }
 
   if (action === 'updateSettings') {
     ensureHeadersExist(sheet, data);
@@ -154,14 +307,18 @@ function routeGenericAction(action, request, uploadFolder) {
 
   if (action.startsWith('add') || action.startsWith('update') || action.startsWith('save')) {
     const records = Array.isArray(data) ? data : [data];
-    if (records.length > 0) {
-      ensureHeadersExist(sheet, records[0]);
-    }
+    if (records.length > 0) ensureHeadersExist(sheet, records[0]);
     const results = records.map(r => saveRecord(sheet, r, uploadFolder));
+
+    const settingsList = readSheet(getSheet(SHEET_NAMES.SETTINGS));
+    if (settingsList.length > 0) {
+      triggerNotification(action, results, settingsList[0]);
+    }
+
     return responseJSON({ status: 'success', data: Array.isArray(data) ? results : results[0] });
   }
 
-  return responseJSON({ status: 'error', message: 'Action not fully implemented' });
+  return responseJSON({ status: 'error', message: 'Action implementation missing in generic router: ' + action });
 }
 
 function getSheet(name) {
@@ -198,11 +355,8 @@ function ensureHeadersExist(sheet, dataObj) {
     sheet.appendRow(Object.keys(dataObj));
     return;
   }
-  
   const headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
-  const objKeys = Object.keys(dataObj);
-  
-  objKeys.forEach(key => {
+  Object.keys(dataObj).forEach(key => {
     if (headers.indexOf(key) === -1) {
       sheet.getRange(1, headers.length + 1).setValue(key);
       headers.push(key);
@@ -211,7 +365,6 @@ function ensureHeadersExist(sheet, dataObj) {
 }
 
 function saveRecord(sheet, dataObj, uploadFolder) {
-  // Handle file uploads
   for (const key in dataObj) {
     const val = dataObj[key];
     if (Array.isArray(val)) {

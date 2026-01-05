@@ -49,7 +49,6 @@ export const DEFAULT_ATTENDANCE_PERIODS: AttendancePeriodConfig[] = [
     { id: 'evening_act', label: 'กิจกรรมเย็น', enabled: true },
 ];
 
-// โปรแกรมลายเซ็น (Fixed)
 export const PROGRAM_LOGO = 'https://img5.pic.in.th/file/secure-sv1/Blue-and-White-Modern-Gradient-D-Logo.png';
 
 export const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPULly51wnfwG5MgS2VItYEt9Olp1RXBUmdSk8yvsgMViMr5u4iTNVZ6BlNcAheen9CA/exec';
@@ -67,6 +66,15 @@ export const DEFAULT_SETTINGS: Settings = {
     studentClasses: STUDENT_CLASSES,
     studentClassrooms: STUDENT_CLASSROOMS,
     googleScriptUrl: GOOGLE_SCRIPT_URL,
+    durableGoodsCategories: ['ยานพาหนะ', 'อุปกรณ์อิเล็กทรอนิกส์', 'เครื่องใช้สำนักงาน', 'เฟอร์นิเจอร์', 'อุปกรณ์ห้องประชุม', 'ครุภัณฑ์การเกษตร', 'ครุภัณฑ์โฆษณาและเผยแพร่'],
+    // Initialize Webhooks as empty strings
+    webhookAttendance: '',
+    webhookDormitory: '',
+    webhookAcademic: '',
+    webhookFinance: '',
+    webhookGeneral: '',
+    webhookStudentSupport: '',
+    
     adminPassword: 'ksp',
     schoolLat: 16.4322,
     schoolLng: 103.5061,
