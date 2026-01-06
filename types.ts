@@ -343,6 +343,35 @@ export interface SupplyRequestItem {
   price: number; 
 }
 
+export type ProcurementType = 'วัตถุ' | 'ครุภัณฑ์' | 'ที่ดิน' | 'ก่อสร้าง' | 'จ้างเหมาบริการ' | 'เช่า' | 'อื่นๆ';
+export type ProcurementMethod = 'e-bidding' | 'e-market' | 'เฉพาะเจาะจง' | 'คัดเลือก' | 'สอบราคา' | 'ประกวดราคา' | 'พิเศษ';
+
+export interface ProcurementItem {
+  id: number;
+  type: string;
+  description: string;
+  unitPrice: number;
+  quantity: number;
+  unit: string;
+  location: string;
+}
+
+export interface ProcurementRecord {
+  id: number;
+  docNumber: string;
+  subject: string;
+  docDate: string;
+  recipient: string;
+  approvedBudget: number;
+  procurementType: ProcurementType;
+  procurementMethod: ProcurementMethod;
+  supplierName: string;
+  items: ProcurementItem[];
+  totalPrice: number;
+  // FIX: Add missing department property
+  department?: string;
+}
+
 export interface DurableGood {
   id: number;
   code: string; 

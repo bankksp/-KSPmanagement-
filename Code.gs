@@ -1,12 +1,13 @@
 
 /**
  * D-school Management System - Backend Script
- * Version: 2.0 (Webhook Enhanced)
+ * Version: 2.2 (Complete Feature Parity & Robustness)
  */
+// NEW: Increased version number to reflect changes.
+const SCRIPT_VERSION = "2.2.0";
 
 const FOLDER_NAME = "D-school_Uploads"; 
 const SCHOOL_NAME = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
-const SCRIPT_VERSION = "2.0.1"; // อัปเดตเลขเวอร์ชั่นทุกครั้งที่แก้โค้ด
 
 const SHEET_NAMES = {
   REPORTS: "Reports",
@@ -39,9 +40,71 @@ const SHEET_NAMES = {
   CHAT_MESSAGES: "ChatMessages"
 };
 
+
+/**
+ * NEW: Helper function to find a specific record by its ID.
+ * This is useful for retrieving data for notifications without needing it from the client.
+ */
+function findRecordById(sheet, id) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idIndex = headers.indexOf('id');
+  if (idIndex === -1) return null;
+
+  const ids = sheet.getRange(2, idIndex + 1, lastRow - 1, 1).getValues().flat();
+  const rowIndex = ids.map(String).indexOf(String(id));
+
+  if (rowIndex !== -1) {
+    const row = rowIndex + 2;
+    const rowData = sheet.getRange(row, 1, 1, headers.length).getValues()[0];
+    const obj = {};
+    headers.forEach((h, i) => {
+      if (h) {
+        let val = rowData[i];
+        if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+          try { val = JSON.parse(val); } catch(e) {}
+        }
+        obj[h] = val;
+      }
+    });
+    return obj;
+  }
+  return null;
+}
+
+
+/**
+ * NEW: Helper to update specific fields of a record without rewriting the whole row.
+ * More efficient and safer for partial updates.
+ */
+function updateRecordFields(sheet, id, fieldsToUpdate) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idIndex = headers.indexOf('id');
+  if (idIndex === -1) return; 
+
+  const ids = sheet.getRange(2, idIndex + 1, lastRow - 1, 1).getValues().flat();
+  const rowIndex = ids.map(String).indexOf(String(id));
+
+  if (rowIndex !== -1) {
+    const row = rowIndex + 2; 
+    for (const field in fieldsToUpdate) {
+      if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, field)) {
+        const colIndex = headers.indexOf(field);
+        if (colIndex !== -1) {
+          const col = colIndex + 1;
+          sheet.getRange(row, col).setValue(fieldsToUpdate[field] === undefined ? '' : fieldsToUpdate[field]);
+        }
+      }
+    }
+  }
+}
+
+
 function doPost(e) {
   const lock = LockService.getScriptLock();
-  // ลดเวลารอ Lock เพื่อป้องกัน Timeout ในบางกรณี
   if (!lock.tryLock(30000)) return responseJSON({ status: 'error', message: 'Server busy, please try again.' });
 
   try {
@@ -50,22 +113,26 @@ function doPost(e) {
     const data = request.data;
     const uploadFolder = getUploadFolder();
     
-    // --- Routing System ---
     switch (action) {
       case 'checkVersion':
         return responseJSON({ status: 'success', version: SCRIPT_VERSION });
 
       case 'login':
         const personnel = readSheet(getSheet(SHEET_NAMES.PERSONNEL));
-        const identifier = String(request.identifier || "").toLowerCase();
-        const user = personnel.find(p => (String(p.idCard) === identifier) || (String(p.email).toLowerCase() === identifier));
+        const identifier = String(request.identifier || "").toLowerCase().trim();
+        const user = personnel.find(p => (String(p.idCard).replace(/[^0-9]/g, '') === identifier.replace(/[^0-9]/g, '')) || (String(p.email).toLowerCase() === identifier));
 
         if (!user) return responseJSON({ status: 'error', message: 'ไม่พบผู้ใช้งานในระบบ' });
-        if (user.status === 'pending') return responseJSON({ status: 'error', message: 'บัญชีของท่านยังไม่ได้รับอนุมัติ' });
         
         const actualPass = user.password || user.idCard;
-        if (String(actualPass) === String(request.password)) return responseJSON({ status: 'success', data: user });
-        return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
+        if (String(actualPass) === String(request.password)) {
+            // NEW: Added server-side status check for security.
+            if (user.status === 'pending') return responseJSON({ status: 'error', message: 'บัญชีของท่านยังไม่ได้รับอนุมัติ' });
+            if (user.status === 'blocked') return responseJSON({ status: 'error', message: 'บัญชีของท่านถูกระงับการใช้งาน' });
+            return responseJSON({ status: 'success', data: user });
+        } else {
+            return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
+        }
 
       case 'getAllData':
         const allData = {};
@@ -82,14 +149,23 @@ function doPost(e) {
       case 'getChatMessages':
         const messages = readSheet(getSheet(SHEET_NAMES.CHAT_MESSAGES));
         const userId = request.userId;
-        const filtered = messages.filter(m => 
-          !m.isDeleted && (
+        const userRole = request.userRole;
+        const sinceTimestamp = request.sinceTimestamp;
+
+        const isUserAdmin = (userRole === 'admin' || userRole === 'pro');
+
+        const filtered = messages.filter(m => {
+          if (sinceTimestamp && new Date(m.timestamp) <= new Date(sinceTimestamp)) {
+            return false;
+          }
+          
+          return !m.isDeleted && (
             m.senderId == userId || 
             m.receiverId == userId || 
             m.receiverId == 'all' ||
-            (m.receiverId == 'admin' && isAdmin(userId))
-          )
-        );
+            (m.receiverId == 'admin' && isUserAdmin)
+          );
+        });
         return responseJSON({ status: 'success', data: filtered });
 
       case 'sendChatMessage':
@@ -125,6 +201,24 @@ function doPost(e) {
         } catch (e) {
           return responseJSON({ status: 'error', message: 'เกิดข้อผิดพลาดในการส่ง: ' + e.toString() });
         }
+      
+      // NEW: Added handler for partial updates on Academic Plans.
+      case 'updateAcademicPlanStatus': {
+        const planSheet = getSheet(SHEET_NAMES.ACADEMIC_PLANS);
+        const { id, status, comment, approverName, approvedDate } = data;
+        
+        const originalRecord = findRecordById(planSheet, id); // Get full record for notification
+        updateRecordFields(planSheet, id, { status, comment, approverName, approvedDate });
+
+        if (originalRecord) {
+          const updatedPlanForNotif = { ...originalRecord, ...data };
+          const settingsListForPlan = readSheet(getSheet(SHEET_NAMES.SETTINGS));
+          if (settingsListForPlan.length > 0) {
+            triggerNotification('updateAcademicPlanStatus', updatedPlanForNotif, settingsListForPlan[0]);
+          }
+        }
+        return responseJSON({ status: 'success', data: {id: id} });
+      }
 
       default:
         return routeGenericAction(action, request, uploadFolder);
@@ -196,6 +290,15 @@ function triggerNotification(action, data, settings) {
   else if (action === 'saveAcademicPlan') {
     webhookUrl = settings.webhookAcademic;
     msg = `📚 *มีการส่งแผนการจัดการเรียนรู้ใหม่*\n📖 วิชา: ${first.subjectName} (${first.subjectCode})\n👨‍🏫 ผู้สอน: ${first.teacherName}\n📂 กลุ่มสาระ: ${first.learningArea}`;
+  } 
+  // NEW: Added notification for plan status updates.
+  else if (action === 'updateAcademicPlanStatus') {
+    webhookUrl = settings.webhookAcademic;
+    msg = `✅ *แผนการสอนได้รับการตรวจสอบ*\n` +
+          `📖 วิชา: ${first.subjectName}\n` +
+          `👨‍🏫 ผู้สอน: ${first.teacherName}\n` +
+          `⭐ สถานะ: ${first.status === 'approved' ? 'อนุมัติแล้ว' : 'รอแก้ไข'}\n` +
+          `🗣️ โดย: ${first.approverName}`;
   }
   else if (action === 'saveServiceRecord') {
     webhookUrl = settings.webhookAcademic;
@@ -241,6 +344,30 @@ function routeGenericAction(action, request, uploadFolder) {
   const data = request.data;
   const ids = request.ids;
   
+  if (action.startsWith('delete')) {
+     const sheetMap = {
+        'deleteReports': SHEET_NAMES.REPORTS, 'deleteStudents': SHEET_NAMES.STUDENTS,
+        'deletePersonnel': SHEET_NAMES.PERSONNEL, 'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
+        'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS, // NEW: Added missing delete action.
+        'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS, 'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
+        'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS, 'deleteCertificateProjects': SHEET_NAMES.CERTIFICATE_PROJECTS,
+        'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
+        'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
+        'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
+        'deleteSARReports': SHEET_NAMES.SAR_REPORTS, 'deleteDocuments': SHEET_NAMES.DOCUMENTS,
+        'deleteConstructionRecords': SHEET_NAMES.CONSTRUCTION_RECORDS,
+        'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
+        'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS, 'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
+        'deleteIngredients': SHEET_NAMES.INGREDIENTS, 'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
+        'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
+        'deleteWorkflowDocs': SHEET_NAMES.WORKFLOW_DOCS
+     };
+     const targetSheetName = sheetMap[action];
+     if (!targetSheetName) return responseJSON({ status: 'error', message: 'Unknown delete action: ' + action });
+     deleteRecords(getSheet(targetSheetName), ids);
+     return responseJSON({ status: 'success' });
+  }
+
   const actionToSheetMap = {
     'addReport': SHEET_NAMES.REPORTS, 'updateReport': SHEET_NAMES.REPORTS,
     'addPersonnel': SHEET_NAMES.PERSONNEL, 'updatePersonnel': SHEET_NAMES.PERSONNEL,
@@ -269,30 +396,6 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveWorkflowDoc': SHEET_NAMES.WORKFLOW_DOCS,
     'updateSettings': SHEET_NAMES.SETTINGS
   };
-
-  if (action.startsWith('delete')) {
-     const sheetMap = {
-        'deleteReports': SHEET_NAMES.REPORTS, 'deleteStudents': SHEET_NAMES.STUDENTS,
-        'deletePersonnel': SHEET_NAMES.PERSONNEL, 'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
-        'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS, 'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS,
-        'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS, 'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS,
-        'deleteCertificateProjects': SHEET_NAMES.CERTIFICATE_PROJECTS,
-        'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
-        'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
-        'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
-        'deleteSARReports': SHEET_NAMES.SAR_REPORTS, 'deleteDocuments': SHEET_NAMES.DOCUMENTS,
-        'deleteConstructionRecords': SHEET_NAMES.CONSTRUCTION_RECORDS,
-        'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
-        'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS, 'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
-        'deleteIngredients': SHEET_NAMES.INGREDIENTS, 'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
-        'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
-        'deleteWorkflowDocs': SHEET_NAMES.WORKFLOW_DOCS
-     };
-     const targetSheetName = sheetMap[action];
-     if (!targetSheetName) return responseJSON({ status: 'error', message: 'Unknown delete action: ' + action });
-     deleteRecords(getSheet(targetSheetName), ids);
-     return responseJSON({ status: 'success' });
-  }
 
   const sheetName = actionToSheetMap[action];
   if (!sheetName) return responseJSON({ status: 'error', message: 'Unknown action: ' + action });

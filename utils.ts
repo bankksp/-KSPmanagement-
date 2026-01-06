@@ -191,7 +191,7 @@ export const formatThaiDate = (dateString: string | undefined): string => {
     const d = date.getDate();
     const m = date.getMonth();
     const y = date.getFullYear() + 543;
-    return `${d} ${THAI_SHORT_MONTHS[m]} ${y}`;
+    return `${d} ${THAI_MONTHS[m]} ${y}`;
 };
 
 export const formatThaiDateTime = (dateStr: string, timeStr?: string): string => {
@@ -290,3 +290,69 @@ export const parseThaiDateForSort = (dateString: string): number => {
     const date = normalizeDate(dateString);
     return date ? date.getTime() : 0;
 };
+
+export const toThaiWords = (num: number): string => {
+    const units = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+    const digits = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    let numStr = String(Math.floor(num));
+    let decimalStr = String(num.toFixed(2)).split('.')[1] || '00';
+
+    if (num === 0) return 'ศูนย์บาทถ้วน';
+
+    let result = '';
+    let len = numStr.length;
+
+    for (let i = 0; i < len; i++) {
+        let n = parseInt(numStr[i]);
+        if (n === 0) continue;
+
+        let unit = units[len - 1 - i];
+        
+        if (n === 1) {
+            if (len - 1 - i === 1) { // สิบ
+                // No need to say 'หนึ่ง'
+            } else if (len - 1 - i === 0 && len > 1) { // หน่วย
+                if (parseInt(numStr[len - 2]) !== 0) {
+                    result += 'เอ็ด';
+                } else {
+                    result += 'หนึ่ง';
+                }
+            } else {
+                result += 'หนึ่ง';
+            }
+        } else if (n === 2 && len - 1 - i === 1) { // ยี่สิบ
+            result += 'ยี่';
+        } else {
+            result += digits[n];
+        }
+
+        result += unit;
+    }
+
+    result += 'บาท';
+
+    if (parseInt(decimalStr) === 0) {
+        result += 'ถ้วน';
+    } else {
+        numStr = decimalStr;
+        len = numStr.length;
+        let satangResult = '';
+        for (let i = 0; i < len; i++) {
+            let n = parseInt(numStr[i]);
+            if (n === 0) continue;
+            let unit = units[len - 1 - i];
+            if (n === 1) {
+                if (len - 1 - i === 1) {}
+                else if (len - 1 - i === 0 && parseInt(numStr[len - 2]) !== 0) satangResult += 'เอ็ด';
+                else satangResult += 'หนึ่ง';
+            } else if (n === 2 && len - 1 - i === 1) {
+                satangResult += 'ยี่';
+            } else {
+                satangResult += digits[n];
+            }
+            satangResult += unit;
+        }
+        result += satangResult + 'สตางค์';
+    }
+    return `(${result})`;
+}

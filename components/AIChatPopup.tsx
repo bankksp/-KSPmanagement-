@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Personnel, ChatMessage, Student, Report, Settings, StudentAttendance } from '../types';
 import { postToGoogleScript, formatOnlyTime, getFirstImageSource, prepareDataForApi, safeParseArray } from '../utils';
 import { GoogleGenAI } from "@google/genai";
@@ -39,19 +38,18 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
     
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const lastFetchTimestampRef = useRef<string | null>(null);
+    const pollingIntervalRef = useRef<number | null>(null);
 
-    // คำนวณจำนวนข้อความที่ยังไม่ได้อ่าน (ที่ไม่ได้ส่งโดยตัวเอง)
     const unreadCount = useMemo(() => {
         if (!currentUser) return 0;
         return messages.filter(m => !m.isRead && m.senderId !== currentUser.id && !m.isDeleted).length;
     }, [messages, currentUser]);
 
-    // Get all personnel except current user
     const allContacts = useMemo(() => {
         return personnel.filter(p => p.id !== currentUser?.id);
     }, [personnel, currentUser]);
 
-    // Filtering for the "Search New Person" view
     const filteredSearch = useMemo(() => {
         if (!searchTerm) return allContacts;
         const lowerSearch = searchTerm.toLowerCase();
@@ -61,30 +59,65 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
         );
     }, [allContacts, searchTerm]);
 
-    // Polling for messages
-    useEffect(() => {
-        if (!currentUser || !isOpen) return;
+    const fetchMessages = useCallback(async (isInitial: boolean) => {
+        if (!currentUser) return;
+        try {
+            const response = await postToGoogleScript({ 
+                action: 'getChatMessages', 
+                userId: currentUser.id,
+                userRole: currentUser.role,
+                sinceTimestamp: isInitial ? null : lastFetchTimestampRef.current 
+            });
 
-        const checkMessages = async () => {
-            try {
-                const response = await postToGoogleScript({ 
-                    action: 'getChatMessages', 
-                    userId: currentUser.id 
-                });
-                if (response.status === 'success' && response.data) {
-                    const incomingMsgs = response.data as ChatMessage[];
-                    if (incomingMsgs.length !== messages.length) {
+            if (response.status === 'success' && response.data) {
+                const incomingMsgs = (response.data as ChatMessage[]).sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+                
+                if (incomingMsgs.length > 0) {
+                    if (isInitial) {
                         setMessages(incomingMsgs);
+                    } else {
+                        setMessages(prev => {
+                            const existingIds = new Set(prev.map(m => m.id));
+                            const uniqueNewMsgs = incomingMsgs.filter(m => !existingIds.has(m.id));
+                            if (uniqueNewMsgs.length === 0) return prev;
+                            return [...prev, ...uniqueNewMsgs];
+                        });
                     }
+
+                    const latestTimestamp = incomingMsgs[incomingMsgs.length - 1].timestamp;
+
+                    if (!lastFetchTimestampRef.current || new Date(latestTimestamp) > new Date(lastFetchTimestampRef.current)) {
+                        lastFetchTimestampRef.current = latestTimestamp;
+                    }
+                } else if (isInitial) {
+                    lastFetchTimestampRef.current = new Date().toISOString();
                 }
-            } catch (e) {
-                console.error("Chat sync error", e);
+            }
+        } catch (e) {
+            console.error(`Chat ${isInitial ? 'initial fetch' : 'poll'} error`, e);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (isOpen && currentUser) {
+            fetchMessages(true);
+
+            pollingIntervalRef.current = window.setInterval(() => {
+                fetchMessages(false);
+            }, 5000);
+        }
+
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+            if (!isOpen) {
+                setMessages([]);
+                lastFetchTimestampRef.current = null;
             }
         };
-
-        const interval = setInterval(checkMessages, 5000);
-        return () => clearInterval(interval);
-    }, [currentUser, isOpen, messages.length]);
+    }, [isOpen, currentUser, fetchMessages]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -92,7 +125,6 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
         }
     }, [messages, view, selectedContact]);
 
-    // Filter messages for current view
     const activeMessages = useMemo(() => {
         if (!selectedContact) return [];
         if (selectedContact === 'all') {
@@ -106,7 +138,6 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
         );
     }, [messages, selectedContact, currentUser]);
 
-    // Grouping for the "Inbox" (Recent Conversations only)
     const recentConversations = useMemo(() => {
         const groups: Record<string, ChatMessage> = {};
         messages.forEach(m => {
@@ -124,7 +155,6 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
         return groups;
     }, [messages, currentUser]);
 
-    // List of people to show in the main Inbox
     const inboxList = useMemo(() => {
         const list: { person: Personnel | 'all', lastMsg: ChatMessage }[] = [];
         
@@ -149,54 +179,71 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
         const userText = input.trim();
         const receiverId = selectedContact === 'all' ? 'all' : selectedContact.id;
         setIsSending(true);
-
+        setInput('');
+        
         const newId = Date.now();
-        const userMsg: Partial<ChatMessage> = {
+        const optimisticMsg: ChatMessage = {
             id: editingMsgId || newId,
             senderId: currentUser.id,
             senderName: currentUser.personnelName,
             receiverId: receiverId as any,
             text: userText,
             timestamp: new Date().toISOString(),
-            isRead: false,
-            isEdited: !!editingMsgId
+            isRead: true,
+            isEdited: !!editingMsgId,
+            isDeleted: false
         };
 
-        if (files && files.length > 0) {
-            userMsg.attachments = Array.from(files) as any;
+        if (editingMsgId) {
+            setMessages(prev => prev.map(m => m.id === editingMsgId ? optimisticMsg : m));
+        } else {
+            setMessages(prev => [...prev, optimisticMsg]);
         }
-
+        
+        const editingIdSnapshot = editingMsgId;
+        setEditingMsgId(null);
+        
         try {
-            const apiPayload = await prepareDataForApi(userMsg);
-            await postToGoogleScript({
-                action: editingMsgId ? 'editChatMessage' : 'sendChatMessage',
+            const apiPayload = await prepareDataForApi({ ...optimisticMsg, attachments: files ? Array.from(files) : undefined });
+            
+            const response = await postToGoogleScript({
+                action: editingIdSnapshot ? 'editChatMessage' : 'sendChatMessage',
                 data: apiPayload
             });
 
-            setInput('');
-            setEditingMsgId(null);
+            if (response.status === 'success' && response.data) {
+                const savedMsg = Array.isArray(response.data) ? response.data[0] : response.data;
+                setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? savedMsg : m));
+            }
+            
+            fetchMessages(false);
 
-            if (!editingMsgId && selectedContact !== 'all' && userText.toLowerCase().includes('bot')) {
+            if (!editingIdSnapshot && selectedContact !== 'all' && userText.toLowerCase().includes('bot')) {
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const response = await ai.models.generateContent({
+                const geminiResponse = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
                     contents: `User asks: ${userText}. Context: ${settings.schoolName} admin assistant.`
                 });
-                if (response.text) {
+                if (geminiResponse.text) {
                     const botMsg: ChatMessage = {
                         id: Date.now() + 1,
                         senderId: 0,
                         senderName: "D-Bot",
                         receiverId: currentUser.id,
-                        text: response.text,
+                        text: geminiResponse.text,
                         timestamp: new Date().toISOString(),
-                        isRead: true
+                        isRead: true,
+                        isDeleted: false,
                     };
                     await postToGoogleScript({ action: 'sendChatMessage', data: botMsg });
+                    fetchMessages(false);
                 }
             }
+
         } catch (error) {
             console.error("Send message error:", error);
+            setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+            alert("Failed to send message.");
         } finally {
             setIsSending(false);
         }
@@ -209,6 +256,8 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
             if (msg) {
                 const updatedMsg = { ...msg, isDeleted: true };
                 await postToGoogleScript({ action: 'deleteChatMessage', data: updatedMsg });
+                // Optimistic delete
+                setMessages(prev => prev.filter(m => m.id !== msgId));
             }
         } catch (e) {
             console.error("Delete error", e);
@@ -516,7 +565,6 @@ const AIChatPopup: React.FC<ChatPopupProps> = ({
 
             {/* Floating Trigger Button */}
             <div className="relative group">
-                {/* Notification Badge - อยู่นอกปุ่มเพื่อให้แสดงผลเต็มไม่ถูกขอบตัด */}
                 {unreadCount > 0 && !isOpen && (
                     <div className="absolute -top-1 -right-1 z-20 flex h-7 w-7 pointer-events-none">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>

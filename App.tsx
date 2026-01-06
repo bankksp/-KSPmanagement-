@@ -550,7 +550,13 @@ const App: React.FC = () => {
                 ) : null;
             case 'finance_supplies':
                 return currentUser ? (
-                    <SupplyPage currentUser={currentUser} items={supplyItems} requests={supplyRequests} personnel={personnel} onUpdateItems={(items) => setSupplyItems(items)} onUpdateRequests={(reqs) => setSupplyRequests(reqs)} onUpdatePersonnel={(p) => handleGenericSave('updatePersonnel', p, setPersonnel)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} onSaveItem={(i) => handleGenericSave('saveSupplyItem', i, setSupplyItems)} onDeleteItem={(id) => handleGenericDelete('deleteSupplyItems', [id], setSupplyItems)} onSaveRequest={(r) => handleGenericSave('saveSupplyRequest', r, setSupplyRequests)} onUpdateRequestStatus={(r) => handleGenericSave('updateSupplyRequestStatus', r, setSupplyRequests)} />
+                    // Fix: Removed obsolete props from SupplyPage to match its updated interface
+                    <SupplyPage 
+                        currentUser={currentUser} 
+                        personnel={personnel} 
+                        settings={settings} 
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)} 
+                    />
                 ) : null;
             case 'finance_projects': 
                 return currentUser ? (

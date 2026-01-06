@@ -50,7 +50,7 @@
       --color-primary-hover: #2563EB;
     }
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', 'Sarabun', sans-serif;
     }
     
     .font-sarabun {
@@ -77,51 +77,66 @@
       background: #D1D5DB;
     }
 
+    .print-container.print-memo-mode {
+      padding: 0 !important;
+      margin: 0 !important;
+      background: #525659 !important;
+    }
+
+    /* Styles for Editable Content */
+    .editable-text:hover {
+        outline: 1px dashed #3B82F6;
+        cursor: text;
+    }
+    .editable-text:focus {
+        outline: 2px solid #3B82F6;
+        background-color: #eff6ff;
+        box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+    }
+    [contenteditable] {
+        -webkit-user-select: text;
+        user-select: text;
+    }
+
     @media print {
-      @page {
-        size: A4 landscape;
-        margin: 0;
-      }
-      html, body {
-        width: 297mm;
-        height: 210mm;
-        background: #fff !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+      body {
+        background: white !important;
       }
       .no-print {
         display: none !important;
       }
-      .print-visible {
-        display: block !important;
-        visibility: visible !important;
-      }
-      #root > div > div > main {
+      .print-container {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
         padding: 0 !important;
         margin: 0 !important;
+        overflow: hidden !important;
+        background: white !important;
       }
-      #root > div > div {
-        margin-left: 0 !important;
-      }
-      .print-area {
+      .print-area-memo {
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
-        width: 297mm !important;
-        height: 210mm !important;
+        width: 210mm !important;
+        height: 297mm !important;
         margin: 0 !important;
-        padding: 0 !important;
         border: none !important;
         box-shadow: none !important;
         page-break-after: always;
-      }
-      /* Ensure images are printed */
-      img {
-        max-width: 100% !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+      }
+      .print-area-memo.landscape {
+        width: 297mm !important;
+        height: 210mm !important;
+        padding: 1.5cm;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 0;
       }
     }
   </style>

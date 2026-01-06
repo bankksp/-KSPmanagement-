@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Settings, AttendancePeriodConfig } from '../types';
 import { getDirectDriveImageSrc, postToGoogleScript } from '../utils';
@@ -12,12 +11,55 @@ interface AdminDashboardProps {
 
 type AdminTab = 'general' | 'appearance' | 'lists' | 'attendance' | 'system';
 
+const AuthErrorModal: React.FC<{ error: string; onClose: () => void }> = ({ error, onClose }) => (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sarabun">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 animate-fade-in-up">
+        <div className="flex items-start gap-4">
+          <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
+            <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-red-700">การเชื่อมต่อล้มเหลว (Authorization Error)</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              ระบบไม่สามารถส่งการแจ้งเตือนได้เนื่องจาก Google Script ไม่มีสิทธิ์ที่จำเป็นในการเชื่อมต่อภายนอก
+            </p>
+          </div>
+        </div>
+        
+        <div className="mt-6 bg-gray-50 p-4 rounded-lg border">
+          <p className="text-xs font-mono text-gray-500 break-all">{error}</p>
+        </div>
+  
+        <div className="mt-6 space-y-4">
+          <h4 className="font-bold text-gray-800">วิธีการแก้ไข (สำคัญมาก):</h4>
+          <ol className="list-decimal list-inside text-sm text-gray-700 space-y-2 pl-2">
+            <li>เปิดโปรเจกต์ Google Apps Script ของคุณ แล้วไปที่ไฟล์ <strong>Code.gs</strong></li>
+            <li>ที่เมนูด้านบน กดปุ่ม <strong>"Deploy"</strong> และเลือก <strong>"New deployment"</strong></li>
+            <li>ในหน้าต่างที่ปรากฏขึ้นมา กดปุ่ม <strong>"Deploy"</strong></li>
+            <li>ระบบอาจจะขอสิทธิ์เพิ่มเติม ให้กด <strong>"Authorize access"</strong></li>
+            <li>เลือกบัญชี Google ของคุณ, กด <strong>"Advanced"</strong>, และกด <strong>"Go to [ชื่อโปรเจกต์] (unsafe)"</strong></li>
+            <li>กด <strong>"Allow"</strong> เพื่อให้สิทธิ์ที่จำเป็นทั้งหมด</li>
+            <li>หลังจาก Deploy สำเร็จ ให้กลับมาที่หน้านี้แล้วลองกด "ทดสอบ" อีกครั้ง</li>
+          </ol>
+          <p className="text-xs text-gray-400 pl-2">* การทำ New deployment จะเป็นการสร้าง URL ใหม่ของ Script ซึ่งคุณอาจจะต้องนำไปอัปเดตในโค้ดหากมีการเปลี่ยนแปลง</p>
+        </div>
+  
+        <div className="mt-8 flex justify-end">
+          <button onClick={onClose} className="bg-primary-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-primary-hover">
+            เข้าใจแล้ว
+          </button>
+        </div>
+      </div>
+    </div>
+);
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExit, isSaving }) => {
     const [activeTab, setActiveTab] = useState<AdminTab>('general');
     const [localSettings, setLocalSettings] = useState<Settings>(settings);
     const [isTesting, setIsTesting] = useState<string | null>(null);
     const [scriptVersion, setScriptVersion] = useState<string>('');
     const [checkingVersion, setCheckingVersion] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
     
     const [newItem, setNewItem] = useState({ 
         dormitory: '', 
@@ -82,7 +124,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                 throw new Error(response.message);
             }
         } catch (error: any) {
-            alert('❌ การทดสอบล้มเหลว: ' + error.message + '\n\nสาเหตุที่เป็นไปได้:\n1. URL ผิด หรือยังไม่ได้กดบันทึก\n2. คุณยังไม่ได้ Redeploy Code ล่าสุด (สำคัญ!)\n3. สคริปต์ยังไม่มีสิทธิ์ (Re-authorize)');
+            const errorMessage = error.message || "Unknown error";
+            if (errorMessage.includes("UrlFetchApp.fetch") && errorMessage.includes("permission")) {
+                setAuthError(errorMessage);
+            } else {
+                alert('❌ การทดสอบล้มเหลว: ' + errorMessage + '\n\nสาเหตุที่เป็นไปได้:\n1. URL ผิด หรือยังไม่ได้กดบันทึก\n2. คุณยังไม่ได้ Redeploy Code ล่าสุด (สำคัญ!)\n3. สคริปต์ยังไม่มีสิทธิ์ (Re-authorize)');
+            }
         } finally {
             setIsTesting(null);
         }
@@ -357,7 +404,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
     };
     
     return (
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-gray-100 animate-fade-in">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-gray-100 animate-fade-in font-sarabun">
+            {authError && <AuthErrorModal error={authError} onClose={() => setAuthError(null)} />}
             <div className="flex flex-col md:flex-row gap-8">
                 <aside className="md:w-1/4">
                     <h2 className="text-xl font-bold text-navy mb-6 px-4">เมนูตั้งค่า</h2>
