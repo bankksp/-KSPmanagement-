@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -38,9 +39,22 @@ import LeavePage from './components/LeavePage';
 import WorkflowPage from './components/WorkflowPage';
 import AIChatPopup from './components/AIChatPopup'; // New Import
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument, CertificateProject } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument, CertificateProject, ProcurementRecord } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript, isoToBuddhist, normalizeDate, safeParseArray, getCurrentThaiDate } from './utils';
+
+// Helper for safe JSON parsing
+const safeJsonParse = (input: any) => {
+    if (typeof input === 'string') {
+        try {
+            return JSON.parse(input);
+        } catch (e) {
+            console.warn("Error parsing JSON:", input);
+            return []; // Return empty array on failure
+        }
+    }
+    return input;
+};
 
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('stats');
@@ -76,7 +90,7 @@ const App: React.FC = () => {
     const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
     const [academicPlans, setAcademicPlans] = useState<AcademicPlan[]>([]);
     const [supplyItems, setSupplyItems] = useState<SupplyItem[]>([]);
-    const [supplyRequests, setSupplyRequests] = useState<SupplyRequest[]>([]);
+    const [procurementRecords, setProcurementRecords] = useState<ProcurementRecord[]>([]); // New State
     const [durableGoods, setDurableGoods] = useState<DurableGood[]>([]);
     const [certificateProjects, setCertificateProjects] = useState<CertificateProject[]>([]);
     const [certificateRequests, setCertificateRequests] = useState<CertificateRequest[]>([]);
@@ -103,7 +117,6 @@ const App: React.FC = () => {
         root.style.setProperty('--color-primary', settings.themeColors.primary);
         root.style.setProperty('--color-primary-hover', settings.themeColors.primaryHover);
         
-        // Correctly handle desktop sidebar state based on auto-hide setting
         if (settings.autoHideSidebar) {
             setIsDesktopSidebarOpen(false);
         } else {
@@ -226,7 +239,15 @@ const App: React.FC = () => {
 
             setAcademicPlans(data.academicPlans || []);
             setSupplyItems(data.supplyItems || []);
-            setSupplyRequests(data.supplyRequests || []);
+            
+            const rawSupplyData = data.supplyRequests || []; 
+            setProcurementRecords(rawSupplyData.map((r: any) => ({
+                ...r,
+                docDate: normalizeDateString(r.docDate),
+                totalPrice: Number(r.totalPrice) || 0,
+                items: safeJsonParse(r.items) || []
+            })));
+
             setDurableGoods(data.durableGoods || []); 
             
             setCertificateProjects(data.certificateProjects || []);
@@ -265,7 +286,6 @@ const App: React.FC = () => {
             if (data.ingredients) setIngredients(data.ingredients);
 
             if (data.settings) {
-                // More resilient boolean parsing from Sheet values
                 const apiSettings = { ...data.settings };
                 if (typeof apiSettings.autoHideSidebar === 'string') {
                     apiSettings.autoHideSidebar = apiSettings.autoHideSidebar.toLowerCase() === 'true';
@@ -353,7 +373,6 @@ const App: React.FC = () => {
             const apiPayload = await prepareDataForApi(newSettings);
             const response = await postToGoogleScript({ action: 'updateSettings', data: apiPayload });
             
-            // Ensure boolean conversion after save
             const savedSettings = { ...response.data };
             if (typeof savedSettings.autoHideSidebar === 'string') {
                 savedSettings.autoHideSidebar = savedSettings.autoHideSidebar.toLowerCase() === 'true';
@@ -456,6 +475,10 @@ const App: React.FC = () => {
                     if (saved.startDate) saved.startDate = normalizeDateString(saved.startDate);
                     if (saved.endDate) saved.endDate = normalizeDateString(saved.endDate);
                 }
+                // Handle Procurement items parsing
+                if (action === 'saveSupplyRequest') {
+                    saved.items = safeJsonParse(saved.items) || [];
+                }
                 return saved;
             });
 
@@ -472,7 +495,12 @@ const App: React.FC = () => {
                 return newPrev;
             });
             alert('บันทึกเรียบร้อย');
-        } catch(e) { console.error(e); alert('Error saving'); } finally { setIsSaving(false); }
+            return true;
+        } catch(e) { 
+            console.error(e); 
+            alert('Error saving'); 
+            return false;
+        } finally { setIsSaving(false); }
     };
 
     const handleGenericDelete = async (action: string, ids: number[], setter: any) => {
@@ -503,7 +531,6 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800 mb-2">ไม่สามารถดึงข้อมูลได้</h3>
                     <p className="text-gray-600 mb-6 max-w-md">{fetchError}</p>
-                    <p className="text-xs text-gray-400 mb-4">* กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือติดต่อผู้ดูแลระบบเพื่อตรวจสอบสถานะของ Google Script</p>
                     <button onClick={() => fetchData()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow shadow-blue-200 transition">
                         ลองใหม่อีกครั้ง
                     </button>
@@ -550,12 +577,15 @@ const App: React.FC = () => {
                 ) : null;
             case 'finance_supplies':
                 return currentUser ? (
-                    // Fix: Removed obsolete props from SupplyPage to match its updated interface
                     <SupplyPage 
                         currentUser={currentUser} 
                         personnel={personnel} 
+                        records={procurementRecords}
+                        onSaveRecord={(r) => handleGenericSave('saveSupplyRequest', r, setProcurementRecords)}
+                        onDeleteRecord={(ids) => handleGenericDelete('deleteSupplyRequests', ids, setProcurementRecords)}
                         settings={settings} 
                         onSaveSettings={(s) => handleSaveAdminSettings(s, false)} 
+                        isSaving={isSaving}
                     />
                 ) : null;
             case 'finance_projects': 
@@ -612,7 +642,7 @@ const App: React.FC = () => {
                 ) : null;
             case 'personnel_duty':
                 return currentUser ? (
-                    <DutyPage currentUser={currentUser} records={dutyRecords} onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)} onDelete={(ids) => handleGenericDelete('dutyRecords', ids, setDutyRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} />
+                    <DutyPage currentUser={currentUser} records={dutyRecords} onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)} onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} />
                 ) : null;
             case 'personnel_leave':
                 return currentUser ? (
@@ -685,7 +715,6 @@ const App: React.FC = () => {
                     <div className="h-10"></div> 
                     <Footer />
                 </main>
-                {/* Fix: Added mandatory currentUser prop to satisfy updated AIChatPopup interface */}
                 <AIChatPopup 
                     currentUser={currentUser}
                     students={students} 
@@ -702,9 +731,21 @@ const App: React.FC = () => {
             )}
             {viewingReport && <ViewReportModal report={viewingReport} onClose={() => setViewingReport(null)} students={students} />}
             {isStudentModalOpen && (
-                <StudentModal onClose={() => setIsStudentModalOpen(false)} onSave={(s) => handleGenericSave(editingStudent ? 'updateStudent' : 'addStudent', s, setStudents)} studentToEdit={editingStudent} dormitories={settings.dormitories} studentClasses={settings.studentClasses} studentClassrooms={settings.studentClassrooms} personnel={personnel} isSaving={isSaving} />
+                <StudentModal 
+                    onClose={() => setIsStudentModalOpen(false)} 
+                    onSave={async (s) => { 
+                        const success = await handleGenericSave(editingStudent ? 'updateStudent' : 'addStudent', s, setStudents);
+                        if (success) setIsStudentModalOpen(false);
+                    }} 
+                    studentToEdit={editingStudent} 
+                    dormitories={settings.dormitories} 
+                    studentClasses={settings.studentClasses} 
+                    studentClassrooms={settings.studentClassrooms} 
+                    personnel={personnel} 
+                    isSaving={isSaving} 
+                />
             )}
-            {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={() => setViewingStudent(null)} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
+            {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={() => setViewingStudent(null)} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} />}
             {isPersonnelModalOpen && (
                 <PersonnelModal onClose={() => setIsPersonnelModalOpen(false)} onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)} personnelToEdit={editingPersonnel} positions={settings.positions} students={students} isSaving={isSaving} currentUserRole={currentUser?.role} currentUser={currentUser} />
             )}

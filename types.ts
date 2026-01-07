@@ -32,7 +32,25 @@ export interface Settings {
     directorSignature?: (File | string)[];
     certBackground?: (File | string)[];
     speakers?: SpeakerConfig[];
-    durableGoodsCategories?: string[];
+    
+    // Supply System Settings
+    durableGoodsCategories?: string[]; // Legacy simple list
+    supplyTypes?: string[];      
+    departments?: string[];      
+    budgetSources?: string[];
+    procurementMethods?: string[]; // New: Dynamic Procurement Methods
+    
+    // New Structured Categories
+    materialCategories?: MaterialCategory[]; 
+}
+
+export interface MaterialCategory {
+    id: string;
+    code: string;
+    name: string;
+    usefulLife: number; // Years
+    depreciationRate: number; // Percentage
+    subCategories?: MaterialCategory[];
 }
 
 export interface ChatMessage {
@@ -166,13 +184,30 @@ export interface Student {
   guardianAddress: string;
   homeroomTeachers?: number[];
   studentProfileImage?: (File | string)[];
+  
+  // Documents
   studentIdCardImage?: (File | string)[];
   studentDisabilityCardImage?: (File | string)[];
   guardianIdCardImage?: (File | string)[];
+  studentHouseRegFile?: (File | string)[]; // ทะเบียนบ้านนักเรียน
+  guardianHouseRegFile?: (File | string)[]; // ทะเบียนบ้านผู้ปกครอง
+  proxyFile?: (File | string)[]; // เอกสารมอบฉันทะ
+  powerOfAttorneyFile?: (File | string)[]; // เอกสารมอบอำนาจ
+  birthCertificateFile?: (File | string)[]; // สูจิบัตรนักเรียน
+
   latitude?: number;
   longitude?: number;
   weight?: number; 
   height?: number; 
+  
+  // IEP and Medical Info
+  iepFiles?: (File | string)[];
+  iipFiles?: (File | string)[];
+  chronicDisease?: string;
+  allergies?: string;
+  drugAllergy?: string;
+  medicalExamResults?: string;
+  otherLimitations?: string;
 }
 
 export interface SpeakerConfig {
@@ -343,8 +378,8 @@ export interface SupplyRequestItem {
   price: number; 
 }
 
-export type ProcurementType = 'วัตถุ' | 'ครุภัณฑ์' | 'ที่ดิน' | 'ก่อสร้าง' | 'จ้างเหมาบริการ' | 'เช่า' | 'อื่นๆ';
-export type ProcurementMethod = 'e-bidding' | 'e-market' | 'เฉพาะเจาะจง' | 'คัดเลือก' | 'สอบราคา' | 'ประกวดราคา' | 'พิเศษ';
+export type ProcurementType = 'วัตถุ' | 'ครุภัณฑ์' | 'ที่ดิน' | 'ก่อสร้าง' | 'จ้างเหมาบริการ' | 'เช่า' | 'อื่นๆ' | string;
+export type ProcurementMethod = 'e-bidding' | 'e-market' | 'เฉพาะเจาะจง' | 'คัดเลือก' | 'สอบราคา' | 'ประกวดราคา' | 'พิเศษ' | string;
 
 export interface ProcurementItem {
   id: number;
@@ -368,8 +403,13 @@ export interface ProcurementRecord {
   supplierName: string;
   items: ProcurementItem[];
   totalPrice: number;
-  // FIX: Add missing department property
   department?: string;
+  project?: string;
+  requesterName?: string;
+  reason?: string;
+  managerName?: string;
+  neededDate?: string;
+  status?: 'pending' | 'approved' | 'received' | 'completed';
 }
 
 export interface DurableGood {

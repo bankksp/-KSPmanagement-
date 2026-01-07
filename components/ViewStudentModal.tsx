@@ -1,7 +1,7 @@
 
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Student, Personnel } from '../types';
-import { getFirstImageSource, getDirectDriveImageSrc, safeParseArray, formatThaiDate } from '../utils';
+import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc } from '../utils';
 
 interface ViewStudentModalProps {
     student: Student;
@@ -9,10 +9,13 @@ interface ViewStudentModalProps {
     personnel: Personnel[];
     schoolName: string;
     schoolLogo: string;
+    currentUser: Personnel | null;
 }
 
-const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, personnel, schoolName, schoolLogo }) => {
+const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, personnel, schoolName, schoolLogo, currentUser }) => {
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'general' | 'family' | 'health' | 'iep' | 'docs'>('general');
+    const exportMenuRef = useRef<HTMLDivElement>(null);
 
     const profileImageUrl = useMemo(() => {
         return getFirstImageSource(student.studentProfileImage);
@@ -30,6 +33,17 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
             .join(', ');
     }, [student.homeroomTeachers, personnel]);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setIsExportMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -40,9 +54,9 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
     }, [profileImageUrl]);
 
     const DetailSection: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
-        <div className="mb-6 print:hidden">
+        <div className="mb-6">
             <h3 className="text-lg font-bold text-navy border-b-2 border-navy pb-1 mb-3">{title}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
                 {children}
             </div>
         </div>
@@ -59,285 +73,337 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
         const safeFiles = safeParseArray(files);
         if (!safeFiles || safeFiles.length === 0) {
             return (
-                <div>
-                    <h4 className="font-semibold text-gray-700">{title}</h4>
-                    <p className="text-sm text-gray-500">ไม่มีไฟล์</p>
+                <div className="p-3 border border-gray-100 rounded-lg bg-gray-50">
+                    <h4 className="font-semibold text-gray-700 text-sm">{title}</h4>
+                    <p className="text-xs text-gray-400 mt-1">ไม่มีไฟล์</p>
                 </div>
             );
         }
 
-        let file = safeFiles[0];
-        
-        if (typeof file === 'string') {
-             const cleanUrl = getDirectDriveImageSrc(file);
-             const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(cleanUrl) || cleanUrl.includes('googleusercontent.com');
-             
-             return (
-                <div>
-                     <h4 className="font-semibold text-gray-700">{title}</h4>
-                    {isImage ? (
-                         <a href={cleanUrl} target="_blank" rel="noopener noreferrer"><img src={cleanUrl} alt={title} className="mt-1 max-w-full h-auto rounded-lg border"/></a>
-                    ) : (
-                        <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="text-primary-blue hover:underline">ดูเอกสาร</a>
-                    )}
-                </div>
-            )
-        }
-
-        if (file instanceof File) {
-            const isImage = file.type.startsWith('image/');
-            const url = URL.createObjectURL(file);
-    
-            useEffect(() => {
-                return () => URL.revokeObjectURL(url);
-            }, [url]);
-
-            return (
-                <div>
-                     <h4 className="font-semibold text-gray-700">{title}</h4>
-                    {isImage ? (
-                         <img src={url} alt={title} className="mt-1 max-w-full h-auto rounded-lg border"/>
-                    ) : (
-                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary-blue hover:underline">{file.name}</a>
-                    )}
-                </div>
-            )
-        }
-        return null;
+        return (
+            <div className="space-y-2 p-3 border border-blue-100 rounded-lg bg-blue-50/30">
+                <h4 className="font-semibold text-navy text-sm mb-1">{title}</h4>
+                {safeFiles.map((file, i) => {
+                    const url = getDriveViewUrl(file);
+                    const name = file instanceof File ? file.name : `เอกสาร ${i+1}`;
+                    return (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white text-blue-700 px-3 py-2 rounded border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm">
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                            <span className="text-xs truncate">{name}</span>
+                        </a>
+                    );
+                })}
+            </div>
+        );
     }
-
-    // --- Export Functions ---
+    
+    const calculateAge = (dobString: string): { years: number, months: number } => {
+        const birthDate = normalizeDate(dobString);
+        if (!birthDate) return { years: 0, months: 0 };
+        
+        const today = new Date();
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+        
+        if (today.getDate() < birthDate.getDate()) {
+            months--;
+        }
+        
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        
+        return { years, months };
+    };
 
     const handlePrint = () => {
         setIsExportMenuOpen(false);
         window.print();
     };
-
-    const exportToWord = () => {
-        const logoSrc = getDirectDriveImageSrc(schoolLogo);
-        const photoHtml = profileImageUrl 
-            ? `<img src="${profileImageUrl}" style="width: 3.81cm; height: 5.08cm; object-fit: cover; border: 1px solid #000;">` 
-            : `<div style="width: 3.81cm; height: 5.08cm; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-size: 14pt;">รูปถ่าย</div>`;
-
-        const htmlString = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head>
-                <meta charset='utf-8'>
-                <title>Student Record - ${student.studentName}</title>
-                <style>
-                    @page { size: A4; margin: 2cm; mso-page-orientation: portrait; }
-                    body { font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.4; }
-                    .header-title { font-size: 22pt; font-weight: bold; text-align: center; margin: 0; }
-                    .header-sub { font-size: 18pt; font-weight: bold; text-align: center; margin: 0; }
-                    table { width: 100%; border-collapse: collapse; border: none; }
-                    td { vertical-align: top; padding: 4px 0; }
-                    .label { font-weight: bold; margin-right: 5px; }
-                    .value { border-bottom: 1px dotted #000; padding: 0 5px; display: inline-block; min-width: 50px; }
-                    .section-title { font-weight: bold; font-size: 18pt; border-bottom: 1px solid #000; margin-top: 20px; margin-bottom: 10px; }
-                    .photo-cell { text-align: right; vertical-align: top; padding-left: 20px; width: 4.5cm; }
-                </style>
-            </head>
-            <body>
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <img src="${logoSrc}" width="80" height="80" style="margin-bottom: 10px;" />
-                    <p class="header-title">${schoolName}</p>
-                    <p class="header-sub">แบบบันทึกข้อมูลนักเรียนรายบุคคล</p>
-                </div>
-                
-                <table style="width: 100%;">
-                    <tr>
-                        <td valign="top">
-                            <p><span class="label">ชื่อ-นามสกุล:</span> <span class="value">${student.studentTitle} ${student.studentName}</span></p>
-                            <p>
-                                <span class="label">ชื่อเล่น:</span> <span class="value">${student.studentNickname || '-'}</span>
-                                &nbsp;&nbsp;
-                                <span class="label">เลขประจำตัวประชาชน:</span> <span class="value">${student.studentIdCard || '-'}</span>
-                            </p>
-                            <p>
-                                <span class="label">วันเกิด:</span> <span class="value">${formatThaiDate(student.studentDob) || '-'}</span>
-                                &nbsp;&nbsp;
-                                <span class="label">ระดับชั้น:</span> <span class="value">${student.studentClass || '-'}</span>
-                            </p>
-                             <p>
-                                <span class="label">เรือนนอน:</span> <span class="value">${student.dormitory || '-'}</span>
-                                &nbsp;&nbsp;
-                                <span class="label">เบอร์โทร:</span> <span class="value">${student.studentPhone || '-'}</span>
-                            </p>
-                            <p><span class="label">ที่อยู่:</span> <span class="value">${student.studentAddress || '-'}</span></p>
-                            <p><span class="label">ครูประจำชั้น:</span> <span class="value">${homeroomTeacherNames || '-'}</span></p>
-                        </td>
-                        <td class="photo-cell" valign="top">
-                            ${photoHtml}
-                        </td>
-                    </tr>
-                </table>
-
-                <div class="section-title">ข้อมูลครอบครัว</div>
-                
-                <table>
-                    <tr>
-                        <td width="60%">
-                             <span class="label">บิดา:</span> <span class="value">${student.fatherName || '-'}</span>
-                        </td>
-                         <td width="40%">
-                             <span class="label">เบอร์โทร:</span> <span class="value">${student.fatherPhone || '-'}</span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                             <span class="label">มารดา:</span> <span class="value">${student.motherName || '-'}</span>
-                        </td>
-                         <td>
-                             <span class="label">เบอร์โทร:</span> <span class="value">${student.motherPhone || '-'}</span>
-                        </td>
-                    </tr>
-                     <tr>
-                        <td>
-                             <span class="label">ผู้ปกครอง:</span> <span class="value">${student.guardianName || '-'}</span>
-                        </td>
-                         <td>
-                             <span class="label">เบอร์โทร:</span> <span class="value">${student.guardianPhone || '-'}</span>
-                        </td>
-                    </tr>
-                     <tr>
-                        <td colspan="2">
-                             <span class="label">ที่อยู่ผู้ปกครอง:</span> <span class="value">${student.guardianAddress || '-'}</span>
-                        </td>
-                    </tr>
-                </table>
-
-                 <br/><br/><br/>
-                 <table style="width: 100%; text-align: right;">
-                    <tr>
-                        <td>
-                            <p>ลงชื่อ ........................................................... ผู้บันทึกข้อมูล</p>
-                            <p>(...........................................................)</p>
-                            <p>วันที่ ........./........./.............</p>
-                        </td>
-                    </tr>
-                 </table>
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob(['\ufeff', htmlString], { type: 'application/msword' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `ระเบียนประวัติ_${student.studentName}.doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        setIsExportMenuOpen(false);
-    };
-
-    const exportToExcel = () => {
-        const data = [
-            ['หัวข้อ', 'ข้อมูล'],
-            ['ชื่อ-นามสกุล', `${student.studentTitle} ${student.studentName}`],
-            ['ชื่อเล่น', student.studentNickname],
-            ['เลขประจำตัว', student.studentIdCard],
-            ['วันเกิด', formatThaiDate(student.studentDob)],
-            ['เบอร์โทร', student.studentPhone],
-            ['ชั้นเรียน', student.studentClass],
-            ['เรือนนอน', student.dormitory],
-            ['ที่อยู่', student.studentAddress],
-            ['ครูประจำชั้น', homeroomTeacherNames],
-            ['', ''],
-            ['ข้อมูลบิดา', student.fatherName],
-            ['เบอร์โทรบิดา', student.fatherPhone],
-            ['ข้อมูลมารดา', student.motherName],
-            ['เบอร์โทรมารดา', student.motherPhone],
-            ['ข้อมูลผู้ปกครอง', student.guardianName],
-            ['เบอร์โทรผู้ปกครอง', student.guardianPhone],
-            ['ที่อยู่ผู้ปกครอง', student.guardianAddress],
+    
+    const handleExportExcel = () => {
+        const header = ['ID', 'คำนำหน้า', 'ชื่อ-นามสกุล', 'ชื่อเล่น', 'ชั้น', 'เรือนนอน', 'เลขบัตรประชาชน', 'วันเกิด', 'ที่อยู่', 'เบอร์โทร'];
+        const row = [
+            student.id, student.studentTitle, student.studentName, student.studentNickname, student.studentClass,
+            student.dormitory, student.studentIdCard, student.studentDob, student.studentAddress, student.studentPhone
         ];
-
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        data.forEach(row => {
-            csvContent += row.map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(",") + "\r\n";
-        });
+        
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Excel
+        csvContent += header.join(",") + "\r\n";
+        csvContent += row.map(d => `"${String(d || '').replace(/"/g, '""')}"`).join(",") + "\r\n";
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `ข้อมูลนักเรียน_${student.studentName}.csv`);
+        link.setAttribute("download", `student_info_${student.id}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         setIsExportMenuOpen(false);
     };
+    
+    const handleExportWord = () => {
+        const photoUrl = profileImageUrl ? getDirectDriveImageSrc(profileImageUrl) : '';
+        const logoUrl = getDirectDriveImageSrc(schoolLogo);
 
-    const handleExportIDCard = () => {
+        const htmlContent = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Student Profile</title>
+                <style>
+                    @page { size: A4 portrait; margin: 2cm; }
+                    body { font-family: 'TH SarabunPSK', 'TH Sarabun New', sans-serif; font-size: 16pt; }
+                    table { width: 100%; border-collapse: collapse; border: none; }
+                    td { padding: 4px; vertical-align: bottom; }
+                    .header { text-align: center; font-weight: bold; margin-bottom: 20px; }
+                    .logo { width: 80px; height: 80px; }
+                    .school-name { font-size: 20pt; margin-top: 5px; }
+                    .doc-title { font-size: 18pt; margin-top: 5px; }
+                    .photo-box { width: 1.5in; height: 1.8in; border: 1px solid #000; text-align: center; vertical-align: middle; }
+                    .label { font-weight: bold; }
+                    .dotted-line { border-bottom: 1px dotted #000; display: inline-block; width: 100%; min-height: 22px; text-align: left; padding-left: 5px; }
+                    .section-header { font-weight: bold; font-size: 18pt; margin-top: 15px; margin-bottom: 5px; text-decoration: underline; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <img src="${logoUrl}" class="logo" /><br/>
+                    <div class="school-name">โรงเรียนกาฬสินธุ์ปัญญานุกูล จังหวัดกาฬสินธุ์</div>
+                    <div class="doc-title">แบบบันทึกข้อมูลนักเรียนรายบุคคล</div>
+                </div>
+
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 70%; vertical-align: top;">
+                            <!-- Personal Info -->
+                            <table>
+                                <tr>
+                                    <td width="90" class="label">ชื่อ-นามสกุล:</td>
+                                    <td><span class="dotted-line">${student.studentTitle} ${student.studentName}</span></td>
+                                </tr>
+                            </table>
+                            <table>
+                                <tr>
+                                    <td width="60" class="label">ชื่อเล่น:</td>
+                                    <td width="120"><span class="dotted-line">${student.studentNickname || '-'}</span></td>
+                                    <td width="120" class="label" align="right">เลขบัตรประชาชน:</td>
+                                    <td><span class="dotted-line">${student.studentIdCard || '-'}</span></td>
+                                </tr>
+                            </table>
+                            <table>
+                                <tr>
+                                    <td width="60" class="label">วันเกิด:</td>
+                                    <td width="150"><span class="dotted-line">${formatThaiDate(student.studentDob)}</span></td>
+                                    <td width="70" class="label" align="right">ระดับชั้น:</td>
+                                    <td><span class="dotted-line">${student.studentClass}</span></td>
+                                </tr>
+                            </table>
+                            <table>
+                                <tr>
+                                    <td width="70" class="label">เรือนนอน:</td>
+                                    <td width="140"><span class="dotted-line">${student.dormitory}</span></td>
+                                    <td width="70" class="label" align="right">เบอร์โทร:</td>
+                                    <td><span class="dotted-line">${student.studentPhone || '-'}</span></td>
+                                </tr>
+                            </table>
+                            <table>
+                                <tr>
+                                    <td width="50" class="label">ที่อยู่:</td>
+                                    <td><span class="dotted-line">${student.studentAddress || '-'}</span></td>
+                                </tr>
+                            </table>
+                            <table>
+                                <tr>
+                                    <td width="90" class="label">ครูประจำชั้น:</td>
+                                    <td><span class="dotted-line">${homeroomTeacherNames || '-'}</span></td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td style="width: 30%; text-align: right; vertical-align: top; padding-left: 10px;">
+                            ${photoUrl ? `<img src="${photoUrl}" style="width: 1.5in; height: 1.8in; object-fit: cover; border: 1px solid #000;" />` : '<div class="photo-box">รูปถ่าย<br/>1.5 นิ้ว</div>'}
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="section-header">ข้อมูลครอบครัว</div>
+                
+                <table>
+                    <tr>
+                        <td width="50" class="label">บิดา:</td>
+                        <td><span class="dotted-line">${student.fatherName || '-'}</span></td>
+                        <td width="40" class="label" align="right">โทร:</td>
+                        <td width="150"><span class="dotted-line">${student.fatherPhone || '-'}</span></td>
+                    </tr>
+                    <tr>
+                        <td width="50" class="label">มารดา:</td>
+                        <td><span class="dotted-line">${student.motherName || '-'}</span></td>
+                        <td width="40" class="label" align="right">โทร:</td>
+                        <td width="150"><span class="dotted-line">${student.motherPhone || '-'}</span></td>
+                    </tr>
+                    <tr>
+                        <td width="80" class="label">ผู้ปกครอง:</td>
+                        <td><span class="dotted-line">${student.guardianName || '-'}</span></td>
+                        <td width="40" class="label" align="right">โทร:</td>
+                        <td width="150"><span class="dotted-line">${student.guardianPhone || '-'}</span></td>
+                    </tr>
+                    <tr>
+                        <td width="100" class="label">ที่อยู่ผู้ปกครอง:</td>
+                        <td colspan="3"><span class="dotted-line">${student.guardianAddress || '-'}</span></td>
+                    </tr>
+                </table>
+
+                <br/><br/>
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 50%;"></td>
+                        <td style="width: 50%; text-align: center;">
+                            <p>ลงชื่อ ...........................................................</p>
+                            <p>(...........................................................)</p>
+                            <p>...........................................................</p>
+                            <p>ผู้บันทึกข้อมูล</p>
+                            <p>วันที่ ........./........./.............</p>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `student_profile_${student.id}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setIsExportMenuOpen(false);
+    };
+    
+    const handlePrintCard = () => {
         setIsExportMenuOpen(false);
         const logoSrc = getDirectDriveImageSrc(schoolLogo);
         const photoSrc = profileImageUrl || '';
         
-        const today = new Date();
-        const expiry = new Date();
-        expiry.setFullYear(expiry.getFullYear() + 1);
-        
-        const formatDate = (date: Date) => {
-            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${(date.getFullYear() + 543).toString().slice(-2)}`;
+        // Format dates dd/mm/yy (BE)
+        const formatDateShort = (date: Date) => {
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const y = String((date.getFullYear() + 543)).slice(-2);
+            return `${d}/${m}/${y}`;
         };
 
-        const issueDate = formatDate(today);
-        const expiryDate = formatDate(expiry);
-        
-        const teachers = (student.homeroomTeachers || [])
-            .map(id => personnel.find(p => p.id === id))
-            .filter(p => !!p)
-            .map(p => `${p?.personnelTitle === 'อื่นๆ' ? p?.personnelTitleOther : p?.personnelTitle}${p?.personnelName}`);
-        
-        let teachersHtml = '';
-        if (teachers.length > 0) {
-            teachersHtml = teachers.map((name, index) => `<div class="teacher-name">${name}</div>`).join('');
-        } else {
-            teachersHtml = '<div class="teacher-name">-</div>';
-        }
+        const today = new Date();
+        const nextYear = new Date();
+        nextYear.setFullYear(today.getFullYear() + 1);
 
-        let displayClass = student.studentClass || '-';
+        const issueDate = formatDateShort(today);
+        const expDate = formatDateShort(nextYear);
+
         const html = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>บัตรประจำตัวนักเรียน - ${student.studentName}</title>
-                <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+                <title>บัตรนักเรียน - ${student.studentName}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
                 <style>
                     @page { size: 8.6cm 5.4cm; margin: 0; }
-                    body { margin: 0; padding: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f3f4f6; }
-                    .card-container { width: 8.6cm; height: 5.4cm; position: relative; overflow: hidden; background: #fff; border: 1px solid #e5e7eb; box-sizing: border-box; }
-                    .bg-graphic { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background: linear-gradient(120deg, #ffffff 40%, #f0fdf4 40%, #dcfce7 100%); }
-                    .circle-deco { position: absolute; right: -30px; top: -30px; width: 150px; height: 150px; background: rgba(22, 163, 74, 0.1); border-radius: 50%; }
-                    .header { position: relative; z-index: 10; padding: 10px 14px 0 14px; display: flex; justify-content: space-between; align-items: flex-start; }
-                    .logo { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+                    body { margin: 0; padding: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #fff; }
+                    .card-container { 
+                        width: 8.6cm; height: 5.4cm; position: relative; overflow: hidden; background: #fff; border: 1px solid #e5e7eb; box-sizing: border-box; 
+                    }
+                    /* Background Graphics */
+                    .bg-curve {
+                        position: absolute;
+                        top: -80px;
+                        right: -50px;
+                        width: 250px;
+                        height: 380px;
+                        background: radial-gradient(circle at center, #dcfce7 0%, #d1fae5 40%, rgba(255,255,255,0) 70%);
+                        border-radius: 50%;
+                        z-index: 0;
+                        opacity: 0.8;
+                    }
+                    .bg-overlay {
+                        position: absolute; right: 0; top: 0; bottom: 0; width: 60%;
+                        background: linear-gradient(135deg, transparent 20%, #ecfdf5 100%);
+                        clip-path: polygon(40% 0, 100% 0, 100% 100%, 0% 100%);
+                        z-index: 0;
+                    }
+
+                    .header { position: relative; z-index: 10; padding: 8px 12px 0 12px; display: flex; justify-content: space-between; align-items: flex-start; }
+                    .logo { width: 40px; height: 40px; object-fit: contain; }
                     .header-text { text-align: right; }
-                    .org-name { font-size: 8px; color: #6b7280; font-weight: 500; letter-spacing: 0.3px; }
-                    .school-name { font-size: 13px; font-weight: 700; color: #15803d; line-height: 1.1; margin-top: 2px; }
-                    .province { font-size: 9px; color: #16a34a; font-weight: 500; margin-top: 1px; }
-                    .content { position: relative; z-index: 10; display: flex; padding: 8px 14px; gap: 12px; }
-                    .photo-box { width: 2.2cm; height: 2.7cm; background: #e5e7eb; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; flex-shrink: 0; }
-                    .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+                    .org-name { font-size: 8px; color: #64748b; font-weight: 500; }
+                    .school-name { font-size: 13px; font-weight: 800; color: #047857; margin-top: 0px; line-height: 1.1; }
+                    .province { font-size: 9px; color: #059669; font-weight: 500; }
+
+                    .content { position: relative; z-index: 10; display: flex; padding: 6px 12px; gap: 10px; align-items: center; }
+                    
+                    /* Photo styling */
+                    .photo-container {
+                        width: 2.3cm; height: 2.8cm;
+                        background: #f1f5f9;
+                        border-radius: 10px;
+                        border: 3px solid #fff;
+                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+                        overflow: hidden;
+                        flex-shrink: 0;
+                    }
+                    .photo-container img { width: 100%; height: 100%; object-fit: cover; }
+
                     .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-                    .student-name { font-size: 15px; font-weight: 700; color: #111827; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
-                    .role-badge { display: inline-block; background: linear-gradient(to right, #16a34a, #15803d); color: white; font-size: 8px; font-weight: 600; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: fit-content; }
-                    .data-row { display: flex; align-items: baseline; font-size: 9px; line-height: 1.4; color: #374151; }
-                    .label { font-weight: 600; color: #4b5563; width: 55px; flex-shrink: 0; }
-                    .value { font-weight: 500; }
-                    .teacher-container { display: grid; grid-template-columns: 55px 1fr; margin-top: 2px; font-size: 9px; line-height: 1.2; color: #374151; }
-                    .teacher-label { font-weight: 600; color: #4b5563; }
-                    .teacher-list { display: flex; flex-direction: column; gap: 1px; }
-                    .teacher-name { font-weight: 500; font-size: 8px; }
-                    .footer { position: absolute; bottom: 0; left: 0; width: 100%; height: 24px; background: #14532d; color: rgba(255,255,255,0.9); display: flex; justify-content: space-between; align-items: center; padding: 0 6px; font-size: 8px; font-weight: 400; z-index: 20; }
-                    .phone-container { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-weight: 400; color: #fff; font-size: 9px; white-space: nowrap; width: 130px; flex-shrink: 0; text-align: right; margin-right: 7px; }
+                    .student-name { 
+                        font-size: 16px; font-weight: 800; color: #0f172a; line-height: 1.1; 
+                        margin-bottom: 4px; white-space: nowrap; 
+                        font-family: 'Sarabun', sans-serif;
+                    }
+                    .badge {
+                        display: inline-block;
+                        background: #15803d;
+                        color: #fff;
+                        font-size: 7px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        padding: 2px 8px;
+                        border-radius: 4px;
+                        margin-bottom: 6px;
+                        width: fit-content;
+                        letter-spacing: 0.5px;
+                    }
+                    
+                    .details-grid {
+                        display: grid;
+                        grid-template-columns: auto 1fr;
+                        gap: 2px 8px;
+                        font-size: 9px;
+                        color: #334155;
+                    }
+                    .label { font-weight: 700; color: #64748b; }
+                    .value { font-weight: 600; color: #0f172a; font-family: 'Sarabun', sans-serif; }
+
+                    .teacher-row { grid-column: 1 / -1; display: flex; gap: 4px; margin-top: 1px; }
+                    .teacher-label { font-weight: 700; color: #64748b; min-width: 50px; }
+                    .teacher-value { font-weight: 600; color: #0f172a; font-family: 'Sarabun', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+
+                    .footer { 
+                        position: absolute; bottom: 0; left: 0; width: 100%; height: 22px; 
+                        background: #064e3b; 
+                        color: #fff; display: flex; justify-content: space-between; align-items: center; 
+                        padding: 0 12px; font-size: 8px; font-weight: 400; z-index: 20;
+                    }
+                    .footer-left { font-weight: 500; opacity: 0.9; }
+                    .footer-right { font-weight: 600; }
                 </style>
             </head>
             <body onload="window.print()">
                 <div class="card-container">
-                    <div class="bg-graphic"></div>
-                    <div class="circle-deco"></div>
+                    <div class="bg-overlay"></div>
+                    <div class="bg-curve"></div>
+                    
                     <div class="header">
                         <img src="${logoSrc}" class="logo" onerror="this.style.opacity=0">
                         <div class="header-text">
@@ -346,258 +412,283 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                             <div class="province">จังหวัดกาฬสินธุ์</div>
                         </div>
                     </div>
+
                     <div class="content">
-                        <div class="photo-box">
+                        <div class="photo-container">
                              ${photoSrc ? `<img src="${photoSrc}">` : ''}
                         </div>
                         <div class="info-col">
                             <div class="student-name">${student.studentTitle}${student.studentName}</div>
-                            <div class="role-badge">นักเรียน Student</div>
-                            <div class="data-row"><span class="label">เลขประจำตัว</span><span class="value">${student.studentIdCard}</span></div>
-                             <div class="data-row"><span class="label">ชั้นเรียน</span><span class="value">${displayClass}</span></div>
-                            <div class="data-row"><span class="label">เรือนนอน</span><span class="value">${student.dormitory}</span></div>
-                            <div class="teacher-container"><div class="teacher-label">ครูประจำชั้น:</div><div class="teacher-list">${teachersHtml}</div></div>
+                            <div class="badge">นักเรียน STUDENT</div>
+                            
+                            <div class="details-grid">
+                                <div class="label">เลขประจำตัว</div>
+                                <div class="value">${student.studentIdCard || '-'}</div>
+                                
+                                <div class="label">ชั้นเรียน</div>
+                                <div class="value">${student.studentClass}</div>
+                                
+                                <div class="label">เรือนนอน</div>
+                                <div class="value">${student.dormitory}</div>
+
+                                <div class="teacher-row">
+                                    <div class="teacher-label">ครูประจำชั้น:</div>
+                                    <div class="teacher-value">${homeroomTeacherNames || '-'}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
                     <div class="footer">
-                        <div>ออกบัตร: ${issueDate}  |  หมดอายุ: ${expiryDate}</div>
-                        <div class="phone-container">โทร. 043-840842</div>
+                        <div class="footer-left">ออกบัตร: ${issueDate} | หมดอายุ: ${expDate}</div>
+                        <div class="footer-right">โทร. 043-840842</div>
                     </div>
                 </div>
             </body>
             </html>
         `;
         const win = window.open('', '_blank', 'width=600,height=400');
-        if (win) { win.document.write(html); win.document.close(); }
+        if (win) { 
+            win.document.write(html); 
+            win.document.close(); 
+        }
     };
 
+    const TabButton: React.FC<{ label: string, tabKey: typeof activeTab }> = ({ label, tabKey }) => (
+        <button
+            onClick={() => setActiveTab(tabKey)}
+            className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === tabKey ? 'border-primary-blue text-primary-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+        >
+            {label}
+        </button>
+    );
+    
+    const { years } = calculateAge(student.studentDob);
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-4" onClick={onClose}>
-            <style>{`
-                @media print {
-                    #print-dashboard { display: none !important; }
-                    #print-section-student { display: block !important; }
-                    @page { size: A4 portrait; margin: 2cm; }
-                    body { font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; font-size: 16pt; }
-                    .print-dotted-line { border-bottom: 1px dotted #000; flex-grow: 1; margin-left: 5px; padding-left: 5px; }
-                }
-            `}</style>
-            
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-4 font-sarabun print-container" onClick={onClose}>
             <div 
-                className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col print:fixed print:inset-0 print:w-full print:h-full print:max-w-none print:rounded-none print:z-[100] print:bg-white" 
+                className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col print:hidden" 
                 onClick={e => e.stopPropagation()}
             >
-                <div className="p-5 border-b flex justify-between items-center print:hidden">
-                    <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลนักเรียน</h2>
-                    {/* Fix: changed onClose to onClick as button elements do not have an onClose attribute */}
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
-
-                <div className="flex-grow overflow-y-auto p-6 print:overflow-visible print:p-8">
-                    
-                    {/* ---------------- PRINT LAYOUT (Official Document Style) ---------------- */}
-                    <div id="print-section-student" className="hidden print:block print-visible font-sarabun text-black leading-normal">
-                        
-                        <div className="text-center mb-6">
-                             <img src={getDirectDriveImageSrc(schoolLogo)} alt="logo" className="h-20 w-auto mx-auto mb-2" />
-                             <h1 className="text-2xl font-bold">{schoolName}</h1>
-                             <h2 className="text-xl font-bold mt-1">แบบบันทึกข้อมูลนักเรียนรายบุคคล</h2>
-                        </div>
-
-                        <div className="flex justify-between items-start relative">
-                            <div className="flex-grow pr-8 space-y-2 text-lg w-2/3">
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">ชื่อ-นามสกุล:</span>
-                                    <span className="print-dotted-line">{student.studentTitle} {student.studentName}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">ชื่อเล่น:</span>
-                                    <span className="print-dotted-line">{student.studentNickname || '-'}</span>
-                                    <span className="font-bold shrink-0 ml-4">เลขบัตรประชาชน:</span>
-                                    <span className="print-dotted-line">{student.studentIdCard || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">วันเกิด:</span>
-                                    <span className="print-dotted-line">{formatThaiDate(student.studentDob) || '-'}</span>
-                                    <span className="font-bold shrink-0 ml-4">ระดับชั้น:</span>
-                                    <span className="print-dotted-line">{student.studentClass || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">เรือนนอน:</span>
-                                    <span className="print-dotted-line">{student.dormitory || '-'}</span>
-                                    <span className="font-bold shrink-0 ml-4">เบอร์โทร:</span>
-                                    <span className="print-dotted-line">{student.studentPhone || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">ที่อยู่:</span>
-                                    <span className="print-dotted-line">{student.studentAddress || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">ครูประจำชั้น:</span>
-                                    <span className="print-dotted-line">{homeroomTeacherNames || '-'}</span>
-                                 </div>
+                {/* Screen-only content */}
+                <div className="print:hidden flex-col flex h-full">
+                    <div className="p-5 border-b flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลนักเรียน</h2>
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div className="flex-grow overflow-y-auto p-6">
+                            <div className="flex flex-col sm:flex-row gap-6 items-start mb-6">
+                                <div className="flex-shrink-0 w-full sm:w-40">
+                                    <div className="w-40 h-52 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden mx-auto shadow-md">
+                                        {profileImageUrl ? <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" /> : <svg className="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
+                                    </div>
+                                </div>
+                                <div className="flex-grow">
+                                    <h3 className="text-3xl font-bold text-navy">{`${student.studentTitle} ${student.studentName}`}</h3>
+                                    <p className="text-xl text-secondary-gray mb-4">{student.studentNickname}</p>
+                                </div>
                             </div>
-
-                            <div className="w-[4cm] h-[5.2cm] border border-black flex items-center justify-center bg-gray-50 shrink-0 mb-4 self-start">
-                                {profileImageUrl ? (
-                                    <img src={profileImageUrl} className="w-full h-full object-cover" alt="Profile" />
-                                ) : (
-                                    <span className="text-gray-400 text-sm">รูปถ่าย</span>
+                            <div className="border-b border-gray-200">
+                                <nav className="-mb-px flex space-x-4">
+                                    <TabButton label="ข้อมูลทั่วไป" tabKey="general" />
+                                    <TabButton label="ข้อมูลครอบครัว" tabKey="family" />
+                                    <TabButton label="ข้อมูลสุขภาพ" tabKey="health" />
+                                    <TabButton label="ข้อมูลด้านการจัดการศึกษา" tabKey="iep" />
+                                    <TabButton label="เอกสาร" tabKey="docs" />
+                                </nav>
+                            </div>
+                            <div className="pt-6">
+                                {activeTab === 'general' && ( <DetailSection title="ข้อมูลทั่วไปของนักเรียน"> <DetailItem label="ชั้น" value={student.studentClass} /> <DetailItem label="เรือนนอน" value={student.dormitory} /> <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} /> <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} /> <DetailItem label="เบอร์โทร" value={student.studentPhone} /> <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} fullWidth /> <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/> </DetailSection> )}
+                                {activeTab === 'family' && ( <DetailSection title="ข้อมูลครอบครัว"> <DetailItem label="ชื่อ-นามสกุลบิดา" value={student.fatherName} /> <DetailItem label="เลขบัตรประชาชนบิดา" value={student.fatherIdCard} /> <DetailItem label="เบอร์โทรบิดา" value={student.fatherPhone} /> <DetailItem label="ที่อยู่บิดา" value={student.fatherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลมารดา" value={student.motherName} /> <DetailItem label="เลขบัตรประชาชนมารดา" value={student.motherIdCard} /> <DetailItem label="เบอร์โทรมารดา" value={student.motherPhone} /> <DetailItem label="ที่อยู่มารดา" value={student.motherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลผู้ปกครอง" value={student.guardianName} /> <DetailItem label="เลขบัตรประชาชนผู้ปกครอง" value={student.guardianIdCard} /> <DetailItem label="เบอร์โทรผู้ปกครอง" value={student.guardianPhone} /> <DetailItem label="ที่อยู่ผู้ปกครอง" value={student.guardianAddress} fullWidth/> </DetailSection> )}
+                                {activeTab === 'health' && ( <DetailSection title="ข้อมูลทางการแพทย์และสุขภาพ"> <DetailItem label="โรคประจำตัว" value={student.chronicDisease} fullWidth /> <DetailItem label="ประวัติการแพ้ยา" value={student.drugAllergy} fullWidth /> <DetailItem label="โรคภูมิแพ้" value={student.allergies} fullWidth /> <DetailItem label="ผลการตรวจทางการแพทย์" value={student.medicalExamResults} fullWidth /> <DetailItem label="ข้อจำกัดอื่น ๆ" value={student.otherLimitations} fullWidth /> </DetailSection> )}
+                                {activeTab === 'iep' && ( <div className="space-y-6"> <DocumentViewer title="แผนการจัดการศึกษาเฉพาะบุคคล (IEP)" files={student.iepFiles} /> <DocumentViewer title="แผนการสอนเฉพาะบุคคล (IIP)" files={student.iipFiles} /> </div> )}
+                                {activeTab === 'docs' && ( 
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> 
+                                        <DocumentViewer title="บัตรประชาชนนักเรียน" files={student.studentIdCardImage} /> 
+                                        <DocumentViewer title="ทะเบียนบ้านนักเรียน" files={student.studentHouseRegFile} />
+                                        <DocumentViewer title="สูจิบัตรนักเรียน" files={student.birthCertificateFile} />
+                                        <DocumentViewer title="บัตรคนพิการ" files={student.studentDisabilityCardImage} /> 
+                                        
+                                        <DocumentViewer title="บัตรประชาชนผู้ปกครอง" files={student.guardianIdCardImage} /> 
+                                        <DocumentViewer title="ทะเบียนบ้านผู้ปกครอง" files={student.guardianHouseRegFile} />
+                                        
+                                        <DocumentViewer title="เอกสารมอบฉันทะ" files={student.proxyFile} />
+                                        <DocumentViewer title="เอกสารมอบอำนาจ" files={student.powerOfAttorneyFile} />
+                                    </div> 
                                 )}
                             </div>
+                    </div>
+                     <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3">
+                        <div className="relative" ref={exportMenuRef}>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                ดาวน์โหลด / ส่งออก
+                            </button>
+                             {isExportMenuOpen && (
+                                <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+                                    <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                        พิมพ์ / บันทึก PDF
+                                    </button>
+                                    <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1.01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        ส่งออก Word (.doc)
+                                    </button>
+                                    <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        ส่งออก Excel (.csv)
+                                    </button>
+                                    <button onClick={handlePrintCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors">
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                                        บัตรนักเรียน
+                                    </button>
+                                </div>
+                             )}
                         </div>
+                        <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-                        <div className="mt-8 mb-4 border-b border-black">
-                            <h3 className="text-lg font-bold pb-1">ข้อมูลครอบครัว</h3>
+            {/* Print-only content - Specific Layout for Individual Student Record */}
+            <div className="hidden print:block font-sarabun text-black text-base print-area-memo" style={{ padding: '1.5cm' }}>
+                <div className="text-center mb-6">
+                    <img src={getDirectDriveImageSrc(schoolLogo)} alt="logo" className="w-20 h-20 object-contain mx-auto mb-2" />
+                    <h1 className="text-xl font-bold">โรงเรียนกาฬสินธุ์ปัญญานุกูล จังหวัดกาฬสินธุ์</h1>
+                    <h2 className="text-lg font-bold">แบบบันทึกข้อมูลนักเรียนรายบุคคล</h2>
+                </div>
+
+                {/* Main Content Layout */}
+                <div className="flex gap-6">
+                    {/* Left Column: Data Fields */}
+                    <div className="flex-grow space-y-2">
+                        {/* Row 1 */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold whitespace-nowrap w-24">ชื่อ-นามสกุล:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{`${student.studentTitle} ${student.studentName}`}</div>
                         </div>
-
-                        <div className="space-y-2 text-lg">
-                             <div className="flex gap-4">
-                                 <div className="flex items-baseline flex-grow">
-                                    <span className="font-bold shrink-0">บิดา:</span>
-                                    <span className="print-dotted-line">{student.fatherName || '-'}</span>
-                                </div>
-                                <div className="flex items-baseline w-1/3">
-                                    <span className="font-bold shrink-0">โทร:</span>
-                                    <span className="print-dotted-line">{student.fatherPhone || '-'}</span>
-                                </div>
-                             </div>
-                             <div className="flex gap-4">
-                                 <div className="flex items-baseline flex-grow">
-                                    <span className="font-bold shrink-0">มารดา:</span>
-                                    <span className="print-dotted-line">{student.motherName || '-'}</span>
-                                </div>
-                                <div className="flex items-baseline w-1/3">
-                                    <span className="font-bold shrink-0">โทร:</span>
-                                    <span className="print-dotted-line">{student.motherPhone || '-'}</span>
-                                </div>
-                             </div>
-                             <div className="flex gap-4">
-                                 <div className="flex items-baseline flex-grow">
-                                    <span className="font-bold shrink-0">ผู้ปกครอง:</span>
-                                    <span className="print-dotted-line">{student.guardianName || '-'}</span>
-                                </div>
-                                <div className="flex items-baseline w-1/3">
-                                    <span className="font-bold shrink-0">โทร:</span>
-                                    <span className="print-dotted-line">{student.guardianPhone || '-'}</span>
-                                </div>
-                             </div>
-                             <div className="flex items-baseline">
-                                <span className="font-bold shrink-0">ที่อยู่ผู้ปกครอง:</span>
-                                <span className="print-dotted-line">{student.guardianAddress || '-'}</span>
-                             </div>
-                        </div>
-
-                         <div className="mt-16 flex justify-end text-lg">
-                            <div className="text-center w-72">
-                                <p className="mb-8">ลงชื่อ ........................................................... ผู้บันทึกข้อมูล</p>
-                                <p className="mb-2">(...........................................................)</p>
-                                <p>วันที่ ........./........./.............</p>
+                        
+                        {/* Row 2 */}
+                        <div className="flex items-baseline gap-4">
+                            <div className="flex items-baseline flex-grow">
+                                <span className="font-bold whitespace-nowrap w-16">ชื่อเล่น:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{student.studentNickname || '-'}</div>
                             </div>
+                            <div className="flex items-baseline flex-grow">
+                                <span className="font-bold whitespace-nowrap">เลขบัตรประชาชน:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{student.studentIdCard || '-'}</div>
+                            </div>
+                        </div>
+
+                        {/* Row 3 */}
+                        <div className="flex items-baseline gap-4">
+                            <div className="flex items-baseline flex-grow">
+                                <span className="font-bold whitespace-nowrap w-16">วันเกิด:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{formatThaiDate(student.studentDob)}</div>
+                            </div>
+                            <div className="flex items-baseline flex-grow">
+                                <span className="font-bold whitespace-nowrap">ระดับชั้น:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{student.studentClass}</div>
+                            </div>
+                        </div>
+
+                        {/* Row 4 */}
+                        <div className="flex items-baseline gap-4">
+                            <div className="flex items-baseline flex-grow">
+                                <span className="font-bold whitespace-nowrap w-20">เรือนนอน:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{student.dormitory}</div>
+                            </div>
+                            <div className="flex items-baseline flex-grow">
+                                <span className="font-bold whitespace-nowrap">เบอร์โทร:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{student.studentPhone || '""'}</div>
+                            </div>
+                        </div>
+
+                        {/* Row 5 */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold whitespace-nowrap w-12">ที่อยู่:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{student.studentAddress || '-'}</div>
+                        </div>
+
+                        {/* Row 6 */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold whitespace-nowrap w-24">ครูประจำชั้น:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{homeroomTeacherNames}</div>
                         </div>
                     </div>
 
-
-                    {/* ---------------- SCREEN LAYOUT ---------------- */}
-                    <div className="print:hidden">
-                        <div className="flex flex-col sm:flex-row gap-6 items-start mb-6">
-                            <div className="flex-shrink-0 w-full sm:w-40">
-                                <div className="w-40 h-52 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden mx-auto shadow-md">
-                                    {profileImageUrl ? (
-                                        <img 
-                                            src={profileImageUrl} 
-                                            alt="Profile" 
-                                            className="w-full h-full object-cover" 
-                                            onError={(e) => {
-                                                const target = e.currentTarget;
-                                                target.onerror = null; 
-                                                target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
-                                                target.outerHTML = `<svg class="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`;
-                                            }}
-                                        />
-                                    ) : (
-                                        <svg className="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex-grow">
-                                <h3 className="text-3xl font-bold text-navy">{`${student.studentTitle} ${student.studentName}`}</h3>
-                                <p className="text-xl text-secondary-gray mb-4">{student.studentNickname}</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                                    <DetailItem label="ชั้น" value={student.studentClass} />
-                                    <DetailItem label="เรือนนอน" value={student.dormitory} />
-                                    <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} />
-                                    <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} />
-                                    <DetailItem label="เบอร์โทร" value={student.studentPhone} />
-                                    <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} />
-                                    <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/>
-                                </div>
-                            </div>
+                    {/* Right Column: Photo */}
+                    <div className="w-[3.5cm] flex-shrink-0 flex flex-col items-center">
+                        <div className="w-[3.5cm] h-[4.5cm] border border-black flex items-center justify-center bg-gray-100 overflow-hidden">
+                            {profileImageUrl ? (
+                                <img src={profileImageUrl} alt="student" className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="text-sm text-gray-400">รูปถ่าย</span>
+                            )}
                         </div>
-                        
-
-                        <DetailSection title="ข้อมูลครอบครัว">
-                            <DetailItem label="ชื่อ-นามสกุลบิดา" value={student.fatherName} />
-                            <DetailItem label="เลขบัตรประชาชนบิดา" value={student.fatherIdCard} />
-                            <DetailItem label="เบอร์โทรบิดา" value={student.fatherPhone} />
-                            <DetailItem label="ที่อยู่บิดา" value={student.fatherAddress} fullWidth/>
-
-                            <DetailItem label="ชื่อ-นามสกุลมารดา" value={student.motherName} />
-                            <DetailItem label="เลขบัตรประชาชนมารดา" value={student.motherIdCard} />
-                            <DetailItem label="เบอร์โทรมารดา" value={student.motherPhone} />
-                            <DetailItem label="ที่อยู่มารดา" value={student.motherAddress} fullWidth/>
-
-                            <DetailItem label="ชื่อ-นามสกุลผู้ปกครอง" value={student.guardianName} />
-                            <DetailItem label="เลขบัตรประชาชนผู้ปกครอง" value={student.guardianIdCard} />
-                            <DetailItem label="เบอร์โทรผู้ปกครอง" value={student.guardianPhone} />
-                            <DetailItem label="ที่อยู่ผู้ปกครอง" value={student.guardianAddress} fullWidth/>
-                        </DetailSection>
-
-                        <DetailSection title="เอกสารแนบ">
-                            <DocumentViewer title="บัตรประชาชนนักเรียน" files={student.studentIdCardImage} />
-                            <DocumentViewer title="บัตรคนพิการ" files={student.studentDisabilityCardImage} />
-                            <DocumentViewer title="บัตรประชาชนผู้ปกครอง" files={student.guardianIdCardImage} />
-                        </DetailSection>
                     </div>
                 </div>
 
-                 <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3 print:hidden">
-                    <div className="relative">
-                        <button 
-                            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow-md transition-all"
-                        >
-                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                             ดาวน์โหลด / ส่งออก
-                        </button>
-                        
-                        {isExportMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
-                                <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                    พิมพ์ / บันทึก PDF
-                                </button>
-                                <button onClick={exportToWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    ส่งออก Word (.doc)
-                                </button>
-                                <button onClick={exportToExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    ส่งออก Excel (.csv)
-                                </button>
-                                <button onClick={handleExportIDCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
-                                    บัตรนักเรียน
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                {/* Family Info Section */}
+                <div className="mt-6">
+                    <h3 className="font-bold text-lg border-b border-black mb-2 inline-block">ข้อมูลครอบครัว</h3>
+                    
+                    <div className="space-y-2">
+                        {/* Father */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold w-16">บิดา:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{student.fatherName || '-'}</div>
+                            <span className="font-bold whitespace-nowrap">โทร:</span>
+                            <div className="border-b border-dotted border-black w-40 px-2">{student.fatherPhone || '-'}</div>
+                        </div>
 
-                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
-                        ปิด
-                    </button>
+                        {/* Mother */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold w-16">มารดา:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{student.motherName || '-'}</div>
+                            <span className="font-bold whitespace-nowrap">โทร:</span>
+                            <div className="border-b border-dotted border-black w-40 px-2">{student.motherPhone || '-'}</div>
+                        </div>
+
+                        {/* Guardian */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold w-20">ผู้ปกครอง:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{student.guardianName || '-'}</div>
+                            <span className="font-bold whitespace-nowrap">โทร:</span>
+                            <div className="border-b border-dotted border-black w-40 px-2">{student.guardianPhone || '-'}</div>
+                        </div>
+
+                        {/* Guardian Address */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold w-24">ที่อยู่ผู้ปกครอง:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{student.guardianAddress || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Signature Section */}
+                <div className="mt-16 flex justify-end">
+                    <div className="text-center w-64 space-y-4">
+                        <div>
+                            <p className="font-bold">ลงชื่อ</p>
+                            <div className="border-b border-dotted border-black h-6 w-full mx-auto mt-2"></div>
+                            <p className="mt-1">...................................................... ผู้</p>
+                            <p>บันทึกข้อมูล</p>
+                        </div>
+                        <div>
+                            <p>(...........................................................)</p>
+                            <p className="mt-2">วันที่ ........./........./.............</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

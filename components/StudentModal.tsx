@@ -24,11 +24,29 @@ const initialFormData: Omit<Student, 'id' | 'studentClass'> = {
     guardianPhone: '', guardianIdCard: '', guardianAddress: '',
     homeroomTeachers: [],
     studentProfileImage: [],
+    
+    // Existing Docs
     studentIdCardImage: [], studentDisabilityCardImage: [], guardianIdCardImage: [],
+    
+    // New Docs
+    studentHouseRegFile: [], 
+    guardianHouseRegFile: [], 
+    proxyFile: [], 
+    powerOfAttorneyFile: [], 
+    birthCertificateFile: [], 
+
     latitude: undefined,
     longitude: undefined,
     weight: 0,
-    height: 0
+    height: 0,
+    // IEP and Medical Info
+    iepFiles: [],
+    iipFiles: [],
+    chronicDisease: '',
+    allergies: '',
+    drugAllergy: '',
+    medicalExamResults: '',
+    otherLimitations: ''
 };
 
 // --- Sub-components defined OUTSIDE to prevent re-mounts and focus loss ---
@@ -91,8 +109,9 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({ name, label, files, o
             type="file" 
             name={name} 
             onChange={onChange} 
-            accept="image/*,application/pdf" 
+            accept="image/*,application/pdf,.doc,.docx" 
             className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" 
+            multiple
         />
         <div className="mt-1">{renderImagePreview(files)}</div>
     </div>
@@ -133,16 +152,34 @@ const StudentModal: React.FC<StudentModalProps> = ({
             const { studentClass, ...rest } = studentToEdit;
             const [cls, room] = studentClass.split('/');
             setFormData({
+                ...initialFormData, // Start with defaults to ensure new fields are present
                 ...rest,
                 studentTitle: studentToEdit.studentTitle || 'เด็กชาย',
                 studentProfileImage: studentToEdit.studentProfileImage || [],
+                
+                // Existing Docs
                 studentIdCardImage: studentToEdit.studentIdCardImage || [],
                 studentDisabilityCardImage: studentToEdit.studentDisabilityCardImage || [],
                 guardianIdCardImage: studentToEdit.guardianIdCardImage || [],
+                
+                // New Docs
+                studentHouseRegFile: studentToEdit.studentHouseRegFile || [],
+                guardianHouseRegFile: studentToEdit.guardianHouseRegFile || [],
+                proxyFile: studentToEdit.proxyFile || [],
+                powerOfAttorneyFile: studentToEdit.powerOfAttorneyFile || [],
+                birthCertificateFile: studentToEdit.birthCertificateFile || [],
+
                 latitude: studentToEdit.latitude,
                 longitude: studentToEdit.longitude,
                 weight: studentToEdit.weight || 0,
-                height: studentToEdit.height || 0
+                height: studentToEdit.height || 0,
+                iepFiles: studentToEdit.iepFiles || [],
+                iipFiles: studentToEdit.iipFiles || [],
+                chronicDisease: studentToEdit.chronicDisease || '',
+                allergies: studentToEdit.allergies || '',
+                drugAllergy: studentToEdit.drugAllergy || '',
+                medicalExamResults: studentToEdit.medicalExamResults || '',
+                otherLimitations: studentToEdit.otherLimitations || ''
             });
             setCurrentClass(cls || studentClasses[0] || '');
             setCurrentRoom(room || studentClassrooms[0] || '');
@@ -534,6 +571,34 @@ const StudentModal: React.FC<StudentModalProps> = ({
                         </div>
                     </fieldset>
 
+                    <FormSection title="ข้อมูลทางการแพทย์และสุขภาพ">
+                        <div className="lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">โรคประจำตัว</label>
+                            <textarea name="chronicDisease" value={formData.chronicDisease || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                        </div>
+                        <div className="lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ประวัติการแพ้ยา</label>
+                            <textarea name="drugAllergy" value={formData.drugAllergy || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                        </div>
+                        <div className="lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">โรคภูมิแพ้</label>
+                            <textarea name="allergies" value={formData.allergies || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                        </div>
+                        <div className="lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ผลการตรวจทางการแพทย์</label>
+                            <textarea name="medicalExamResults" value={formData.medicalExamResults || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                        </div>
+                        <div className="lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ข้อจำกัดอื่น ๆ</label>
+                            <textarea name="otherLimitations" value={formData.otherLimitations || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                        </div>
+                    </FormSection>
+
+                    <FormSection title="ข้อมูลด้านการจัดการศึกษา">
+                        <FileUploadField name="iepFiles" label="แผนการจัดการศึกษาเฉพาะบุคคล (IEP)" files={formData.iepFiles} onChange={handleImageChange} />
+                        <FileUploadField name="iipFiles" label="แผนการสอนเฉพาะบุคคล (IIP)" files={formData.iipFiles} onChange={handleImageChange} />
+                    </FormSection>
+
                     <FormSection title="ข้อมูลบิดา">
                         <InputField name="fatherName" label="ชื่อ-นามสกุลบิดา" value={String(formData.fatherName || '')} onChange={handleChange} />
                         <InputField name="fatherIdCard" label="เลขบัตรประชาชนบิดา" value={String(formData.fatherIdCard || '')} onChange={handleChange} />
@@ -563,8 +628,15 @@ const StudentModal: React.FC<StudentModalProps> = ({
 
                     <FormSection title="เอกสาร">
                        <FileUploadField name="studentIdCardImage" label="บัตรประชาชนนักเรียน" files={formData.studentIdCardImage} onChange={handleImageChange} />
+                       <FileUploadField name="studentHouseRegFile" label="ทะเบียนบ้านนักเรียน" files={formData.studentHouseRegFile} onChange={handleImageChange} />
+                       <FileUploadField name="birthCertificateFile" label="สูจิบัตรนักเรียน" files={formData.birthCertificateFile} onChange={handleImageChange} />
                        <FileUploadField name="studentDisabilityCardImage" label="บัตรคนพิการ" files={formData.studentDisabilityCardImage} onChange={handleImageChange} />
+                       
                        <FileUploadField name="guardianIdCardImage" label="บัตรประชาชนผู้ปกครอง" files={formData.guardianIdCardImage} onChange={handleImageChange} />
+                       <FileUploadField name="guardianHouseRegFile" label="ทะเบียนบ้านผู้ปกครอง" files={formData.guardianHouseRegFile} onChange={handleImageChange} />
+                       
+                       <FileUploadField name="proxyFile" label="เอกสารมอบฉันทะ" files={formData.proxyFile} onChange={handleImageChange} />
+                       <FileUploadField name="powerOfAttorneyFile" label="เอกสารมอบอำนาจ" files={formData.powerOfAttorneyFile} onChange={handleImageChange} />
                     </FormSection>
 
                 </form>

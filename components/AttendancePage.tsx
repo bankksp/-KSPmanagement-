@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, Personnel, StudentAttendance, PersonnelAttendance, TimePeriod, AttendanceStatus, Settings } from '../types';
 import { DEFAULT_ATTENDANCE_PERIODS } from '../constants';
@@ -34,7 +33,7 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
     onSaveStudentAttendance, onSavePersonnelAttendance, onDeleteAttendance, 
     isSaving, settings, onRefresh, currentUser
 }) => {
-    const [subTab, setSubTab] = useState<'checkin' | 'log' | 'history' | 'stats'>('checkin');
+    const [subTab, setSubTab] = useState<'checkin' | 'log' | 'history' | 'stats'>('stats');
     const [selectedDate, setSelectedDate] = useState(getCurrentThaiDate());
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('morning_act');
     
@@ -274,9 +273,9 @@ const AttendancePage: React.FC<AttendancePageProps> = ({
 
             {/* Tabs Navigation */}
             <div className="flex bg-white/50 p-1 rounded-2xl border border-gray-200 w-fit no-print shadow-sm overflow-x-auto max-w-full">
-                <button onClick={() => setSubTab('checkin')} className={`px-5 py-2 rounded-xl font-bold text-xs md:text-sm transition-all whitespace-nowrap ${subTab === 'checkin' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>ลงทะเบียนใหม่</button>
-                <button onClick={() => setSubTab('history')} className={`px-5 py-2 rounded-xl font-bold text-xs md:text-sm transition-all whitespace-nowrap ${subTab === 'history' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>ประวัติย้อนหลัง</button>
                 <button onClick={() => setSubTab('stats')} className={`px-5 py-2 rounded-xl font-bold text-xs md:text-sm transition-all whitespace-nowrap ${subTab === 'stats' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>สถิติ</button>
+                <button onClick={() => setSubTab('history')} className={`px-5 py-2 rounded-xl font-bold text-xs md:text-sm transition-all whitespace-nowrap ${subTab === 'history' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>ประวัติย้อนหลัง</button>
+                <button onClick={() => setSubTab('checkin')} className={`px-5 py-2 rounded-xl font-bold text-xs md:text-sm transition-all whitespace-nowrap ${subTab === 'checkin' ? 'bg-primary-blue text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}>ลงทะเบียนใหม่</button>
             </div>
 
             {/* CHECK-IN VIEW */}

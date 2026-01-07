@@ -1,5 +1,5 @@
 
-import { Settings, Ingredient, NutritionTargetGroup, AttendancePeriodConfig } from "./types";
+import { Settings, Ingredient, NutritionTargetGroup, AttendancePeriodConfig, MaterialCategory } from "./types";
 
 export const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (2560 + i).toString());
 
@@ -53,6 +53,62 @@ export const PROGRAM_LOGO = 'https://img5.pic.in.th/file/secure-sv1/Blue-and-Whi
 
 export const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPULly51wnfwG5MgS2VItYEt9Olp1RXBUmdSk8yvsgMViMr5u4iTNVZ6BlNcAheen9CA/exec';
 
+export const DEFAULT_MATERIAL_CATEGORIES: MaterialCategory[] = [
+    { id: '1', code: '1', name: 'อาคารถาวร', usefulLife: 25, depreciationRate: 4, subCategories: [] },
+    { id: '2', code: '2', name: 'อาคารชั่วคราว/โรงเรือน', usefulLife: 10, depreciationRate: 10, subCategories: [] },
+    { 
+        id: '3', code: '3', name: 'ครุภัณฑ์สำนักงาน', usefulLife: 8, depreciationRate: 12.5,
+        subCategories: [
+            { id: '3.01', code: '3.01', name: 'โต๊ะ', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.02', code: '3.02', name: 'โต๊ะทำงาน', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.03', code: '3.03', name: 'โต๊ะพิมพ์ดีด', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.04', code: '3.04', name: 'โต๊ะประชุม', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.05', code: '3.05', name: 'โต๊ะวางเครื่องคอมพิวเตอร์', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.19', code: '3.19', name: 'ตู้', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.33', code: '3.33', name: 'เครื่องถ่ายเอกสาร', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.36', code: '3.36', name: 'เครื่องปรับอากาศ', usefulLife: 8, depreciationRate: 12.5 },
+            { id: '3.37', code: '3.37', name: 'พัดลม', usefulLife: 8, depreciationRate: 12.5 },
+        ]
+    },
+    {
+        id: '4', code: '4', name: 'วัสดุถาวร (ราคาไม่เกิน 5,000 บาท)', usefulLife: 5, depreciationRate: 20,
+        subCategories: [
+            { id: '4.01', code: '4.01', name: 'วิทยุ/เทป/ซีดี', usefulLife: 5, depreciationRate: 20 },
+            { id: '4.02', code: '4.02', name: 'อุปกรณ์คอมพิวเตอร์', usefulLife: 5, depreciationRate: 20 },
+            { id: '4.06', code: '4.06', name: 'โทรทัศน์', usefulLife: 5, depreciationRate: 20 },
+            { id: '4.08', code: '4.08', name: 'โต๊ะ/เก้าอี้', usefulLife: 5, depreciationRate: 20 },
+        ]
+    },
+    {
+        id: '5', code: '5', name: 'ครุภัณฑ์ยานพาหนะและขนส่ง', usefulLife: 5, depreciationRate: 20,
+        subCategories: [
+            { id: '5.01', code: '5.01', name: 'รถยนต์นั่ง', usefulLife: 5, depreciationRate: 20 },
+            { id: '5.05', code: '5.05', name: 'รถบรรทุก', usefulLife: 5, depreciationRate: 20 },
+            { id: '5.06', code: '5.06', name: 'รถจักรยานยนต์', usefulLife: 5, depreciationRate: 20 },
+        ]
+    },
+    { id: '6', code: '6', name: 'ครุภัณฑ์ไฟฟ้าและวิทยุ', usefulLife: 5, depreciationRate: 20, subCategories: [] },
+    { id: '7', code: '7', name: 'ครุภัณฑ์โฆษณาและเผยแพร่', usefulLife: 5, depreciationRate: 20, subCategories: [] },
+    { id: '8', code: '8', name: 'ครุภัณฑ์การเกษตร', usefulLife: 0, depreciationRate: 0, subCategories: [] },
+    { id: '9', code: '9', name: 'ครุภัณฑ์โรงงาน', usefulLife: 0, depreciationRate: 0, subCategories: [] },
+    { id: '10', code: '10', name: 'ครุภัณฑ์ก่อสร้าง', usefulLife: 0, depreciationRate: 0, subCategories: [] },
+    { id: '11', code: '11', name: 'ครุภัณฑ์สำรวจ', usefulLife: 8, depreciationRate: 12.5, subCategories: [] },
+    { id: '12', code: '12', name: 'ครุภัณฑ์วิทยาศาสตร์และการแพทย์', usefulLife: 5, depreciationRate: 20, subCategories: [] },
+    { 
+        id: '13', code: '13', name: 'ครุภัณฑ์คอมพิวเตอร์', usefulLife: 3, depreciationRate: 33.33,
+        subCategories: [
+            { id: '13.01', code: '13.01', name: 'มอร์นิเตอร์', usefulLife: 3, depreciationRate: 33.33 },
+            { id: '13.12', code: '13.12', name: 'เครื่องพิมพ์', usefulLife: 3, depreciationRate: 33.33 },
+            { id: '13.13', code: '13.13', name: 'ชุดเครื่องคอมพิวเตอร์', usefulLife: 3, depreciationRate: 33.33 },
+        ]
+    },
+    { id: '14', code: '14', name: 'ครุภัณฑ์ดนตรี', usefulLife: 3, depreciationRate: 33.33, subCategories: [] },
+    { id: '15', code: '15', name: 'ครุภัณฑ์งานบ้านงานครัว', usefulLife: 5, depreciationRate: 20, subCategories: [] },
+    { id: '16', code: '16', name: 'ครุภัณฑ์กีฬา', usefulLife: 3, depreciationRate: 33.33, subCategories: [] },
+    { id: '17', code: '17', name: 'ครุภัณฑ์สนาม', usefulLife: 5, depreciationRate: 20, subCategories: [] },
+    { id: '18', code: '18', name: 'ครุภัณฑ์การศึกษา', usefulLife: 8, depreciationRate: 12.5, subCategories: [] },
+];
+
 export const DEFAULT_SETTINGS: Settings = {
     schoolName: 'โรงเรียนกาฬสินธุ์ปัญญานุกูล',
     schoolLogo: 'https://img5.pic.in.th/file/secure-sv1/-15bb7f54b4639a903.png', 
@@ -67,6 +123,9 @@ export const DEFAULT_SETTINGS: Settings = {
     studentClassrooms: STUDENT_CLASSROOMS,
     googleScriptUrl: GOOGLE_SCRIPT_URL,
     durableGoodsCategories: ['ยานพาหนะ', 'อุปกรณ์อิเล็กทรอนิกส์', 'เครื่องใช้สำนักงาน', 'เฟอร์นิเจอร์', 'อุปกรณ์ห้องประชุม', 'ครุภัณฑ์การเกษตร', 'ครุภัณฑ์โฆษณาและเผยแพร่'],
+    materialCategories: DEFAULT_MATERIAL_CATEGORIES,
+    supplyTypes: ['วัสดุ', 'ครุภัณฑ์', 'ที่ดิน/สิ่งก่อสร้าง', 'จ้างเหมาบริการ'],
+    procurementMethods: ['เฉพาะเจาะจง', 'คัดเลือก', 'e-bidding', 'e-market'],
     // Initialize Webhooks as empty strings
     webhookAttendance: '',
     webhookDormitory: '',
