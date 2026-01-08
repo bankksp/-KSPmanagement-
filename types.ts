@@ -1,4 +1,5 @@
 
+
 export interface Settings {
     schoolName: string;
     schoolLogo: string; 
@@ -42,6 +43,7 @@ export interface Settings {
     
     // New Structured Categories
     materialCategories?: MaterialCategory[]; 
+    formTemplates?: { [templateKey: string]: { [elementKey: string]: string } };
 }
 
 export interface MaterialCategory {
@@ -409,7 +411,9 @@ export interface ProcurementRecord {
   reason?: string;
   managerName?: string;
   neededDate?: string;
-  status?: 'pending' | 'approved' | 'received' | 'completed';
+  status?: 'pending' | 'approved' | 'rejected' | 'received' | 'completed';
+  approverName?: string;
+  approvedDate?: string;
 }
 
 export interface DurableGood {
