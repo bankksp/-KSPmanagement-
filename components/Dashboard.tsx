@@ -35,9 +35,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     const mapRef = useRef<any>(null);
 
     // --- Data Processing ---
-    const { dormitoryData, totalStudentsReport, totalSick, totalHome, buddhistDate } = useMemo(() => {
+    const { dormitoryData, totalStudentsReport, totalSick, totalHome, buddhistDate, infirmaryPatients } = useMemo(() => {
         const targetDateObj = normalizeDate(selectedDate);
-        if (!targetDateObj) return { dormitoryData: [], totalStudentsReport: 0, totalSick: 0, totalHome: 0, buddhistDate: selectedDate };
+        if (!targetDateObj) return { dormitoryData: [], totalStudentsReport: 0, totalSick: 0, totalHome: 0, buddhistDate: selectedDate, infirmaryPatients: [] };
 
         const targetDay = targetDateObj.getDate();
         const targetMonth = targetDateObj.getMonth();
@@ -72,13 +72,35 @@ const Dashboard: React.FC<DashboardProps> = ({
                 }
             }
             accPresent += present; accSick += sick; accHome += home;
-            return { name: dormName, present, sick, home, total: present + sick + home };
+            return { name: dormName, present, sick, home, total: getDormStudentCount(dormName) };
         });
 
         const infirmaryReport = latestReportsMap.get("เรือนพยาบาล");
-        if (infirmaryReport) accSick += (Number(infirmaryReport.sickCount) || 0);
+        let patients = [];
+        if (infirmaryReport) {
+            accSick += (Number(infirmaryReport.sickCount) || 0);
+             if (infirmaryReport.studentDetails) {
+                try {
+                    let details = JSON.parse(infirmaryReport.studentDetails);
+                    if (Array.isArray(details)) {
+                        patients = details
+                            .filter(p => p.status === 'sick')
+                            .map(p => {
+                                const studentInfo = students.find(s => String(s.id) === String(p.id));
+                                return {
+                                    id: p.id,
+                                    name: p.name,
+                                    studentClass: studentInfo ? studentInfo.studentClass : 'N/A'
+                                };
+                            });
+                    }
+                } catch (e) {
+                    console.error("Could not parse infirmary student details", e);
+                }
+            }
+        }
 
-        return { dormitoryData: finalDormitoryData, totalStudentsReport: accPresent, totalSick: accSick, totalHome: accHome, buddhistDate: bDateStr };
+        return { dormitoryData: finalDormitoryData, totalStudentsReport: accPresent, totalSick: accSick, totalHome: accHome, buddhistDate: bDateStr, infirmaryPatients: patients };
     }, [reports, dormitories, selectedDate, students]);
 
     const personnelStatsSummary = useMemo(() => {
@@ -196,67 +218,65 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <input type="date" value={buddhistToISO(selectedDate)} onChange={(e) => setSelectedDate(isoToBuddhist(e.target.value))} className="pl-4 pr-4 py-2.5 bg-white border border-gray-200 rounded-2xl shadow-sm text-navy font-bold text-sm outline-none focus:ring-2 focus:ring-primary-blue" />
                 </div>
             </div>
-
-            <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl text-white animate-fade-in-up relative overflow-hidden">
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-4">
-                        <span className="text-2xl">📊</span>
-                        <h3 className="text-xl font-black uppercase tracking-wider">สรุปภาพรวมสำหรับผู้บริหาร</h3>
+            
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl text-white animate-fade-in-up relative overflow-hidden border">
+                <div className="relative z-10 flex items-start gap-6">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-2xl shadow-lg">
+                        <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
-                    <ul className="text-indigo-50 leading-relaxed font-medium space-y-2 list-disc list-inside">
-                        <li>ข้อมูลนักเรียนประจำวันที่ {buddhistDate}: มาเรียน {totalStudentsReport} คน, ป่วย {totalSick} คน, กลับบ้าน/อื่นๆ {totalHome} คน จากทั้งหมด {students.length} คน</li>
-                        <li>ข้อมูลบุคลากร: มาปฏิบัติหน้าที่ {personnelStatsSummary.present} คน, ลา/ขาด {personnelStatsSummary.absent} คน จากทั้งหมด {personnel.length} คน</li>
-                        {highSickDorms.length > 0 ? (
-                            <li>
-                                <span className="font-bold text-yellow-300">ข้อควรระวัง:</span> เรือนนอนที่มีนักเรียนป่วยจำนวนมาก ได้แก่ {highSickDorms.join(', ')}
-                            </li>
-                        ) : (
-                            <li>สถานการณ์จำนวนนักเรียนป่วยในเรือนนอนอยู่ในเกณฑ์ปกติ</li>
-                        )}
-                    </ul>
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-wider text-navy">สรุปสำหรับผู้บริหาร</h3>
+                        <ul className="text-gray-600 mt-2 leading-relaxed font-medium space-y-2 list-disc list-inside">
+                            <li>ข้อมูลนักเรียนประจำวันที่ {buddhistDate}: มาเรียน {totalStudentsReport} คน, ป่วย {totalSick} คน, กลับบ้าน/อื่นๆ {totalHome} คน จากทั้งหมด {students.length} คน</li>
+                            <li>ข้อมูลบุคลากร: มาปฏิบัติหน้าที่ {personnelStatsSummary.present} คน, ลา/ขาด {personnelStatsSummary.absent} คน จากทั้งหมด {personnel.length} คน</li>
+                            {highSickDorms.length > 0 ? (
+                                <li>
+                                    <span className="font-bold text-amber-600">ข้อควรระวัง:</span> เรือนนอนที่มีนักเรียนป่วยจำนวนมาก ได้แก่ {highSickDorms.join(', ')}
+                                </li>
+                            ) : (
+                                <li>สถานการณ์จำนวนนักเรียนป่วยในเรือนนอนอยู่ในเกณฑ์ปกติ</li>
+                            )}
+                        </ul>
+                    </div>
                 </div>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1 space-y-4">
-                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
                         <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">นักเรียนทั้งหมด</p>
                         <h3 className="text-5xl font-black text-navy">{students.length}</h3>
-                        <div className="mt-6 flex gap-2">
+                        <div className="mt-4 flex gap-2">
                             <div className="bg-blue-50 px-3 py-1 rounded-lg text-[10px] font-bold text-blue-600">ชาย: {students.filter(s => ['เด็กชาย', 'นาย'].includes(s.studentTitle)).length}</div>
                             <div className="bg-pink-50 px-3 py-1 rounded-lg text-[10px] font-bold text-pink-600">หญิง: {students.filter(s => ['เด็กหญิง', 'นางสาว'].includes(s.studentTitle)).length}</div>
                         </div>
                     </div>
 
-                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
+                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
                         <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">บุคลากรทั้งหมด</p>
                         <h3 className="text-5xl font-black text-navy">{personnel.length}</h3>
-                        <div className="mt-6 flex gap-2">
+                         <div className="mt-4 flex gap-2">
                             <div className="bg-indigo-50 px-3 py-1 rounded-lg text-[10px] font-bold text-indigo-600">ชาย: {personnel.filter(p => p.personnelTitle === 'นาย').length}</div>
                             <div className="bg-purple-50 px-3 py-1 rounded-lg text-[10px] font-bold text-purple-600">หญิง: {personnel.filter(p => ['นาง', 'นางสาว'].includes(p.personnelTitle)).length}</div>
                         </div>
                     </div>
 
-                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-baseline mb-4">
-                            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none">สถานะรายงานวันปัจจุบัน</p>
-                            <span className="text-[9px] font-bold text-blue-500 uppercase">Real-time</span>
-                        </div>
-                        <div className="space-y-4">
+                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
+                        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-4">สถานะวันนี้</p>
+                        <div className="space-y-3">
                             <div>
-                                <p className="text-[10px] font-bold text-gray-500 mb-2">นักเรียน</p>
-                                <div className="grid grid-cols-3 gap-3 text-center">
-                                    <div className="bg-emerald-50 p-3 rounded-2xl"><p className="text-xl font-black text-emerald-600">{totalStudentsReport}</p><p className="text-[9px] font-bold text-emerald-500">มา</p></div>
-                                    <div className="bg-rose-50 p-3 rounded-2xl"><p className="text-xl font-black text-rose-600">{totalSick}</p><p className="text-[9px] font-bold text-rose-500">ป่วย</p></div>
-                                    <div className="bg-slate-50 p-3 rounded-2xl"><p className="text-xl font-black text-slate-600">{totalHome}</p><p className="text-[9px] font-bold text-slate-500">อื่นๆ</p></div>
+                                <p className="text-[10px] font-bold text-gray-500 mb-1">นักเรียน</p>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="bg-emerald-50 p-2 rounded-xl"><p className="text-lg font-black text-emerald-600">{totalStudentsReport}</p><p className="text-[9px] font-bold text-emerald-500">มา</p></div>
+                                    <div className="bg-rose-50 p-2 rounded-xl"><p className="text-lg font-black text-rose-600">{totalSick}</p><p className="text-[9px] font-bold text-rose-500">ป่วย</p></div>
+                                    <div className="bg-slate-50 p-2 rounded-xl"><p className="text-lg font-black text-slate-600">{totalHome}</p><p className="text-[9px] font-bold text-slate-500">อื่นๆ</p></div>
                                 </div>
                             </div>
-                            <div className="pt-4 border-t border-gray-50">
-                                <p className="text-[10px] font-bold text-gray-500 mb-2">บุคลากร</p>
-                                <div className="grid grid-cols-2 gap-3 text-center">
-                                    <div className="bg-blue-50 p-3 rounded-2xl flex justify-between items-center px-4"><span className="text-[9px] font-bold text-blue-500">มาปฏิบัติหน้าที่</span><p className="text-xl font-black text-blue-600">{personnelStatsSummary.present}</p></div>
-                                    <div className="bg-orange-50 p-3 rounded-2xl flex justify-between items-center px-4"><span className="text-[9px] font-bold text-orange-500">ลา/ขาด/ป่วย</span><p className="text-xl font-black text-orange-600">{personnelStatsSummary.absent}</p></div>
+                            <div className="pt-3 border-t border-gray-50">
+                                <p className="text-[10px] font-bold text-gray-500 mb-1">บุคลากร</p>
+                                <div className="grid grid-cols-2 gap-2 text-center">
+                                    <div className="bg-blue-50 p-2 rounded-xl flex items-center justify-between px-3"><span className="text-[9px] font-bold text-blue-500">มาปฏิบัติงาน</span><p className="text-lg font-black text-blue-600">{personnelStatsSummary.present}</p></div>
+                                    <div className="bg-orange-50 p-2 rounded-xl flex items-center justify-between px-3"><span className="text-[9px] font-bold text-orange-500">ลา/ขาด</span><p className="text-lg font-black text-orange-600">{personnelStatsSummary.absent}</p></div>
                                 </div>
                             </div>
                         </div>
@@ -276,9 +296,60 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100"><ReportChart data={dormitoryData} /></div>
-                <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100"><AttendanceStats stats={attendanceStatsData} selectedDate={buddhistDate} /></div>
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold text-navy mb-4">สถิตินักเรียนรายเรือนนอน</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-[350px]">
+                        <ReportChart data={dormitoryData} />
+                    </div>
+                    <div className="max-h-[350px] overflow-y-auto space-y-2 pr-2">
+                        {dormitoryData.map(d => (
+                            <div key={d.name} className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                                <div className="flex justify-between items-center mb-1">
+                                    <p className="font-bold text-sm text-gray-800">{d.name}</p>
+                                    <p className="text-xs text-gray-400">ทั้งหมด: {d.total} คน</p>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                                    <div className="bg-green-100/50 p-1 rounded"><span className="text-green-700 font-bold">{d.present}</span><span className="text-green-500"> มา</span></div>
+                                    <div className="bg-red-100/50 p-1 rounded"><span className="text-red-700 font-bold">{d.sick}</span><span className="text-red-500"> ป่วย</span></div>
+                                    <div className="bg-gray-200/50 p-1 rounded"><span className="text-gray-700 font-bold">{d.home}</span><span className="text-gray-500"> บ้าน</span></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <AttendanceStats stats={attendanceStatsData} selectedDate={buddhistDate} />
+            
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                    </svg>
+                    <span>ข้อมูลผู้ป่วยในเรือนพยาบาล</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-1 flex flex-col items-center justify-center bg-red-50 p-6 rounded-2xl border border-red-100">
+                        <p className="text-sm font-bold text-red-500">จำนวนผู้ป่วยปัจจุบัน</p>
+                        <p className="text-7xl font-black text-red-600 my-2">{infirmaryPatients.length}</p>
+                        <p className="text-sm font-bold text-red-500">คน</p>
+                    </div>
+                    <div className="md:col-span-2 max-h-[250px] overflow-y-auto space-y-2 pr-2">
+                        {infirmaryPatients.length > 0 ? (
+                            infirmaryPatients.map(patient => (
+                                <div key={patient.id} className="bg-gray-50/70 p-3 rounded-xl border border-gray-100 flex justify-between items-center">
+                                    <p className="font-bold text-sm text-gray-800">{patient.name}</p>
+                                    <p className="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-1 rounded-md">{patient.studentClass}</p>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-center text-gray-400">
+                                <p>ไม่มีผู้ป่วยในเรือนพยาบาลในวันที่เลือก</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

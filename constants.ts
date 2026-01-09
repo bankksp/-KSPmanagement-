@@ -1,4 +1,5 @@
 
+
 import { Settings, Ingredient, NutritionTargetGroup, AttendancePeriodConfig, MaterialCategory } from "./types";
 
 export const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (2560 + i).toString());
@@ -124,6 +125,7 @@ export const DEFAULT_SETTINGS: Settings = {
     googleScriptUrl: GOOGLE_SCRIPT_URL,
     durableGoodsCategories: ['ยานพาหนะ', 'อุปกรณ์อิเล็กทรอนิกส์', 'เครื่องใช้สำนักงาน', 'เฟอร์นิเจอร์', 'อุปกรณ์ห้องประชุม', 'ครุภัณฑ์การเกษตร', 'ครุภัณฑ์โฆษณาและเผยแพร่'],
     materialCategories: DEFAULT_MATERIAL_CATEGORIES,
+    formTemplates: {},
     supplyTypes: ['วัสดุ', 'ครุภัณฑ์', 'ที่ดิน/สิ่งก่อสร้าง', 'จ้างเหมาบริการ'],
     procurementMethods: ['เฉพาะเจาะจง', 'คัดเลือก', 'e-bidding', 'e-market'],
     // Initialize Webhooks as empty strings
@@ -141,7 +143,17 @@ export const DEFAULT_SETTINGS: Settings = {
     leaveTypes: LEAVE_TYPES,
     leaveApproverIds: [],
     attendancePeriods: DEFAULT_ATTENDANCE_PERIODS,
-    autoHideSidebar: false
+    autoHideSidebar: false,
+    
+    // New: Default names for procurement forms
+    procurementStaffName: 'นายวิมลวรรณ พิลาคุณ',
+    procurementHeadName: 'นายกัญญา รัตน์อำนวย',
+    financeHeadName: 'นางนิธิวดี วรเดช',
+    financeStaffName: 'นางปิยธิดา อบมาลัย',
+    policyHeadName: 'นางอรทิพย์ ธานะ',
+    committeeChairmanName: 'นายทองคำ มากมี',
+    committeeMember1Name: '...................................................',
+    committeeMember2Name: '...................................................',
 };
 
 export const THAI_PROVINCES = [

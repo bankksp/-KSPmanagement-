@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc } from '../utils';
@@ -457,7 +456,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
     const TabButton: React.FC<{ label: string, tabKey: typeof activeTab }> = ({ label, tabKey }) => (
         <button
             onClick={() => setActiveTab(tabKey)}
-            className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === tabKey ? 'border-primary-blue text-primary-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 sm:px-4 py-2 sm:py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === tabKey ? 'border-primary-blue text-primary-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
         >
             {label}
         </button>
@@ -466,96 +465,94 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
     const { years } = calculateAge(student.studentDob);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-4 font-sarabun print-container" onClick={onClose}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-2 sm:p-4 font-sarabun print-container" onClick={onClose}>
             <div 
-                className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col print:hidden" 
+                className="bg-white rounded-xl shadow-2xl w-full max-w-md md:max-w-3xl lg:max-w-5xl max-h-[95vh] flex flex-col print:hidden" 
                 onClick={e => e.stopPropagation()}
             >
                 {/* Screen-only content */}
-                <div className="print:hidden flex-col flex h-full">
-                    <div className="p-5 border-b flex justify-between items-center">
-                        <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลนักเรียน</h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                    <div className="flex-grow overflow-y-auto p-6">
-                            <div className="flex flex-col sm:flex-row gap-6 items-start mb-6">
-                                <div className="flex-shrink-0 w-full sm:w-40">
-                                    <div className="w-40 h-52 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden mx-auto shadow-md">
-                                        {profileImageUrl ? <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" /> : <svg className="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
-                                    </div>
-                                </div>
-                                <div className="flex-grow">
-                                    <h3 className="text-3xl font-bold text-navy">{`${student.studentTitle} ${student.studentName}`}</h3>
-                                    <p className="text-xl text-secondary-gray mb-4">{student.studentNickname}</p>
+                <div className="p-5 border-b flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลนักเรียน</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div className="flex-grow overflow-y-auto p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start mb-6">
+                            <div className="flex-shrink-0">
+                                <div className="w-32 h-40 sm:w-40 sm:h-52 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden mx-auto shadow-md">
+                                    {profileImageUrl ? <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" /> : <svg className="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
                                 </div>
                             </div>
-                            <div className="border-b border-gray-200">
-                                <nav className="-mb-px flex space-x-4">
-                                    <TabButton label="ข้อมูลทั่วไป" tabKey="general" />
-                                    <TabButton label="ข้อมูลครอบครัว" tabKey="family" />
-                                    <TabButton label="ข้อมูลสุขภาพ" tabKey="health" />
-                                    <TabButton label="ข้อมูลด้านการจัดการศึกษา" tabKey="iep" />
-                                    <TabButton label="เอกสาร" tabKey="docs" />
-                                </nav>
+                            <div className="flex-grow w-full sm:w-auto">
+                                <h3 className="text-2xl sm:text-3xl font-bold text-navy text-center sm:text-left">{`${student.studentTitle} ${student.studentName}`}</h3>
+                                <p className="text-lg sm:text-xl text-secondary-gray mb-4 text-center sm:text-left">{student.studentNickname}</p>
                             </div>
-                            <div className="pt-6">
-                                {activeTab === 'general' && ( <DetailSection title="ข้อมูลทั่วไปของนักเรียน"> <DetailItem label="ชั้น" value={student.studentClass} /> <DetailItem label="เรือนนอน" value={student.dormitory} /> <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} /> <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} /> <DetailItem label="เบอร์โทร" value={student.studentPhone} /> <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} fullWidth /> <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/> </DetailSection> )}
-                                {activeTab === 'family' && ( <DetailSection title="ข้อมูลครอบครัว"> <DetailItem label="ชื่อ-นามสกุลบิดา" value={student.fatherName} /> <DetailItem label="เลขบัตรประชาชนบิดา" value={student.fatherIdCard} /> <DetailItem label="เบอร์โทรบิดา" value={student.fatherPhone} /> <DetailItem label="ที่อยู่บิดา" value={student.fatherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลมารดา" value={student.motherName} /> <DetailItem label="เลขบัตรประชาชนมารดา" value={student.motherIdCard} /> <DetailItem label="เบอร์โทรมารดา" value={student.motherPhone} /> <DetailItem label="ที่อยู่มารดา" value={student.motherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลผู้ปกครอง" value={student.guardianName} /> <DetailItem label="เลขบัตรประชาชนผู้ปกครอง" value={student.guardianIdCard} /> <DetailItem label="เบอร์โทรผู้ปกครอง" value={student.guardianPhone} /> <DetailItem label="ที่อยู่ผู้ปกครอง" value={student.guardianAddress} fullWidth/> </DetailSection> )}
-                                {activeTab === 'health' && ( <DetailSection title="ข้อมูลทางการแพทย์และสุขภาพ"> <DetailItem label="โรคประจำตัว" value={student.chronicDisease} fullWidth /> <DetailItem label="ประวัติการแพ้ยา" value={student.drugAllergy} fullWidth /> <DetailItem label="โรคภูมิแพ้" value={student.allergies} fullWidth /> <DetailItem label="ผลการตรวจทางการแพทย์" value={student.medicalExamResults} fullWidth /> <DetailItem label="ข้อจำกัดอื่น ๆ" value={student.otherLimitations} fullWidth /> </DetailSection> )}
-                                {activeTab === 'iep' && ( <div className="space-y-6"> <DocumentViewer title="แผนการจัดการศึกษาเฉพาะบุคคล (IEP)" files={student.iepFiles} /> <DocumentViewer title="แผนการสอนเฉพาะบุคคล (IIP)" files={student.iipFiles} /> </div> )}
-                                {activeTab === 'docs' && ( 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> 
-                                        <DocumentViewer title="บัตรประชาชนนักเรียน" files={student.studentIdCardImage} /> 
-                                        <DocumentViewer title="ทะเบียนบ้านนักเรียน" files={student.studentHouseRegFile} />
-                                        <DocumentViewer title="สูจิบัตรนักเรียน" files={student.birthCertificateFile} />
-                                        <DocumentViewer title="บัตรคนพิการ" files={student.studentDisabilityCardImage} /> 
-                                        
-                                        <DocumentViewer title="บัตรประชาชนผู้ปกครอง" files={student.guardianIdCardImage} /> 
-                                        <DocumentViewer title="ทะเบียนบ้านผู้ปกครอง" files={student.guardianHouseRegFile} />
-                                        
-                                        <DocumentViewer title="เอกสารมอบฉันทะ" files={student.proxyFile} />
-                                        <DocumentViewer title="เอกสารมอบอำนาจ" files={student.powerOfAttorneyFile} />
-                                    </div> 
-                                )}
-                            </div>
-                    </div>
-                     <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3">
-                        <div className="relative" ref={exportMenuRef}>
-                            <button 
-                                type="button" 
-                                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                ดาวน์โหลด / ส่งออก
-                            </button>
-                             {isExportMenuOpen && (
-                                <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
-                                    <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                        พิมพ์ / บันทึก PDF
-                                    </button>
-                                    <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1.01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                        ส่งออก Word (.doc)
-                                    </button>
-                                    <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                        ส่งออก Excel (.csv)
-                                    </button>
-                                    <button onClick={handlePrintCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors">
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
-                                        บัตรนักเรียน
-                                    </button>
-                                </div>
-                             )}
                         </div>
-                        <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
-                            ปิด
+                        <div className="border-b border-gray-200 no-print">
+                            <nav className="-mb-px flex space-x-2 sm:space-x-4 overflow-x-auto">
+                                <TabButton label="ข้อมูลทั่วไป" tabKey="general" />
+                                <TabButton label="ข้อมูลครอบครัว" tabKey="family" />
+                                <TabButton label="ข้อมูลสุขภาพ" tabKey="health" />
+                                <TabButton label="ข้อมูลด้านการจัดการศึกษา" tabKey="iep" />
+                                <TabButton label="เอกสาร" tabKey="docs" />
+                            </nav>
+                        </div>
+                        <div className="pt-6">
+                            {activeTab === 'general' && ( <DetailSection title="ข้อมูลทั่วไปของนักเรียน"> <DetailItem label="ชั้น" value={student.studentClass} /> <DetailItem label="เรือนนอน" value={student.dormitory} /> <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} /> <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} /> <DetailItem label="เบอร์โทร" value={student.studentPhone} /> <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} fullWidth /> <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/> </DetailSection> )}
+                            {activeTab === 'family' && ( <DetailSection title="ข้อมูลครอบครัว"> <DetailItem label="ชื่อ-นามสกุลบิดา" value={student.fatherName} /> <DetailItem label="เลขบัตรประชาชนบิดา" value={student.fatherIdCard} /> <DetailItem label="เบอร์โทรบิดา" value={student.fatherPhone} /> <DetailItem label="ที่อยู่บิดา" value={student.fatherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลมารดา" value={student.motherName} /> <DetailItem label="เลขบัตรประชาชนมารดา" value={student.motherIdCard} /> <DetailItem label="เบอร์โทรมารดา" value={student.motherPhone} /> <DetailItem label="ที่อยู่มารดา" value={student.motherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลผู้ปกครอง" value={student.guardianName} /> <DetailItem label="เลขบัตรประชาชนผู้ปกครอง" value={student.guardianIdCard} /> <DetailItem label="เบอร์โทรผู้ปกครอง" value={student.guardianPhone} /> <DetailItem label="ที่อยู่ผู้ปกครอง" value={student.guardianAddress} fullWidth/> </DetailSection> )}
+                            {activeTab === 'health' && ( <DetailSection title="ข้อมูลทางการแพทย์และสุขภาพ"> <DetailItem label="โรคประจำตัว" value={student.chronicDisease} fullWidth /> <DetailItem label="ประวัติการแพ้ยา" value={student.drugAllergy} fullWidth /> <DetailItem label="โรคภูมิแพ้" value={student.allergies} fullWidth /> <DetailItem label="ผลการตรวจทางการแพทย์" value={student.medicalExamResults} fullWidth /> <DetailItem label="ข้อจำกัดอื่น ๆ" value={student.otherLimitations} fullWidth /> </DetailSection> )}
+                            {activeTab === 'iep' && ( <div className="space-y-6"> <DocumentViewer title="แผนการจัดการศึกษาเฉพาะบุคคล (IEP)" files={student.iepFiles} /> <DocumentViewer title="แผนการสอนเฉพาะบุคคล (IIP)" files={student.iipFiles} /> </div> )}
+                            {activeTab === 'docs' && ( 
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> 
+                                    <DocumentViewer title="บัตรประชาชนนักเรียน" files={student.studentIdCardImage} /> 
+                                    <DocumentViewer title="ทะเบียนบ้านนักเรียน" files={student.studentHouseRegFile} />
+                                    <DocumentViewer title="สูจิบัตรนักเรียน" files={student.birthCertificateFile} />
+                                    <DocumentViewer title="บัตรคนพิการ" files={student.studentDisabilityCardImage} /> 
+                                    
+                                    <DocumentViewer title="บัตรประชาชนผู้ปกครอง" files={student.guardianIdCardImage} /> 
+                                    <DocumentViewer title="ทะเบียนบ้านผู้ปกครอง" files={student.guardianHouseRegFile} />
+                                    
+                                    <DocumentViewer title="เอกสารมอบฉันทะ" files={student.proxyFile} />
+                                    <DocumentViewer title="เอกสารมอบอำนาจ" files={student.powerOfAttorneyFile} />
+                                </div> 
+                            )}
+                        </div>
+                </div>
+                 <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3 no-print">
+                    <div className="relative" ref={exportMenuRef}>
+                        <button 
+                            type="button" 
+                            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            ดาวน์โหลด / ส่งออก
                         </button>
+                         {isExportMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+                                <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    พิมพ์ / บันทึก PDF
+                                </button>
+                                <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1.01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    ส่งออก Word (.doc)
+                                </button>
+                                <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    ส่งออก Excel (.csv)
+                                </button>
+                                <button onClick={handlePrintCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                                    บัตรนักเรียน
+                                </button>
+                            </div>
+                         )}
                     </div>
+                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                        ปิด
+                    </button>
                 </div>
             </div>
 

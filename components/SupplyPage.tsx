@@ -1,8 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Personnel, Settings, ProcurementRecord, ProcurementItem, MaterialCategory } from '../types';
-import { getCurrentThaiDate, formatThaiDate, toThaiWords, buddhistToISO, isoToBuddhist } from '../utils';
+// FIX: import toThaiNumerals from utils to resolve reference errors
+import { getCurrentThaiDate, formatThaiDate, toThaiWords, buddhistToISO, isoToBuddhist, toThaiNumerals } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DEFAULT_MATERIAL_CATEGORIES } from '../constants';
+import { DEFAULT_FORM_TEMPLATES } from './procurement/DefaultFormTemplates';
 
 interface SupplyPageProps {
     currentUser: Personnel;
@@ -26,7 +30,8 @@ type SubPage =
     | 'manage_categories'
     | 'manage_departments'
     | 'manage_funds'
-    | 'settings_budget';
+    | 'settings_budget'
+    | 'manage_forms';
 
 // --- Extracted Components ---
 
@@ -371,12 +376,14 @@ const EditRequestListPage: React.FC<{
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                             </button>
-                                            <button 
-                                                onClick={() => { if(window.confirm('ลบรายการนี้?')) onDelete([item.id]); }} 
-                                                className="bg-red-100 text-red-700 p-2 rounded-lg hover:bg-red-200 transition-colors shadow-sm" title="ลบ"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                            </button>
+                                            {(currentUser.role === 'admin' || currentUser.isSarabanAdmin === true) && (
+                                                <button 
+                                                    onClick={() => { if(window.confirm('ลบรายการนี้?')) onDelete([item.id]); }} 
+                                                    className="bg-red-100 text-red-700 p-2 rounded-lg hover:bg-red-200 transition-colors shadow-sm" title="ลบ"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -708,6 +715,158 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({ title, itemLabel, pla
     );
 };
 
+// FIX: Define FormTemplateEditor component to resolve 'Cannot find name' error.
+interface FormTemplateEditorProps {
+    settings: Settings;
+    onSaveSettings: (settings: Settings) => void;
+    isSaving: boolean;
+}
+
+const FormTemplateEditor: React.FC<FormTemplateEditorProps> = ({ settings, onSaveSettings, isSaving }) => {
+    const templateOptions = [
+        { key: 'procurement_report', label: 'บันทึกข้อความ (รายงานขอซื้อ-จ้าง)' },
+        { key: 'approval_memo', label: 'บันทึกข้อความ (ขออนุมัติจัดซื้อ-จ้าง)' },
+        { key: 'details_memo', label: 'รายละเอียดพัสดุ (แนบท้าย)' },
+        { key: 'payment_memo', label: 'บันทึกข้อความ (ขออนุมัติจ่ายเงิน)' },
+        { key: 'disbursement_form', label: 'ใบเบิกพัสดุ' },
+        { key: 'receipt_form', label: 'ใบตรวจรับพัสดุ' },
+        { key: 'po_form', label: 'ใบสั่งซื้อ-จ้าง' },
+        { key: 'quotation_form', label: 'ใบเสนอราคา' },
+    ];
+
+    const allVariables = [
+        'schoolName', 'docDate', 'subject', 'managerName', 'department', 'totalPriceWords', 
+        'totalPrice', 'requesterName', 'approvedDate', 'items_table_rows', 'docNumber',
+        'project', 'reason', 'supplierName', 'neededDate', 'procurementStaffName', 
+        'procurementHeadName', 'financeHeadName', 'financeStaffName', 'policyHeadName', 
+        'committeeChairmanName', 'committeeMember1Name', 'committeeMember2Name', 'directorName'
+    ];
+    
+    const [localSettings, setLocalSettings] = useState(settings);
+    const [selectedTemplateKey, setSelectedTemplateKey] = useState(templateOptions[0].key);
+    const [templateContent, setTemplateContent] = useState('');
+
+    useEffect(() => {
+        setLocalSettings(settings);
+    }, [settings]);
+    
+    // FIX: This effect now only runs when the user selects a new template from the dropdown.
+    // It no longer depends on `settings` or `localSettings`, which prevents background data fetches from
+    // overwriting the user's unsaved changes in the textarea.
+    useEffect(() => {
+        setTemplateContent(settings.formTemplates?.[selectedTemplateKey] || DEFAULT_FORM_TEMPLATES[selectedTemplateKey] || '');
+    }, [selectedTemplateKey, settings.formTemplates]);
+
+    const handlePersonnelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setLocalSettings(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSave = () => {
+        const newTemplates = {
+            ...(localSettings.formTemplates || {}),
+            [selectedTemplateKey]: templateContent
+        };
+        onSaveSettings({ ...localSettings, formTemplates: newTemplates });
+        alert('บันทึกข้อมูลเรียบร้อยแล้ว');
+    };
+    
+    const restoreDefault = () => {
+        if(window.confirm('ต้องการคืนค่าแบบฟอร์มนี้เป็นค่าเริ่มต้นหรือไม่?')) {
+            setTemplateContent(DEFAULT_FORM_TEMPLATES[selectedTemplateKey] || '');
+        }
+    };
+
+    const PersonnelInput: React.FC<{ name: keyof Settings, label: string }> = ({ name, label }) => (
+         <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1">{label}</label>
+            <input 
+                type="text"
+                name={name}
+                value={localSettings[name] as string || ''}
+                onChange={handlePersonnelChange}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+            />
+        </div>
+    );
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow animate-fade-in space-y-8">
+            <div>
+                <h2 className="text-2xl font-bold text-navy">ตั้งค่าเอกสารและผู้รับผิดชอบ</h2>
+                <p className="text-sm text-gray-500 mt-1">จัดการรายชื่อผู้ลงนามและแก้ไขแบบฟอร์มเอกสารสำหรับพิมพ์</p>
+            </div>
+
+            <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">จัดการรายชื่อผู้รับผิดชอบ</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <PersonnelInput name="directorName" label="ผู้อำนวยการ" />
+                    <PersonnelInput name="financeHeadName" label="รองฯ ฝ่ายงบประมาณ" />
+                    <PersonnelInput name="policyHeadName" label="หัวหน้างานนโยบายและแผน" />
+                    <PersonnelInput name="procurementHeadName" label="หัวหน้าเจ้าหน้าที่พัสดุ" />
+                    <PersonnelInput name="procurementStaffName" label="เจ้าหน้าที่พัสดุ" />
+                    <PersonnelInput name="financeStaffName" label="เจ้าหน้าที่การเงิน" />
+                    <PersonnelInput name="committeeChairmanName" label="ประธานกรรมการตรวจรับ" />
+                    <PersonnelInput name="committeeMember1Name" label="กรรมการตรวจรับ 1" />
+                    <PersonnelInput name="committeeMember2Name" label="กรรมการตรวจรับ 2" />
+                </div>
+            </div>
+
+            <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">แก้ไขแบบฟอร์มเอกสาร (HTML)</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                    คุณสามารถแก้ไขโครงสร้าง HTML ของเอกสารที่จะพิมพ์ได้ที่นี่ ใช้ตัวแปรในรูปแบบ <code>{"{{variable_name}}"}</code> เพื่อแทรกข้อมูล.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                    <div className="flex-grow">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">เลือกแบบฟอร์ม:</label>
+                        <select 
+                            value={selectedTemplateKey} 
+                            onChange={e => setSelectedTemplateKey(e.target.value)}
+                            className="w-full border rounded-lg px-3 py-2 bg-white"
+                        >
+                            {templateOptions.map(opt => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="self-end">
+                        <button onClick={restoreDefault} className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg font-bold text-sm hover:bg-yellow-200">
+                            คืนค่าเริ่มต้น
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs font-bold text-blue-700 mb-2">ตัวแปรที่ใช้ได้:</p>
+                    <div className="flex flex-wrap gap-2">
+                        {allVariables.map(v => (
+                            <code key={v} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{`{{${v}}}`}</code>
+                        ))}
+                    </div>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">โค้ด HTML:</label>
+                    <textarea
+                        value={templateContent}
+                        onChange={e => setTemplateContent(e.target.value)}
+                        className="w-full h-96 border rounded-lg p-3 font-mono text-xs bg-gray-900 text-green-400"
+                        placeholder="โค้ด HTML ของแบบฟอร์ม..."
+                    />
+                </div>
+            </div>
+            
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+                <button onClick={handleSave} disabled={isSaving} className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 text-lg shadow-lg">
+                    {isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าทั้งหมด'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 
 const SupplyPage: React.FC<SupplyPageProps> = ({ 
     currentUser, personnel, records, onSaveRecord, onDeleteRecord, settings, onSaveSettings, isSaving 
@@ -716,6 +875,8 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
     const [viewingMemo, setViewingMemo] = useState<{ type: string, record: ProcurementRecord } | null>(null);
     const [editingRecord, setEditingRecord] = useState<ProcurementRecord | null>(null);
     const [printModalRecord, setPrintModalRecord] = useState<ProcurementRecord | null>(null);
+
+    const canManageSettings = currentUser.role === 'admin' || currentUser.isSarabanAdmin === true;
 
     // Initial load check for material categories
     const materialCategories = useMemo(() => settings.materialCategories || DEFAULT_MATERIAL_CATEGORIES, [settings.materialCategories]);
@@ -759,6 +920,20 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
     };
 
     const renderSubPage = () => {
+        const settingsPages: SubPage[] = [
+            'manage_materials', 'manage_departments', 'manage_funds', 
+            'manage_supply_types', 'manage_methods', 'manage_forms'
+        ];
+
+        if (settingsPages.includes(activeSubPage) && !canManageSettings) {
+            return (
+                <div className="p-10 text-center text-red-500 font-bold bg-white rounded-2xl shadow-md h-full flex flex-col justify-center items-center">
+                    <p className="text-4xl mb-4">🚫</p>
+                    <p className="text-xl">ขออภัย, คุณไม่มีสิทธิ์เข้าถึงส่วนการตั้งค่านี้</p>
+                    <p className="text-sm text-gray-500 mt-2">กรุณาติดต่อผู้ดูแลระบบ</p>
+                </div>
+            );
+        }
         
         if (viewingMemo) {
             const props = { 
@@ -820,6 +995,8 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
                 return <GenericCrudPage title="จัดการหน่วยงาน/กลุ่มสาระ" itemLabel="ชื่อหน่วยงาน" placeholder="เช่น กลุ่มสาระฯ คณิตศาสตร์..." items={settings.departments || []} onUpdate={(items) => onSaveSettings({...settings, departments: items})} />;
             case 'manage_funds': 
                 return <GenericCrudPage title="จัดการแหล่งเงิน/โครงการ" itemLabel="ชื่อแหล่งเงิน" placeholder="เช่น อุดหนุนรายหัว..." items={settings.budgetSources || []} onUpdate={(items) => onSaveSettings({...settings, budgetSources: items})} />;
+            case 'manage_forms':
+                return <FormTemplateEditor settings={settings} onSaveSettings={onSaveSettings} isSaving={isSaving} />;
             case 'receive_items': return <div className="p-10 text-center text-gray-400">ระบบตรวจรับ (กำลังปรับปรุงเชื่อมโยง)</div>; 
             default: return <div className="p-10">Select a menu</div>;
         }
@@ -834,13 +1011,16 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
           { id: 'create_request', label: 'สร้างรายการสั่งซื้อ/จ้าง' },
           { id: 'edit_request', label: 'ทะเบียนคุม/พิมพ์เอกสาร' },
       ]},
-      { key: 'data', label: 'ตั้งค่าข้อมูลพื้นฐาน', items: [
-          { id: 'manage_materials', label: 'มาตรฐานบัญชีวัสดุ (Tree)' },
-          { id: 'manage_departments', label: 'หน่วยงาน/กลุ่มสาระ' },
-          { id: 'manage_funds', label: 'แหล่งเงิน/โครงการ' },
-          { id: 'manage_supply_types', label: 'ประเภทพัสดุ (Type)' },
-          { id: 'manage_methods', label: 'วิธีจัดหา (Method)' },
-      ]},
+      ...(canManageSettings ? [{
+          key: 'data', label: 'ตั้งค่าข้อมูลพื้นฐาน', items: [
+              { id: 'manage_materials', label: 'มาตรฐานบัญชีวัสดุ (Tree)' },
+              { id: 'manage_departments', label: 'หน่วยงาน/กลุ่มสาระ' },
+              { id: 'manage_funds', label: 'แหล่งเงิน/โครงการ' },
+              { id: 'manage_supply_types', label: 'ประเภทพัสดุ (Type)' },
+              { id: 'manage_methods', label: 'วิธีจัดหา (Method)' },
+              { id: 'manage_forms', label: 'แก้ไขแบบฟอร์มเอกสาร' },
+          ]
+      }] : []),
     ];
 
     return (
@@ -936,26 +1116,63 @@ interface ProcurementMemoProps {
     type: string;
 }
 
-const ProcurementMemo: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, isEditable, fontFamily, onPrint, type }) => {
-    const GARUDA_IMAGE_URL = 'https://img5.pic.in.th/file/secure-sv1/0272bb364e0dce8d02.webp';
-    const totalPrice = useMemo(() => (record.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0), [record.items]);
+const populateTemplate = (templateKey: string, record: ProcurementRecord, settings: Settings) => {
+    let template = settings.formTemplates?.[templateKey] || DEFAULT_FORM_TEMPLATES[templateKey];
+    if (!template) return `<div>Template "${templateKey}" not found.</div>`;
 
-    // Create a list of items for the table, padded with empty rows up to 5
-    const tableItems = useMemo(() => {
-        const items = record.items || [];
-        const padded = [...items];
-        while (padded.length < 5) {
-            padded.push({ id: `empty-${padded.length}`, description: '', quantity: 0, unit: '', unitPrice: 0 } as any);
-        }
-        return padded;
-    }, [record.items]);
+    const totalPrice = (record.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0);
+    const tableItems = [...(record.items || [])];
+    while (tableItems.length < 5) {
+        tableItems.push({ id: `empty-${tableItems.length}`, description: '', quantity: 0, unit: '', unitPrice: 0 } as any);
+    }
+    const tableRowsHtml = tableItems.map((item, index) => `
+        <tr>
+            <td class="border border-black p-1 text-center">${item.quantity > 0 ? toThaiNumerals(index + 1) : ''}</td>
+            <td class="border border-black p-1 text-left">${item.description}</td>
+            <td class="border border-black p-1 text-center">${item.quantity > 0 ? toThaiNumerals(item.quantity) : ''}</td>
+            <td class="border border-black p-1 text-center">${item.unit}</td>
+            <td class="border border-black p-1 text-right">${item.unitPrice > 0 ? toThaiNumerals(item.unitPrice.toFixed(2)) : ''}</td>
+            <td class="border border-black p-1 text-right">${item.quantity * item.unitPrice > 0 ? toThaiNumerals((item.quantity * item.unitPrice).toFixed(2)) : ''}</td>
+            <td class="border border-black p-1"></td>
+        </tr>
+    `).join('');
+
+    return template
+        .replace(/{{schoolName}}/g, settings.schoolName || '')
+        .replace(/{{docDate}}/g, formatThaiDate(record.docDate))
+        .replace(/{{subject}}/g, record.subject || '')
+        .replace(/{{managerName}}/g, record.managerName || `ผู้อำนวยการ${settings.schoolName}`)
+        .replace(/{{department}}/g, record.department || '')
+        .replace(/{{totalPriceWords}}/g, toThaiWords(totalPrice))
+        .replace(/{{totalPrice}}/g, toThaiNumerals(totalPrice.toFixed(2)))
+        .replace(/{{requesterName}}/g, record.requesterName || '')
+        .replace(/{{approvedDate}}/g, record.approvedDate ? formatThaiDate(record.approvedDate) : '........................................................')
+        .replace(/{{items_table_rows}}/g, tableRowsHtml)
+        .replace(/{{docNumber}}/g, record.docNumber || '.........................')
+        .replace(/{{project}}/g, record.project || '')
+        .replace(/{{reason}}/g, record.reason || '')
+        .replace(/{{supplierName}}/g, record.supplierName || '')
+        .replace(/{{neededDate}}/g, record.neededDate ? formatThaiDate(record.neededDate) : '')
+        .replace(/{{procurementStaffName}}/g, settings.procurementStaffName || '')
+        .replace(/{{procurementHeadName}}/g, settings.procurementHeadName || '')
+        .replace(/{{financeHeadName}}/g, settings.financeHeadName || '')
+        .replace(/{{financeStaffName}}/g, settings.financeStaffName || '')
+        .replace(/{{policyHeadName}}/g, settings.policyHeadName || '')
+        .replace(/{{committeeChairmanName}}/g, settings.committeeChairmanName || '')
+        .replace(/{{committeeMember1Name}}/g, settings.committeeMember1Name || '')
+        .replace(/{{committeeMember2Name}}/g, settings.committeeMember2Name || '')
+        .replace(/{{directorName}}/g, settings.directorName || '');
+};
+
+const MemoComponent: React.FC<ProcurementMemoProps & { templateKey: string, title: string }> = ({ record, settings, onBack, onPrint, type, templateKey, title }) => {
+    const populatedHtml = useMemo(() => populateTemplate(templateKey, record, settings), [record, settings]);
 
     return (
         <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
             <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
                 <h3 className="font-bold text-lg text-navy flex items-center gap-2">
                     <span className="bg-blue-100 p-2 rounded-lg text-blue-600">📄</span>
-                    แสดงตัวอย่าง: บันทึกข้อความ (รายงานขอซื้อ)
+                    แสดงตัวอย่าง: {title}
                 </h3>
                 <div className="flex gap-2">
                     <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">ย้อนกลับ</button>
@@ -965,875 +1182,23 @@ const ProcurementMemo: React.FC<ProcurementMemoProps> = ({ record, settings, onB
                     </button>
                 </div>
             </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start mb-4">
-                    <img src={GARUDA_IMAGE_URL} alt="ตราครุฑ" className="w-20 h-auto" />
-                    <p className="font-bold pt-2">ที่..........................................</p>
-                </div>
-                
-                <h2 className="font-bold text-2xl text-center mt-[-1.5rem]">บันทึกข้อความ</h2>
-                
-                <div className="text-base leading-relaxed mt-6 space-y-1">
-                    <div className="flex flex-wrap"><span className="font-bold w-32">ส่วนราชการ</span> <span>{settings.schoolName}</span></div>
-                    <div className="flex flex-wrap items-baseline">
-                        <span className="font-bold w-[30px]">ที่</span> 
-                        <span className="flex-grow border-b border-dotted border-black px-2">..................................................................................................</span> 
-                        <span className="font-bold w-16 text-right pr-2">วันที่</span> 
-                        <span className="border-b border-dotted border-black px-2 w-48 text-center">{formatThaiDate(record.docDate)}</span>
-                    </div>
-                    <div className="flex flex-wrap items-baseline"><span className="font-bold w-32">เรื่อง</span> <span>{record.subject}</span></div>
-                </div>
-                
-                <hr className="border-black my-4" />
-
-                <div className="text-base leading-relaxed">
-                    <p><span className="font-bold">เรียน</span> {record.managerName || `ผู้อำนวยการ${settings.schoolName}`}</p>
-                    
-                    <p className="indent-8 mt-4 text-justify leading-relaxed">
-                        ด้วย {record.department} มีความประสงค์ขออนุมัติดำเนินการจัดซื้อ
-                        เพื่อใช้ในการจัดการเรียนการสอน มีกำหนดใช้งานภายใน 3 วัน ตามพระราชบัญญัติการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 มาตรา 56 วรรคหนึ่ง (2) (ข) และระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 22 ข้อ 79 ข้อ 25 (5) และกฎกระทรวงกำหนดวงเงินการจัดซื้อจัดจ้างพัสดุโดยวิธีเฉพาะเจาะจง วงเงินการจัดซื้อจัดจ้างที่ไม่ทำข้อตกลงเป็นหนังสือ และวงเงินการจัดซื้อจัดจ้างในการแต่งตั้งผู้ตรวจรับพัสดุ พ.ศ. 2560 ข้อ 1 และข้อ 5
-                    </p>
-                    <p className="indent-8 mt-2">มีรายละเอียดดังนี้</p>
-                </div>
-
-                <table className="w-full border-collapse border border-black text-center text-sm mt-4">
-                    <thead>
-                        <tr className="font-bold">
-                            <td className="border border-black p-1 w-12">ลำดับที่</td>
-                            <td className="border border-black p-1">รายการ พัสดุ / ซื้อ / จ้าง<br/>(ขนาด ยี่ห้อและคุณลักษณะชัดเจน)</td>
-                            <td colSpan={2} className="border border-black p-1">ปริมาณ</td>
-                            <td colSpan={2} className="border border-black p-1">ราคา</td>
-                            <td className="border border-black p-1 w-20">หมายเหตุ</td>
-                        </tr>
-                        <tr className="font-bold">
-                            <td className="border border-black p-1"></td>
-                            <td className="border border-black p-1"></td>
-                            <td className="border border-black p-1 w-16">จำนวน</td>
-                            <td className="border border-black p-1 w-16">หน่วย</td>
-                            <td className="border border-black p-1 w-24">ต่อหน่วย</td>
-                            <td className="border border-black p-1 w-24">เป็นเงิน</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tableItems.map((item, index) => (
-                            <tr key={item.id}>
-                                <td className="border border-black p-1">{item.quantity > 0 ? index + 1 : ''}</td>
-                                <td className="border border-black p-1 text-left">{item.description}</td>
-                                <td className="border border-black p-1">{item.quantity > 0 ? item.quantity : ''}</td>
-                                <td className="border border-black p-1">{item.unit}</td>
-                                <td className="border border-black p-1 text-right">{item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ''}</td>
-                                <td className="border border-black p-1 text-right">{item.quantity * item.unitPrice > 0 ? (item.quantity * item.unitPrice).toFixed(2) : ''}</td>
-                                <td className="border border-black p-1"></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td colSpan={2} className="border border-black p-1 text-left font-bold">
-                                (ส่วนลด 0.00 บาท จาก {totalPrice.toFixed(2)} บาท เหลือ {totalPrice.toFixed(2)} บาท) รวม
-                            </td>
-                            <td colSpan={3} className="border border-black p-1 font-bold">มูลค่าสินค้าก่อนคิด VAT</td>
-                            <td className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                        <tr>
-                            <td colSpan={2} className="border border-black p-1 text-left font-bold">
-                                
-                            </td>
-                            <td colSpan={3} className="border border-black p-1 font-bold">ภาษีมูลค่าเพิ่ม 0 %</td>
-                            <td className="border border-black p-1 text-right font-bold">0.00</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                        <tr>
-                            <td colSpan={2} className="border border-black p-1 text-center font-bold">
-                                {toThaiWords(totalPrice)}
-                            </td>
-                            <td colSpan={3} className="border border-black p-1 font-bold">รวมทั้งสิ้น</td>
-                            <td className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                    </tfoot>
-                </table>
-
-                <div className="mt-4 text-base">
-                    <p className="font-bold">จึงเรียนมาเพื่อโปรดพิจารณา</p>
-                    <p className="ml-4">1.เห็นชอบในรายงานขอซื้อ</p>
-                    <p className="ml-4">2.แต่งตั้งบุคคลต่อไปนี้ เป็นคณะกรรมการตรวจรับพัสดุ / ผู้ตรวจรับ</p>
-                    <div className="ml-12">
-                        <div className="flex items-baseline"><span className="w-8">2.1</span> <span className="border-b border-dotted border-black flex-grow">นายทองคำ มากมี</span> <span className="w-20 ml-2">ตำแหน่ง</span> <span className="border-b border-dotted border-black w-48">ครู</span></div>
-                        <div className="flex items-baseline mt-1"><span className="w-8">2.2</span> <span className="border-b border-dotted border-black flex-grow">...................................................</span> <span className="w-20 ml-2">ตำแหน่ง</span> <span className="border-b border-dotted border-black w-48">กรรมการ</span></div>
-                        <div className="flex items-baseline mt-1"><span className="w-8">2.3</span> <span className="border-b border-dotted border-black flex-grow">...................................................</span> <span className="w-20 ml-2">ตำแหน่ง</span> <span className="border-b border-dotted border-black w-48">กรรมการ</span></div>
-                    </div>
-                </div>
-
-                <div className="mt-8 text-base leading-tight flex justify-between">
-                    <div className="w-1/2 space-y-12 text-center">
-                        <div>
-                            <p>ลงชื่อ .......................................................</p>
-                            <p className="mt-2">( {record.requesterName} )</p>
-                            <p>เจ้าหน้าที่พัสดุ</p>
-                            <p>กลุ่ม/งาน</p>
-                        </div>
-                        <div>
-                            <p>ลงชื่อ .......................................................</p>
-                            <p className="mt-2">( นายกัญญา รัตน์อำนวย )</p>
-                            <p>หัวหน้าเจ้าหน้าที่พัสดุ</p>
-                            <p>โรงเรียน</p>
-                        </div>
-                        <div>
-                            <p>ลงชื่อ .......................................................</p>
-                            <p className="mt-2">( นางนิธิวดี วรเดช )</p>
-                            <p>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</p>
-                        </div>
-                    </div>
-                    <div className="w-1/2 text-center mt-20">
-                        <div className="mb-8">
-                            <p>1) เห็นชอบ</p>
-                            <p>2) อนุมัติ</p>
-                        </div>
-                        <div>
-                            <p>ลงชื่อ........................................................</p>
-                            <p className="mt-2">( {record.managerName} )</p>
-                            <p>ผู้อำนวยการ{settings.schoolName}</p>
-                            <p>{record.approvedDate ? formatThaiDate(record.approvedDate) : '........................................................'}</p>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
+             <div 
+                className="bg-white shadow-2xl mx-auto print-area-memo"
+                style={{ width: '210mm', minHeight: '297mm', padding: '0', boxSizing: 'border-box' }}
+                dangerouslySetInnerHTML={{ __html: populatedHtml }}
+             />
         </div>
     );
 };
 
-const ApprovalMemo: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const GARUDA_IMAGE_URL = 'https://img5.pic.in.th/file/secure-sv1/0272bb364e0dce8d02.webp';
-    
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy flex items-center gap-2">
-                    <span className="bg-blue-100 p-2 rounded-lg text-blue-600">📄</span>
-                    แสดงตัวอย่าง: บันทึกข้อความ (ขออนุมัติจัดซื้อ/จ้าง)
-                </h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        พิมพ์
-                    </button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start mb-4">
-                    <img src={GARUDA_IMAGE_URL} alt="ตราครุฑ" className="w-20 h-auto" />
-                    <p className="font-bold pt-2">เลขที่..........................................</p>
-                </div>
-                
-                <h2 className="font-bold text-2xl text-center mt-[-1.5rem]">บันทึกข้อความ</h2>
-                
-                <div className="text-base leading-relaxed mt-6 space-y-1">
-                    <div className="flex flex-wrap"><span className="font-bold w-32">ส่วนราชการ</span> <span>{settings.schoolName}</span></div>
-                    <div className="flex flex-wrap items-baseline">
-                        <span className="font-bold w-[30px]">ที่</span> 
-                        <span className="flex-grow border-b border-dotted border-black px-2">..................................................................................................</span> 
-                        <span className="font-bold w-16 text-right pr-2">วันที่</span> 
-                        <span className="border-b border-dotted border-black px-2 w-48 text-center">{formatThaiDate(record.docDate)}</span>
-                    </div>
-                    <div className="flex flex-wrap items-baseline"><span className="font-bold w-32">เรื่อง</span> <span>ขออนุมัติจัดซื้อ</span></div>
-                </div>
-                
-                <hr className="border-black my-4" />
-
-                <div className="text-base leading-relaxed">
-                    <p><span className="font-bold">เรียน</span> {record.managerName || `ผู้อำนวยการ${settings.schoolName}`}</p>
-                    
-                    <p className="indent-8 mt-4 text-justify leading-relaxed flex flex-wrap">
-                        ด้วย {record.requesterName} มีความประสงค์ขอดำเนินการจัดซื้อ เพื่อใช้ในการจัดการเรียนการสอน ซึ่งได้รับอนุมัติเงินจาก 
-                        <span className="border-b border-dotted border-black flex-grow px-2 mx-2">{record.project}</span> 
-                        โดยใช้เงินอุดหนุนรายหัว จำนวนเงิน {record.totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท 
-                        ({toThaiWords(record.totalPrice)}) (รายละเอียดรายการดังแนบ)
-                    </p>
-                    <p className="indent-8 mt-4">จึงเรียนมาเพื่อโปรดพิจารณา</p>
-                </div>
-
-                <div className="mt-8 text-base flex justify-end">
-                    <div className="w-1/2 text-center space-y-1">
-                        <p>ลงชื่อ ..........................................</p>
-                        <p>( นางสาววารุณี ศรีใจ )</p>
-                        <p>หัวหน้ากลุ่มสาระฯ/หัวหน้างาน</p>
-                    </div>
-                </div>
-
-                <div className="mt-6 border-t border-black pt-4 text-base">
-                    <p className="font-bold">ความเห็นของหัวหน้างานนโยบายและแผนงาน</p>
-                    <div className="ml-8 mt-2 space-y-1">
-                        <p><input type="checkbox" className="mr-2 align-middle" defaultChecked /> มีแผนปฏิบัติการประจำปี เงินอุดหนุนรายหัว</p>
-                        <p><input type="checkbox" className="mr-2 align-middle" /> ไม่อยู่ในแผนปฏิบัติการ</p>
-                    </div>
-                    <table className="w-full border-collapse border border-black text-center text-sm mt-4">
-                        <thead>
-                            <tr className="font-bold">
-                                <td className="border border-black p-1">จำนวนเงินที่ได้รับจัดสรร</td>
-                                <td className="border border-black p-1">เบิกจ่ายแล้ว</td>
-                                <td className="border border-black p-1">ขอเบิกครั้งนี้</td>
-                                <td className="border border-black p-1">คงเหลือ</td>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td className="border border-black p-2 h-10"></td>
-                                <td className="border border-black p-2"></td>
-                                <td className="border border-black p-2 font-bold">{record.totalPrice > 0 ? record.totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '0.00'}</td>
-                                <td className="border border-black p-2"></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                     <div className="mt-6 text-base flex justify-end">
-                        <div className="w-1/2 text-center space-y-1">
-                            <p>ลงชื่อ .......................................... หัวหน้างานนโยบายและแผนงาน</p>
-                            <p>( นางอรทิพย์ ธานะ )</p>
-                            <p>{formatThaiDate(record.docDate)}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-6 border-t border-black pt-4 text-base">
-                    <p className="font-bold">ความเห็นของรองผู้อำนวยการโรงเรียนกลุ่มบริหารการเงินและทรัพย์สิน</p>
-                    <div className="ml-8 mt-2 flex gap-8">
-                        <p><input type="checkbox" className="mr-2 align-middle" /> เห็นควรอนุมัติ</p>
-                        <p><input type="checkbox" className="mr-2 align-middle" /> เห็นควรไม่อนุมัติ</p>
-                    </div>
-                    <div className="flex items-baseline mt-1"><span className="font-bold">เหตุผล</span><span className="border-b border-dotted border-black flex-grow ml-2">...................................................................................................................</span></div>
-                    <div className="mt-6 text-base flex justify-end">
-                        <div className="w-1/2 text-center space-y-1">
-                            <p>ลงชื่อ ..........................................</p>
-                            <p>( นางนิธิวดี วรเดช )</p>
-                            <p>รองผู้อำนวยการฯ กลุ่มบริหารงบประมาณ</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-6 border-t border-black pt-4 text-base">
-                    <p className="font-bold">ความเห็นของผู้อำนวยการโรงเรียนกลุ่มบริหารการเงินและทรัพย์สิน</p>
-                    <div className="ml-8 mt-2 flex gap-8">
-                        <p><input type="checkbox" className="mr-2 align-middle" /> อนุมัติ</p>
-                        <p><input type="checkbox" className="mr-2 align-middle" /> ไม่อนุมัติ</p>
-                    </div>
-                    <div className="flex items-baseline mt-1"><span className="font-bold">เหตุผล</span><span className="border-b border-dotted border-black flex-grow ml-2">...................................................................................................................</span></div>
-                    <div className="mt-6 text-base flex justify-end">
-                        <div className="w-1/2 text-center space-y-1">
-                            <p>ลงชื่อ ..........................................</p>
-                            <p>( {record.managerName || 'นายสุรชัย โสภาพรม'} )</p>
-                            <p>ผู้อำนวยการ{settings.schoolName}</p>
-                            <p>{formatThaiDate(record.docDate)}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const ProcurementDetailsMemo: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const totalPrice = useMemo(() => (record.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0), [record.items]);
-    
-    // Pad items to a minimum of 10 rows for a full-page look
-    const tableItems = useMemo(() => {
-        const items = record.items || [];
-        const padded = [...items];
-        while (padded.length < 10) {
-            padded.push({ id: `empty-${padded.length}`, description: '', quantity: 0, unit: '', unitPrice: 0 } as any);
-        }
-        return padded;
-    }, [record.items]);
-
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy flex items-center gap-2">
-                    <span className="bg-blue-100 p-2 rounded-lg text-blue-600">📄</span>
-                    แสดงตัวอย่าง: รายละเอียดแนบท้าย
-                </h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        พิมพ์
-                    </button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <h2 className="font-bold text-xl text-center">รายละเอียดแนบท้ายรายงานขอซื้อ/ขอจ้าง</h2>
-                <p className="text-center text-base">ตามหนังสือ ที่ {record.docNumber || '................'} ลงวันที่ {formatThaiDate(record.docDate)}</p>
-
-                <table className="w-full border-collapse border border-black text-center text-sm mt-6">
-                    <thead>
-                        <tr className="font-bold">
-                            <td className="border border-black p-1 w-12">ลำดับที่</td>
-                            <td className="border border-black p-1">รายการ</td>
-                            <td className="border border-black p-1 w-20">จำนวน</td>
-                            <td className="border border-black p-1 w-20">หน่วย</td>
-                            <td className="border border-black p-1 w-28">ราคาต่อหน่วย</td>
-                            <td className="border border-black p-1 w-28">เป็นเงิน</td>
-                            <td className="border border-black p-1 w-24">หมายเหตุ</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tableItems.map((item, index) => (
-                            <tr key={item.id}>
-                                <td className="border border-black p-1 h-8">{item.quantity > 0 ? index + 1 : ''}</td>
-                                <td className="border border-black p-1 text-left">{item.description}</td>
-                                <td className="border border-black p-1">{item.quantity > 0 ? item.quantity : ''}</td>
-                                <td className="border border-black p-1">{item.unit}</td>
-                                <td className="border border-black p-1 text-right">{item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ''}</td>
-                                <td className="border border-black p-1 text-right">{item.quantity * item.unitPrice > 0 ? (item.quantity * item.unitPrice).toFixed(2) : ''}</td>
-                                <td className="border border-black p-1"></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr className="font-bold">
-                            <td colSpan={5} className="border border-black p-2 text-right">รวมเป็นเงินทั้งสิ้น</td>
-                            <td className="border border-black p-2 text-right">{totalPrice.toFixed(2)}</td>
-                            <td className="border border-black p-2"></td>
-                        </tr>
-                        <tr className="font-bold">
-                            <td colSpan={7} className="border border-black p-2 text-center">
-                                {toThaiWords(totalPrice)}
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-
-                <div className="mt-16 text-base grid grid-cols-2 gap-16">
-                    <div className="text-center">
-                        <p>ลงชื่อ .......................................................</p>
-                        <p className="mt-2">( {record.requesterName} )</p>
-                        <p>ตำแหน่ง เจ้าหน้าที่</p>
-                    </div>
-                    <div className="text-center">
-                        <p>ลงชื่อ .......................................................</p>
-                        <p className="mt-2">( นายกัญญา รัตน์อำนวย )</p>
-                        <p>ตำแหน่ง หัวหน้าเจ้าหน้าที่</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const PaymentMemo: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const GARUDA_IMAGE_URL = 'https://img5.pic.in.th/file/secure-sv1/0272bb364e0dce8d02.webp';
-    const totalPrice = record.totalPrice || 0;
-    
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy flex items-center gap-2">
-                    <span className="bg-blue-100 p-2 rounded-lg text-blue-600">📄</span>
-                    แสดงตัวอย่าง: บันทึกข้อความ (ขออนุมัติจ่ายเงิน)
-                </h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-colors flex items-center gap-2">พิมพ์</button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start mb-4">
-                    <img src={GARUDA_IMAGE_URL} alt="ตราครุฑ" className="w-20 h-auto" />
-                    <div className="text-right text-base leading-tight">
-                        <p>ส่วนราชการ {settings.schoolName}</p>
-                        <p>ที่ โรงเรียน{settings.schoolName}</p>
-                    </div>
-                </div>
-                
-                <h2 className="font-bold text-2xl text-center mt-[-1.5rem]">บันทึกข้อความ</h2>
-                
-                <div className="text-base mt-6">
-                    <p className="text-right">วันที่ {formatThaiDate(record.docDate)}</p>
-                    <p><span className="font-bold">เรื่อง</span> ขออนุมัติจ่ายเงินค่าพัสดุ</p>
-                </div>
-                
-                <hr className="border-black my-4" />
-
-                <div className="text-base leading-relaxed">
-                    <p><span className="font-bold">เรียน</span> {record.managerName || `ผู้อำนวยการ${settings.schoolName}`}</p>
-                    
-                    <p className="indent-8 mt-4 text-justify leading-relaxed">
-                        ตามที่งานพัสดุ {settings.schoolName} ได้จัดซื้อพัสดุ จำนวน {(record.items || []).length} รายการ
-                        เป็นเงิน {totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท ({toThaiWords(totalPrice)})
-                        บัดนี้ ผู้ส่งของ ได้ส่งของ ตาม ใบส่งของ/ใบแจ้งนี้/ใบเสร็จรับเงิน เล่มที่/เลขที่ ............
-                        ลงวันที่ {formatThaiDate(record.docDate)} และคณะกรรมการตรวจรับพัสดุเรียบร้อยแล้ว
-                    </p>
-                    <p className="indent-8 mt-4">จึงเรียนมาเพื่อโปรด</p>
-                    
-                    <div className="ml-12 mt-2 space-y-1">
-                        <p>อนุมัติจ่ายเงินให้แก่</p>
-                        <div className="flex items-center">
-                            <input type="checkbox" checked readOnly className="mr-2 align-middle border-2" /> ร้าน {record.supplierName} ................................................................ ผู้ขาย
-                        </div>
-                        <div className="flex items-center">
-                            <input type="checkbox" className="mr-2 align-middle border-2" /> ................................................................................................ ผู้ทดรองจ่าย
-                        </div>
-                    </div>
-                    <p className="ml-12 mt-2">เป็นเงิน {totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</p>
-                </div>
-
-                <div className="w-1/2 ml-auto mt-6 text-sm">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        <span>ส่วนลด 0.00 จาก 0.00</span> <span className="text-right">เหลือ 0.00 บาท</span>
-                        <span>มูลค่าสินค้าหรือบริการ</span> <span className="text-right border-b border-black">{totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
-                        <span>บวก ภาษีมูลค่าเพิ่ม</span> <span className="text-right border-b border-black">0.00 บาท</span>
-                        <span className="font-bold">จำนวนเงินที่ขอเบิกทั้งสิ้น</span> <span className="text-right border-b border-black font-bold">{totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
-                        <span>หัก ภาษี ณ ที่จ่าย</span> <span className="text-right border-b border-black">0.00 บาท</span>
-                        <span>ค่าปรับ</span> <span className="text-right border-b border-black">- บาท</span>
-                        <span className="font-bold">คงเหลือจ่ายจริง</span> <span className="text-right border-b-4 border-double border-black font-bold">{totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
-                    </div>
-                     <p className="text-center mt-2 font-bold">{toThaiWords(totalPrice)}</p>
-                </div>
-
-                <div className="mt-8 text-base grid grid-cols-2 gap-8">
-                    <div className="space-y-16 text-center">
-                        <div>
-                            <p>ลงชื่อ..................................</p>
-                            <p className="mt-1">(นางปิยธิดา อบมาลัย)</p>
-                            <p>เจ้าหน้าที่การเงิน</p>
-                        </div>
-                         <div>
-                            <p>ลงชื่อ..................................</p>
-                            <p className="mt-1">(นางนิธิวดี วรเดช)</p>
-                            <p>รองผู้อำนวยการฯ กลุ่มบริหารงบประมาณ</p>
-                        </div>
-                    </div>
-                     <div className="text-center">
-                        <div className="mt-20 space-y-1">
-                            <p>1. ทราบ</p>
-                            <p>2. อนุมัติจ่ายเงิน</p>
-                        </div>
-                        <div className="mt-12 space-y-1">
-                            <p>ลงชื่อ..................................</p>
-                            <p>({record.managerName || 'นายสุรชัย โสภาพรม'})</p>
-                            <p>ผู้อำนวยการ{settings.schoolName}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const DisbursementForm: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const totalPrice = useMemo(() => (record.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0), [record.items]);
-    
-    // Pad items to a minimum of 10 rows for a full-page look
-    const tableItems = useMemo(() => {
-        const items = record.items || [];
-        const padded = [...items];
-        while (padded.length < 10) {
-            padded.push({ id: `empty-${padded.length}`, description: '', quantity: 0, unit: '', unitPrice: 0 } as any);
-        }
-        return padded;
-    }, [record.items]);
-
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy flex items-center gap-2">
-                    <span className="bg-blue-100 p-2 rounded-lg text-blue-600">📄</span>
-                    แสดงตัวอย่าง: ใบเบิกพัสดุ
-                </h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-colors flex items-center gap-2">พิมพ์</button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start text-base">
-                    <h2 className="font-bold text-2xl">ใบเบิกพัสดุ</h2>
-                    <div className="text-right">
-                        <p>ที่........./.........</p>
-                        <p>วันที่ {formatThaiDate(record.docDate)}</p>
-                        <p>{settings.schoolName}</p>
-                    </div>
-                </div>
-                
-                <div className="mt-4 text-base space-y-1">
-                    <p>ข้าพเจ้าขอเบิกสิ่งของต่อไปนี้ เพื่อ <span className="border-b border-dotted border-black px-4">{record.reason}</span></p>
-                    <p>โดยใช้เงิน <span className="border-b border-dotted border-black px-4">{record.project}</span> หัวหน้างาน <span className="border-b border-dotted border-black px-4">{record.department}</span></p>
-                    <p>หน่วยงานที่ใช้งาน <span className="border-b border-dotted border-black px-4">{record.department}</span></p>
-                </div>
-
-                <table className="w-full border-collapse border border-black text-center text-sm mt-4">
-                    <thead>
-                        <tr className="font-bold">
-                            <td className="border border-black p-1 w-12">ลำดับที่</td>
-                            <td className="border border-black p-1">รายการ</td>
-                            <td className="border border-black p-1 w-20">จำนวน</td>
-                            <td className="border border-black p-1 w-20">หน่วย</td>
-                            <td className="border border-black p-1 w-24">ราคา/หน่วย</td>
-                            <td className="border border-black p-1 w-24">เป็นเงิน</td>
-                            <td className="border border-black p-1 w-20">หมายเหตุ</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tableItems.map((item, index) => (
-                             <tr key={item.id}>
-                                <td className="border border-black p-1 h-8">{item.quantity > 0 ? index + 1 : ''}</td>
-                                <td className="border border-black p-1 text-left">{item.description}</td>
-                                <td className="border border-black p-1">{item.quantity > 0 ? item.quantity : ''}</td>
-                                <td className="border border-black p-1">{item.unit}</td>
-                                <td className="border border-black p-1 text-right">{item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ''}</td>
-                                <td className="border border-black p-1 text-right">{item.quantity * item.unitPrice > 0 ? (item.quantity * item.unitPrice).toFixed(2) : ''}</td>
-                                <td className="border border-black p-1"></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                         <tr>
-                            <td colSpan={4} className="border border-black p-1 text-left font-bold">
-                                (ส่วนลด 0.00 บาท จาก {totalPrice.toFixed(2)} บาท เหลือ {totalPrice.toFixed(2)} บาท) รวมมูลค่า
-                            </td>
-                            <td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                        <tr>
-                            <td colSpan={4} className="border border-black p-1 font-bold">สินค้าก่อนคิด VAT</td>
-                            <td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                        <tr>
-                            <td colSpan={4} className="border border-black p-1 font-bold">ภาษีมูลค่าเพิ่ม 0 %</td>
-                            <td colSpan={2} className="border border-black p-1 text-right font-bold">0.00</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                        <tr>
-                            <td colSpan={4} className="border border-black p-1 font-bold">รวมทั้งสิ้น</td>
-                            <td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td>
-                            <td className="border border-black p-1"></td>
-                        </tr>
-                    </tfoot>
-                </table>
-                
-                <div className="mt-8 grid grid-cols-2 gap-8 text-base">
-                    <div className="space-y-4">
-                        <p className="font-bold">ได้รับของถูกต้องครบถ้วนแล้ว</p>
-                        <p className="mt-12">ลงชื่อ .......................................... ผู้รับ</p>
-                        <p>(..........................................)</p>
-                    </div>
-                     <div className="space-y-4 text-right">
-                        <p className="font-bold">อนุญาตให้เบิกได้</p>
-                        <p className="mt-12">ลงชื่อ .......................................... ผู้สั่งจ่าย</p>
-                        <p>(..........................................)</p>
-                    </div>
-                </div>
-
-                 <div className="mt-8 grid grid-cols-2 gap-8 text-base">
-                    <div className="text-center">
-                        <p>ลงชื่อ .......................................... ผู้เบิก</p>
-                        <p>({record.requesterName})</p>
-                    </div>
-                     <div className="text-center">
-                        <p>ลงชื่อ .......................................... ผู้เห็นชอบ</p>
-                        <p>(..........................................)</p>
-                    </div>
-                </div>
-                 <p className="text-right mt-4 text-base">วันที่ {formatThaiDate(record.docDate)}</p>
-
-            </div>
-        </div>
-    );
-};
-
-const ReceiptForm: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const totalPrice = record.totalPrice || 0;
-    
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy">แสดงตัวอย่าง: ใบตรวจรับพัสดุ</h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700">พิมพ์</button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start mb-4">
-                    <h2 className="font-bold text-2xl">ใบตรวจรับพัสดุ</h2>
-                    <div className="text-right text-base leading-tight">
-                        <p>ที่........./.........</p>
-                        <p>{settings.schoolName}</p>
-                    </div>
-                </div>
-                <p className="text-right text-base">วันที่ {formatThaiDate(record.docDate)}</p>
-                
-                <div className="text-base mt-4 leading-relaxed space-y-2">
-                    <p>ด้วย บริษัท/ห้างหุ้นส่วน/ร้าน {record.supplierName} ได้ส่งมอบพัสดุ {(record.items || []).length} รายการ</p>
-                    <p className="flex items-center gap-2">ตาม <input type="checkbox" className="align-middle" /> ตกลงราคา <input type="checkbox" className="align-middle" defaultChecked /> ใบสั่งซื้อเลขที่ {record.docNumber || '.........................'} ลงวันที่ {formatThaiDate(record.docDate)}</p>
-                    <p>ครบกำหนดส่งมอบ {formatThaiDate(record.neededDate || record.docDate)} ให้ไว้แก่ {settings.schoolName} ตามรายการต่อไปนี้</p>
-                </div>
-                
-                <div className="text-base mt-4 leading-relaxed indent-8">
-                    <p>เพื่อให้คณะกรรมการตรวจรับพัสดุ ทำการตรวจรับแล้ว ปรากฏผล ดังนี้</p>
-                    <ol className="list-decimal list-inside space-y-1 mt-2">
-                        <li>ครบกำหนดส่งมอบ วันที่ {formatThaiDate(record.neededDate || record.docDate)}</li>
-                        <li>ส่งมอบเมื่อ วันที่ {formatThaiDate(record.docDate)}</li>
-                        <li>ได้ตรวจรับพัสดุตาม ใบส่งของ/ใบแจ้งหนี้/ใบเสร็จรับเงิน เล่มที่/เลขที่ ................... ลงวันที่ {formatThaiDate(record.docDate)} ณ {settings.schoolName}</li>
-                        <li>ได้ตรวจรับและถือว่า <input type="checkbox" defaultChecked /> ถูกต้อง จำนวน {(record.items || []).length} รายการ <input type="checkbox" /> ไม่ถูกต้อง จำนวน ........... รายการ</li>
-                        <li>ได้เชิญผู้ชำนาญการหรือผู้ทรงคุณวุฒิมาปรึกษาด้วย คือ นายชัชธิศัพท์ ทรงสมบูรณ์</li>
-                        <li>ได้มอบไว้ให้แก่ เจ้าหน้าที่พัสดุ</li>
-                    </ol>
-                    <p className="mt-2">จึงรายงานต่อผู้อำนวยการ{settings.schoolName} เพื่อโปรดทราบผลการตรวจรับ ตามนัยข้อ 175 แห่งระเบียบสำนัก กระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560</p>
-                </div>
-                
-                <div className="mt-8 space-y-6 text-base">
-                    <div className="flex justify-end"><div className="w-1/2 text-center">(ลงชื่อ)................................................... ประธานกรรมการ/ผู้ตรวจรับ<br/>( นายทองคำ มากมี )</div></div>
-                    <div className="flex justify-end"><div className="w-1/2 text-center">(ลงชื่อ)................................................... กรรมการ<br/>( ................................................. )</div></div>
-                    <div className="flex justify-end"><div className="w-1/2 text-center">(ลงชื่อ)................................................... กรรมการ<br/>( ................................................. )</div></div>
-                </div>
-
-                <div className="mt-8 text-base">
-                    <p><span className="font-bold">เรียน</span> ผู้อำนวยการ{settings.schoolName}</p>
-                    <p className="indent-8 mt-2">คณะกรรมการตรวจรับพัสดุถูกต้องและได้รับมอบพัสดุดังกล่าวแล้วซึ่งจะต้องจ่ายเงินให้แก่ผู้ขายเป็นเงิน {totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</p>
-                </div>
-
-                <div className="w-1/2 ml-auto mt-4 text-sm space-y-1">
-                    <div className="grid grid-cols-2 gap-x-4 items-baseline">
-                        <span>ส่วนลด 0.00 จาก 0.00</span><span className="text-right">เหลือ 0.00 บาท</span>
-                        <span>มูลค่าสินค้าหรือบริการ</span><span className="text-right border-b border-black">{totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
-                        <span>บวก ภาษีมูลค่าเพิ่ม</span><span className="text-right border-b border-black">0.00 บาท</span>
-                        <span className="font-bold">จำนวนที่ขอเบิกทั้งสิ้น</span><span className="text-right border-b border-black font-bold">{totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
-                        <span>หัก ภาษี ณ ที่จ่าย</span><span className="text-right border-b border-black">0.00 บาท</span>
-                        <span>ค่าปรับ</span><span className="text-right border-b border-black">- บาท</span>
-                        <span className="font-bold">คงเหลือจ่ายจริง</span><span className="text-right border-b-4 border-double border-black font-bold">{totalPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
-                    </div>
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 gap-8 text-base">
-                    <div className="space-y-12 text-center">
-                        <div><p>(ลงชื่อ)...................................... เจ้าหน้าที่พัสดุ</p><p>(นายวิมลวรรณ พิลาคุณ)</p></div>
-                        <div><p>(ลงชื่อ)......................................</p><p>(นางนิธิวดี วรเดช)</p><p>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</p></div>
-                    </div>
-                    <div className="space-y-12 text-center">
-                        <div><p>(ลงชื่อ)...................................... หัวหน้าเจ้าหน้าที่พัสดุ</p><p>(นายกัญญารัตน์ อำนวย)</p></div>
-                        <div><p>1) เห็น .............................. 2) อนุมัติ</p><p className="mt-6">(ลงชื่อ)......................................</p><p>({record.managerName || 'นายสุรชัย โสภาพรม'})</p><p>ผู้อำนวยการ{settings.schoolName}</p><p>{formatThaiDate(record.docDate)}</p></div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    );
-};
-
-const PurchaseOrder: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const totalPrice = useMemo(() => (record.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0), [record.items]);
-    const isHiring = record.procurementType.includes('จ้าง');
-    
-    // Pad items to a minimum of 8 rows
-    const tableItems = useMemo(() => {
-        const items = record.items || [];
-        const padded = [...items];
-        while (padded.length < 8) {
-            padded.push({ id: `empty-${padded.length}`, description: '', quantity: 0, unit: '', unitPrice: 0 } as any);
-        }
-        return padded;
-    }, [record.items]);
-
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy">แสดงตัวอย่าง: {isHiring ? 'ใบสั่งจ้าง' : 'ใบสั่งซื้อ'}</h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700">พิมพ์</button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start mb-4">
-                    <p className="font-bold">เลขที่ {record.docNumber || '.........................'}</p>
-                    <div className="text-center">
-                        <h2 className="font-bold text-2xl">{isHiring ? 'ใบสั่งจ้าง' : 'ใบสั่งซื้อ'}</h2>
-                    </div>
-                    <div className="text-right text-base">
-                        <p>เขียนที่ {settings.schoolName}</p>
-                        <p>วันที่ {formatThaiDate(record.docDate)}</p>
-                    </div>
-                </div>
-                
-                <div className="text-base mt-4 leading-relaxed space-y-2">
-                    <p><span className="font-bold">เรียน</span> {record.supplierName}</p>
-                    <p className="indent-8 text-justify">
-                        เนื่องด้วย {settings.schoolName} โดยได้รับมอบอำนาจจากสำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน มีความประสงค์จะซื้อสิ่งของจากท่าน ตามที่ตกลง ขาย ตามรายการเป็นเงินทั้งสิ้น {totalPrice.toLocaleString('th-TH', {minimumFractionDigits: 2})} บาท ({toThaiWords(totalPrice)}) ดังมีรายการต่อไปนี้
-                    </p>
-                </div>
-
-                <table className="w-full border-collapse border border-black text-center text-sm mt-4">
-                    <thead className="font-bold">
-                        <tr>
-                            <td rowSpan={2} className="border border-black p-1 w-12">ลำดับที่</td>
-                            <td rowSpan={2} className="border border-black p-1">รายการ</td>
-                            <td colSpan={2} className="border border-black p-1">ปริมาณ</td>
-                            <td colSpan={2} className="border border-black p-1">ราคา</td>
-                            <td rowSpan={2} className="border border-black p-1 w-20">หมายเหตุ</td>
-                        </tr>
-                        <tr>
-                            <td className="border border-black p-1 w-16">จำนวน</td>
-                            <td className="border border-black p-1 w-16">หน่วย</td>
-                            <td className="border border-black p-1 w-24">ต่อหน่วย</td>
-                            <td className="border border-black p-1 w-24">เป็นเงิน</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tableItems.map((item, index) => (
-                             <tr key={item.id}>
-                                <td className="border border-black p-1 h-8">{item.quantity > 0 ? index + 1 : ''}</td>
-                                <td className="border border-black p-1 text-left">{item.description}</td>
-                                <td className="border border-black p-1">{item.quantity > 0 ? item.quantity : ''}</td>
-                                <td className="border border-black p-1">{item.unit}</td>
-                                <td className="border border-black p-1 text-right">{item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ''}</td>
-                                <td className="border border-black p-1 text-right">{item.quantity * item.unitPrice > 0 ? (item.quantity * item.unitPrice).toFixed(2) : ''}</td>
-                                <td className="border border-black p-1"></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr><td colSpan={4} className="border border-black p-1 text-left font-bold">(ส่วนลด 0.00 บาท จาก {totalPrice.toFixed(2)} บาท) รวมมูลค่า</td><td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td><td className="border border-black p-1"></td></tr>
-                        <tr><td colSpan={4} className="border border-black p-1 font-bold">สินค้าก่อนคิด VAT</td><td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td><td className="border border-black p-1"></td></tr>
-                        <tr><td colSpan={4} className="border border-black p-1 font-bold">ภาษีมูลค่าเพิ่ม 0 %</td><td colSpan={2} className="border border-black p-1 text-right font-bold">0.00</td><td className="border border-black p-1"></td></tr>
-                        <tr><td colSpan={4} className="border border-black p-1 font-bold">รวมทั้งสิ้น</td><td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td><td className="border border-black p-1"></td></tr>
-                    </tfoot>
-                </table>
-
-                <div className="mt-4 text-base leading-relaxed text-justify space-y-2">
-                    <p>จึงขอให้ท่านส่งมอบพัสดุดังกล่าวให้ {settings.schoolName} ณ ห้องพัสดุ {settings.schoolName} ภายในวันที่ {formatThaiDate(record.neededDate || record.docDate)}</p>
-                    <p>ถ้าส่งมอบพัสดุเกินระยะเวลาที่กำหนด ผู้ขายจะต้องชำระค่าปรับเป็นรายวันให้กับผู้ซื้อในอัตราร้อยละ 0.2 ของราคาพัสดุที่ยังมิได้ส่งมอบ จนกว่าจะส่งมอบถูกต้องครบถ้วน</p>
-                    <p>ในกรณีที่ไม่สามารถปฏิบัติตามใบสั่งซื้อได้ และจะต้องมีการปรับตามใบสั่งซื้อนี้ หากจำนวนเงินค่าปรับจะเกินร้อยละสิบ ของวงเงินค่าพัสดุดังกล่าว ผู้ซื้ออาจพิจารณา ดำเนินการยกเลิกใบสั่งซื้อนี้ เว้นแต่ผู้ขายจะได้ยอมเสียค่าปรับให้แก่ทางราชการ โดยไม่มีเงื่อนไขใดๆ ทั้งสิ้น ผู้ซื้ออาจพิจารณาผ่อนปรนการยกเลิกใบสั่งซื้อได้เท่าที่จำเป็น</p>
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 gap-8 text-base text-center">
-                    <div>
-                        <p>ลงชื่อ.........................................ผู้สั่งซื้อ</p>
-                        <p>(นายทองคำ มากมี)</p>
-                        <p>หัวหน้าเจ้าหน้าที่พัสดุโรงเรียน</p>
-                    </div>
-                    <div>
-                        <p>ลงชื่อ.........................................ผู้ขาย</p>
-                        <p>(.........................................)</p>
-                        <p>............../........................./.........................</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const QuotationForm: React.FC<ProcurementMemoProps> = ({ record, settings, onBack, onPrint, type }) => {
-    const totalPrice = useMemo(() => (record.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0), [record.items]);
-    
-    // Pad items to a minimum of 8 rows
-    const tableItems = useMemo(() => {
-        const items = record.items || [];
-        const padded = [...items];
-        while (padded.length < 8) {
-            padded.push({ id: `empty-${padded.length}`, description: '', quantity: 0, unit: '', unitPrice: 0 } as any);
-        }
-        return padded;
-    }, [record.items]);
-
-    return (
-        <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
-            <div className="bg-white p-4 mb-4 rounded-2xl shadow-lg border border-gray-100 flex justify-between items-center no-print">
-                <h3 className="font-bold text-lg text-navy">แสดงตัวอย่าง: ใบเสนอราคา</h3>
-                <div className="flex gap-2">
-                    <button onClick={onBack} className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200">ย้อนกลับ</button>
-                    <button onClick={() => onPrint(type, record)} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700">พิมพ์</button>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-2xl mx-auto print-area-memo" style={{ width: '100%', minHeight: '297mm', padding: '1.5cm 2cm', boxSizing: 'border-box', fontSize: '16pt' }}>
-                <div className="flex justify-between items-start mb-4">
-                    <p className="font-bold">เลขที่ {record.docNumber || '.........................'}</p>
-                    <h2 className="font-bold text-2xl">ใบเสนอราคา</h2>
-                    <div className="text-right text-base">
-                        <p>เขียนที่ {settings.schoolName}</p>
-                        <p>วันที่ {formatThaiDate(record.docDate)}</p>
-                    </div>
-                </div>
-                
-                <div className="text-base mt-4 leading-relaxed space-y-2">
-                    <p><span className="font-bold">เรียน</span> ผู้อำนวยการ{settings.schoolName}</p>
-                    <p className="indent-8 text-justify">1. ข้าพเจ้า ร้าน {record.supplierName} ที่อยู่ ............................ เลขประจำตัวผู้เสียภาษี ............................ ข้าพเจ้าเป็นผู้มีคุณสมบัติครบถ้วนตามที่กำหนดและไม่เป็นผู้ทิ้งงานราชการ</p>
-                    <p className="indent-8 text-justify">2. ข้าพเจ้าขอเสนอราคาพัสดุ รวมทั้งบริการ ซึ่งกำหนดไว้ตามราคาและเวลาส่งมอบ ดังต่อไปนี้ ซึ่งเป็นราคาที่รวมภาษีมูลค่าเพิ่มรวมทั้งภาษีอากรอื่นและค่าใช้จ่ายทั้งปวงไว้ด้วยแล้ว</p>
-                </div>
-
-                <table className="w-full border-collapse border border-black text-center text-sm mt-4">
-                    <thead className="font-bold">
-                        <tr>
-                            <td rowSpan={2} className="border border-black p-1 w-12">ลำดับที่</td>
-                            <td rowSpan={2} className="border border-black p-1">รายการ</td>
-                            <td colSpan={2} className="border border-black p-1">ปริมาณ</td>
-                            <td colSpan={2} className="border border-black p-1">ราคา</td>
-                            <td rowSpan={2} className="border border-black p-1 w-20">หมายเหตุ</td>
-                        </tr>
-                        <tr>
-                            <td className="border border-black p-1 w-16">จำนวน</td>
-                            <td className="border border-black p-1 w-16">หน่วย</td>
-                            <td className="border border-black p-1 w-24">ต่อหน่วย</td>
-                            <td className="border border-black p-1 w-24">เป็นเงิน</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tableItems.map((item, index) => (
-                             <tr key={item.id}>
-                                <td className="border border-black p-1 h-8">{item.quantity > 0 ? index + 1 : ''}</td>
-                                <td className="border border-black p-1 text-left">{item.description}</td>
-                                <td className="border border-black p-1">{item.quantity > 0 ? item.quantity : ''}</td>
-                                <td className="border border-black p-1">{item.unit}</td>
-                                <td className="border border-black p-1 text-right">{item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ''}</td>
-                                <td className="border border-black p-1 text-right">{item.quantity * item.unitPrice > 0 ? (item.quantity * item.unitPrice).toFixed(2) : ''}</td>
-                                <td className="border border-black p-1"></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr><td colSpan={4} className="border border-black p-1 text-left font-bold">(ส่วนลด 0.00 บาท จาก {totalPrice.toFixed(2)} บาท เหลือ {totalPrice.toFixed(2)} บาท) รวม</td><td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td><td className="border border-black p-1"></td></tr>
-                        <tr><td colSpan={4} className="border border-black p-1 font-bold">มูลค่าสินค้าก่อนคิด VAT</td><td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td><td className="border border-black p-1"></td></tr>
-                        <tr><td colSpan={4} className="border border-black p-1 font-bold">ภาษีมูลค่าเพิ่ม 0 %</td><td colSpan={2} className="border border-black p-1 text-right font-bold">0.00</td><td className="border border-black p-1"></td></tr>
-                        <tr><td colSpan={4} className="border border-black p-1 font-bold">รวมทั้งสิ้น</td><td colSpan={2} className="border border-black p-1 text-right font-bold">{totalPrice.toFixed(2)}</td><td className="border border-black p-1"></td></tr>
-                    </tfoot>
-                </table>
-
-                <div className="mt-4 text-base leading-relaxed text-justify space-y-2">
-                    <p>3. คำเสนอนี้จะยืนอยู่เป็นระยะ 30 วันนับแต่วันที่ได้ยื่นใบเสนอราคา</p>
-                    <p>4. กำหนดส่งมอบพัสดุตามรายการข้างต้น ภายใน 3 วันนับถัดจากวันลงนามซื้อ</p>
-                    <p>เสนอมา ณ วันที่ {formatThaiDate(record.docDate)}</p>
-                </div>
-
-                <div className="mt-16 grid grid-cols-2 gap-8 text-base text-center">
-                    <div>
-                        <p>ลงชื่อ...................................................</p>
-                        <p className="mt-2">(นายกัญญารัตน์ อำนวย)</p>
-                        <p>หัวหน้าเจ้าหน้าที่พัสดุโรงเรียน</p>
-                    </div>
-                    <div>
-                        <p>ลงชื่อ...................................................</p>
-                        <p className="mt-2">(...................................................)</p>
-                        <p>ตำแหน่ง...................................................</p>
-                        <p>ประทับตราประจำห้าง/ร้าน/บริษัท</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const HiringApprovalForm = ProcurementMemo;
+const ProcurementMemo: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="procurement_report" title="บันทึกข้อความ (รายงานขอซื้อ/จ้าง)" />;
+const ApprovalMemo: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="approval_memo" title="บันทึกข้อความ (ขออนุมัติจัดซื้อ/จ้าง)" />;
+const ProcurementDetailsMemo: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="details_memo" title="รายละเอียดพัสดุ (แนบท้าย)" />;
+const PaymentMemo: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="payment_memo" title="บันทึกข้อความ (ขออนุมัติจ่ายเงิน)" />;
+const DisbursementForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="disbursement_form" title="ใบเบิกพัสดุ" />;
+const ReceiptForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="receipt_form" title="ใบตรวจรับพัสดุ" />;
+const PurchaseOrder: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="po_form" title="ใบสั่งซื้อ/จ้าง" />;
+const QuotationForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="quotation_form" title="ใบเสนอราคา" />;
+const HiringApprovalForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="procurement_report" title="ใบขออนุมัติจัดจ้าง" />;
 
 export default SupplyPage;

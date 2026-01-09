@@ -43,7 +43,17 @@ export interface Settings {
     
     // New Structured Categories
     materialCategories?: MaterialCategory[]; 
-    formTemplates?: { [templateKey: string]: { [elementKey: string]: string } };
+    formTemplates?: { [templateKey: string]: string };
+
+    // New: Names for procurement forms
+    procurementStaffName?: string; // เจ้าหน้าที่พัสดุ
+    procurementHeadName?: string;  // หัวหน้าเจ้าหน้าที่พัสดุ
+    financeHeadName?: string;    // รองผู้อำนวยการกลุ่มบริหารงบประมาณ
+    financeStaffName?: string; // เจ้าหน้าที่การเงิน
+    policyHeadName?: string;     // หัวหน้างานนโยบายและแผนงาน
+    committeeChairmanName?: string; // ประธานกรรมการตรวจรับ
+    committeeMember1Name?: string; // กรรมการ
+    committeeMember2Name?: string; // กรรมการ
 }
 
 export interface MaterialCategory {
