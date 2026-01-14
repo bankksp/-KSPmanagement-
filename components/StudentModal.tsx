@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, safeParseArray, buddhistToISO, isoToBuddhist } from '../utils';
 import AddressSelector from './AddressSelector';
+import { DISABILITY_TYPES } from '../constants';
 
 interface StudentModalProps {
     onClose: () => void;
@@ -17,7 +18,7 @@ interface StudentModalProps {
 
 const initialFormData: Omit<Student, 'id' | 'studentClass'> = {
     studentTitle: 'เด็กชาย',
-    studentName: '', studentNickname: '', dormitory: '', studentIdCard: '',
+    studentName: '', studentNickname: '', dormitory: '', disabilityType: '', studentIdCard: '',
     studentDob: '', studentAddress: '', studentPhone: '', fatherName: '',
     fatherPhone: '', fatherIdCard: '', fatherAddress: '', motherName: '',
     motherPhone: '', motherIdCard: '', motherAddress: '', guardianName: '',
@@ -422,6 +423,18 @@ const StudentModal: React.FC<StudentModalProps> = ({
                                     value={String(formData.studentNickname || '')} 
                                     onChange={handleChange} 
                                 />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทความพิการ</label>
+                                    <select 
+                                        name="disabilityType" 
+                                        value={formData.disabilityType || ''} 
+                                        onChange={handleChange} 
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    >
+                                        <option value="">-- ไม่ระบุ --</option>
+                                        {DISABILITY_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                                    </select>
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">ชั้น</label>
                                     <select value={currentClass} onChange={(e) => setCurrentClass(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">

@@ -297,7 +297,7 @@ export const toThaiWords = (num: number): string => {
     let numStr = String(Math.floor(num));
     let decimalStr = String(num.toFixed(2)).split('.')[1] || '00';
 
-    if (num === 0) return 'ศูนย์บาทถ้วน';
+    if (num === 0) return '(ศูนย์บาทถ้วน)';
 
     let result = '';
     let len = numStr.length;
@@ -343,7 +343,7 @@ export const toThaiWords = (num: number): string => {
             let unit = units[len - 1 - i];
             if (n === 1) {
                 if (len - 1 - i === 1) {}
-                else if (len - 1 - i === 0 && parseInt(numStr[len - 2]) !== 0) satangResult += 'เอ็ด';
+                else if (len - 1 - i === 0 && len > 1 && parseInt(numStr[len - 2]) !== 0) satangResult += 'เอ็ด';
                 else satangResult += 'หนึ่ง';
             } else if (n === 2 && len - 1 - i === 1) {
                 satangResult += 'ยี่';

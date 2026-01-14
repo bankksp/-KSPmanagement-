@@ -40,6 +40,7 @@ export interface Settings {
     departments?: string[];      
     budgetSources?: string[];
     procurementMethods?: string[]; // New: Dynamic Procurement Methods
+    procurementCategories?: string[];
     
     // New Structured Categories
     materialCategories?: MaterialCategory[]; 
@@ -178,6 +179,7 @@ export interface Student {
   studentNickname: string;
   studentClass: string;
   dormitory: string;
+  disabilityType?: string;
   studentIdCard: string;
   studentDob: string;
   studentAddress: string;
@@ -424,6 +426,13 @@ export interface ProcurementRecord {
   status?: 'pending' | 'approved' | 'rejected' | 'received' | 'completed';
   approverName?: string;
   approvedDate?: string;
+  // New fields based on user request
+  receiptControlNumber?: string;
+  receiptNumber?: string;
+  purchaseOrderNumber?: string;
+  departmentHeadName?: string;
+  procurementCategory?: string;
+  currency?: string;
 }
 
 export interface DurableGood {

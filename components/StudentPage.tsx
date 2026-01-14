@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Student } from '../types';
 import StudentTable from './StudentTable';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { THAI_PROVINCES } from '../constants';
+import { THAI_PROVINCES, DISABILITY_TYPES } from '../constants';
 
 interface StudentPageProps {
     students: Student[];
@@ -51,6 +51,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
         classroom: '',
         dormitory: '',
         age: '',
+        disabilityType: '',
     });
 
     // --- Stats Logic ---
@@ -114,6 +115,9 @@ const StudentPage: React.FC<StudentPageProps> = ({
             if (filters.dormitory && student.dormitory !== filters.dormitory) {
                 return false;
             }
+            if (filters.disabilityType && student.disabilityType !== filters.disabilityType) {
+                return false;
+            }
             if (filters.age && filters.age !== 'ทั้งหมด') {
                 const age = calculateAge(student.studentDob);
                 if (filters.age === "ต่ำกว่า 7 ปี" && age >= 7) return false;
@@ -132,7 +136,7 @@ const StudentPage: React.FC<StudentPageProps> = ({
     };
 
     const resetFilters = () => {
-        setFilters({ class: '', classroom: '', dormitory: '', age: '' });
+        setFilters({ class: '', classroom: '', dormitory: '', age: '', disabilityType: '' });
     };
 
     const exportToExcel = () => {
@@ -332,6 +336,10 @@ const StudentPage: React.FC<StudentPageProps> = ({
                         <FilterSelect label="เรือนนอน" name="dormitory" value={filters.dormitory} onChange={handleFilterChange}>
                             <option value="">ทั้งหมด</option>
                             {dormitories.filter(d => d !== 'เรือนพยาบาล').map(d => <option key={d} value={d}>{d}</option>)}
+                        </FilterSelect>
+                        <FilterSelect label="ประเภทความพิการ" name="disabilityType" value={filters.disabilityType} onChange={handleFilterChange}>
+                            <option value="">ทั้งหมด</option>
+                            {DISABILITY_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
                         </FilterSelect>
                         <FilterSelect label="อายุ" name="age" value={filters.age} onChange={handleFilterChange}>
                              {ageRanges.map(a => <option key={a} value={a === 'ทั้งหมด' ? '' : a}>{a}</option>)}

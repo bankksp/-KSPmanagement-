@@ -115,6 +115,7 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                             <th className="p-4 text-left font-semibold">ชื่อเล่น</th>
                             <th className="p-4 text-left font-semibold">ชั้น</th>
                             <th className="p-4 text-left font-semibold">เรือนนอน</th>
+                            <th className="p-4 text-left font-semibold">ประเภทความพิการ</th>
                             <th className="p-4 text-left font-semibold">เลขบัตรประชาชน</th>
                             <th className="p-4 text-center font-semibold">จัดการ</th>
                         </tr>
@@ -150,6 +151,7 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{student.studentNickname || '-'}</td>
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{student.studentClass}</td>
                                     <td className="p-4 text-gray-600 whitespace-nowrap">{student.dormitory}</td>
+                                    <td className="p-4 text-gray-600 whitespace-nowrap">{student.disabilityType || '-'}</td>
                                     <td className="p-4 text-gray-600 whitespace-nowrap font-mono text-sm">{student.studentIdCard}</td>
                                     <td className="p-4 text-center">
                                         <div className="flex justify-center items-center gap-2">
@@ -217,6 +219,7 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, onViewStudent, on
                                     <div className="flex flex-wrap gap-2 mb-2">
                                         <span className="bg-blue-50 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-100">{student.studentClass}</span>
                                         <span className="bg-purple-50 text-purple-800 text-xs px-2 py-0.5 rounded-full border border-purple-100">{student.dormitory}</span>
+                                        {student.disabilityType && <span className="bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5 rounded-full border border-yellow-100">{student.disabilityType}</span>}
                                     </div>
                                     <p className="text-xs text-gray-500 font-mono bg-gray-50 p-1 rounded inline-block">
                                         ID: {student.studentIdCard}

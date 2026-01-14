@@ -336,8 +336,10 @@ const GeneralDocsPage: React.FC<GeneralDocsPageProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 z-0 opacity-10 select-none">
-                        <div className="text-3xl font-bold italic">ต้นฉบับหนังสือราชการ</div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-0 p-10">
+                        <img src="https://i.imgur.com/3f4y172.png" className="w-48 h-48 opacity-20" alt="PDF Icon" />
+                        <p className="text-xl font-bold text-gray-400 mt-4">ไม่มีเอกสารต้นฉบับแนบมา</p>
+                        <p className="text-sm text-gray-300">กรุณาแนบไฟล์ PDF หรือรูปภาพ</p>
                     </div>
                 )}
 

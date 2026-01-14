@@ -1,4 +1,5 @@
-
+// This is a new component for the entire procurement module.
+// It was not present in the original file list but is required by App.tsx.
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Personnel, Settings, ProcurementRecord, ProcurementItem, MaterialCategory } from '../types';
@@ -37,20 +38,22 @@ type SubPage =
 
 const CreateRequestForm: React.FC<{
     currentUser: Personnel;
+    personnel: Personnel[];
     settings: Settings;
     editingRecord: ProcurementRecord | null;
     onSave: (record: ProcurementRecord) => Promise<boolean | void>;
     onCancel: () => void;
     isSaving: boolean;
-}> = ({ currentUser, settings, editingRecord, onSave, onCancel, isSaving }) => {
+}> = ({ currentUser, personnel, settings, editingRecord, onSave, onCancel, isSaving }) => {
     // Form Data State
     const [formData, setFormData] = useState<Partial<ProcurementRecord>>({
         reason: 'เพื่อความคล่องตัวในการดำเนินงานตามโครงการจะได้มีประสิทธิภาพ',
-        docNumber: '', 
+        docNumber: `ที่ ศธ ๐๔๐๐๗.๐๖/`,
         requesterName: `${currentUser.personnelTitle}${currentUser.personnelName}`, 
         subject: 'รายงานขอซื้อ/จ้างพัสดุ',
         docDate: getCurrentThaiDate(),
         department: settings.departments?.[0] || '',
+        departmentHeadName: '',
         project: settings.budgetSources?.[0] || '',
         supplierName: '',
         managerName: settings.directorName || 'ผู้อำนวยการโรงเรียน',
@@ -58,13 +61,21 @@ const CreateRequestForm: React.FC<{
         procurementMethod: (settings.procurementMethods && settings.procurementMethods.length > 0) ? settings.procurementMethods[0] : 'เฉพาะเจาะจง',
         neededDate: getCurrentThaiDate(),
         approvedBudget: 0,
-        status: 'pending'
+        status: 'pending',
+        receiptControlNumber: '',
+        receiptNumber: '',
+        purchaseOrderNumber: '',
+        procurementCategory: settings.procurementCategories?.[0] || '',
+        currency: 'บาท',
     });
 
     // Items Table State
     const [items, setItems] = useState<ProcurementItem[]>([
         { id: 1, type: '', description: '', quantity: 1, unit: '', unitPrice: 0, location: '' },
     ]);
+    
+    const departmentHeads = useMemo(() => personnel, [personnel]);
+    const directorsAndDeputies = useMemo(() => personnel.filter(p => p.specialRank === 'director' || p.specialRank === 'deputy'), [personnel]);
 
     // Effect to load editing data
     useEffect(() => {
@@ -88,12 +99,40 @@ const CreateRequestForm: React.FC<{
         setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
     };
 
+    const handleItemTypeChange = (id: number, level: 'main' | 'sub', value: string) => {
+        setItems(items.map(item => {
+            if (item.id === id) {
+                if (level === 'main') {
+                    // When main category changes, reset sub category
+                    return { ...item, type: value };
+                } else { // level === 'sub'
+                    const mainCategory = item.type.split(' > ')[0];
+                    // If a sub-category is selected, form the full type string
+                    // If 'select' option for sub is chosen (value is empty), revert to just main category
+                    const newType = value ? `${mainCategory} > ${value}` : mainCategory;
+                    return { ...item, type: newType };
+                }
+            }
+            return item;
+        }));
+    };
+
     const handleAddItem = () => {
         setItems([...items, { id: Date.now(), type: '', description: '', quantity: 1, unit: '', unitPrice: 0, location: '' }]);
     };
     
     const handleRemoveItem = (id: number) => {
         setItems(items.filter(i => i.id !== id));
+    };
+
+    const handleClearItems = () => {
+        if (window.confirm('คุณต้องการล้างรายการพัสดุทั้งหมดหรือไม่?')) {
+            setItems([{ id: Date.now(), type: '', description: '', quantity: 1, unit: '', unitPrice: 0, location: '' }]);
+        }
+    };
+
+    const handleImportItems = () => {
+        alert('ฟังก์ชันนำเข้ารายการยังไม่พร้อมใช้งาน');
     };
 
     const total = useMemo(() => {
@@ -119,112 +158,191 @@ const CreateRequestForm: React.FC<{
             </div>
             <div className="bg-white p-4 md:p-6 rounded-b-2xl shadow-lg border border-gray-100">
                 <form onSubmit={handleSubmit} className="space-y-6 text-sm">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-                        <div className="md:col-span-2">
-                            <label className="font-bold block mb-1">เหตุผลความจำเป็น</label>
-                            <input type="text" name="reason" value={formData.reason} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" />
-                        </div>
-                        <div><label className="font-bold block mb-1">เลขที่เอกสาร:</label><input type="text" name="docNumber" value={formData.docNumber} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" placeholder="เช่น PO-66/001" /></div>
-                        <div><label className="font-bold block mb-1">ผู้ขอเบิก:</label><input type="text" name="requesterName" value={formData.requesterName} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" /></div>
-                        
-                        <div className="md:col-span-2"><label className="font-bold block mb-1">เรื่อง:</label><input type="text" name="subject" value={formData.subject} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" /></div>
-                        <div><label className="font-bold block mb-1">วันที่:</label><input type="date" name="docDate" value={buddhistToISO(formData.docDate)} onChange={handleDateChange} className="w-full border-gray-300 rounded-lg shadow-sm" /></div>
-                        
-                        <div>
-                            <label className="font-bold block mb-1">กลุ่มสาระ/หน่วยงาน:</label>
-                            <select name="department" value={formData.department} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
-                                <option value="">-- เลือก --</option>
-                                {(settings.departments || []).map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label className="font-bold block mb-1">แหล่งเงิน/โครงการ (Source):</label>
-                            <select name="project" value={formData.project} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
-                                <option value="">-- เลือก --</option>
-                                {(settings.budgetSources || []).map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                        </div>
-                        
-                        <div className="md:col-span-2"><label className="font-bold block mb-1">ร้านค้า/ผู้รับจ้าง:</label><input type="text" name="supplierName" value={formData.supplierName} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" /></div>
-                        <div><label className="font-bold block mb-1">เสนอผู้บริหาร:</label><input type="text" name="managerName" value={formData.managerName} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" /></div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-                        <fieldset className="border p-4 rounded-xl bg-gray-50">
-                            <legend className="font-bold px-2 text-primary-blue bg-white rounded-lg shadow-sm text-xs">ประเภท (Type)</legend>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                {(settings.supplyTypes || []).map(type => (
-                                    <label key={type} className="flex items-center cursor-pointer">
-                                        <input type="radio" name="procurementType" value={type} checked={formData.procurementType === type} onChange={handleFormChange} className="mr-2 text-primary-blue focus:ring-primary-blue" />
-                                        {type}
-                                    </label>
-                                ))}
+                    {/* Section 1: Document Info */}
+                    <fieldset className="border p-4 rounded-lg space-y-4">
+                        <legend className="font-bold px-2 text-gray-600">ข้อมูลเอกสาร</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+                            <div>
+                                <label className="font-bold block mb-1">ที่ (เลขที่เอกสาร):</label>
+                                <input type="text" name="docNumber" value={formData.docNumber} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" placeholder="เช่น ที่ ศธ ๐๔๐๐๗.๐๖/..." />
                             </div>
-                        </fieldset>
-                        <fieldset className="border p-4 rounded-xl bg-gray-50">
-                            <legend className="font-bold px-2 text-primary-blue bg-white rounded-lg shadow-sm text-xs">วิธีจัดหา (Method)</legend>
-                             <div className="grid grid-cols-2 gap-2 text-xs">
-                                {(settings.procurementMethods || []).map(method => (
-                                    <label key={method} className="flex items-center cursor-pointer">
-                                        <input type="radio" name="procurementMethod" value={method} checked={formData.procurementMethod === method} onChange={handleFormChange} className="mr-2 text-primary-blue focus:ring-primary-blue" />
-                                        {method}
-                                    </label>
-                                ))}
+                             <div>
+                                <label className="font-bold block mb-1">วันที่:</label>
+                                <input type="date" name="docDate" value={buddhistToISO(formData.docDate)} onChange={handleDateChange} className="w-full border-gray-300 rounded-lg shadow-sm" />
+                                <p className="text-xs text-gray-500 mt-1">ควรกำหนดก่อนวันรับของอย่างน้อย 3 วัน</p>
                             </div>
-                        </fieldset>
-                    </div>
+                            <div>
+                                <label className="font-bold block mb-1">เรื่อง:</label>
+                                <select name="subject" value={formData.subject} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
+                                    <option value="รายงานขอซื้อ/จ้างพัสดุ">รายงานขอซื้อ/จ้างพัสดุ</option>
+                                    <option value="ขออนุมัติจัดซื้อ">ขออนุมัติจัดซื้อ</option>
+                                    <option value="ขออนุมัติจัดจ้าง">ขออนุมัติจัดจ้าง</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="font-bold block mb-1">เรียน (ถึง):</label>
+                                <select name="managerName" value={formData.managerName} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
+                                    <option value="">-- เลือก --</option>
+                                    {directorsAndDeputies.map(p => <option key={p.id} value={`${p.personnelTitle}${p.personnelName}`}>{p.personnelTitle}{p.personnelName}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    </fieldset>
+                    
+                    {/* Section 2: Requester Info */}
+                    <fieldset className="border p-4 rounded-lg space-y-4">
+                        <legend className="font-bold px-2 text-gray-600">ข้อมูลผู้ขอ</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                            <div>
+                                <label className="font-bold block mb-1">ผู้ขอเบิก:</label>
+                                <input type="text" name="requesterName" value={formData.requesterName} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm bg-gray-100" readOnly />
+                            </div>
+                            <div>
+                                <label className="font-bold block mb-1">กลุ่มสาระ/หน่วยงาน:</label>
+                                <select name="department" value={formData.department} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
+                                    <option value="">-- เลือก --</option>
+                                    {(settings.departments || []).map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">หากต้องการเพิ่มกลุ่มสาระ กรุณาติดต่อ Admin</p>
+                            </div>
+                            <div>
+                                <label className="font-bold block mb-1">ชื่อหัวหน้ากลุ่มสาระ/งาน:</label>
+                                <select name="departmentHeadName" value={formData.departmentHeadName} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
+                                    <option value="">-- เลือก --</option>
+                                    {departmentHeads.map(p => <option key={p.id} value={`${p.personnelTitle}${p.personnelName}`}>{p.personnelTitle}{p.personnelName}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    </fieldset>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label className="font-bold block mb-1">วันที่ต้องการใช้:</label><input type="date" name="neededDate" value={buddhistToISO(formData.neededDate)} onChange={handleDateChange} className="w-full border-gray-300 rounded-lg shadow-sm" /></div>
-                        <div><label className="font-bold block mb-1">วงเงินอนุมัติ (บาท):</label><input type="number" name="approvedBudget" value={formData.approvedBudget} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm font-bold text-green-600" /></div>
-                    </div>
+                    {/* Section: Procurement Details */}
+                    <fieldset className="border p-4 rounded-lg space-y-4">
+                        <legend className="font-bold px-2 text-gray-600">รายละเอียดการจัดซื้อ/จ้าง</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="font-bold block mb-1">มีความประสงค์จัดซื้อ/จ้าง:</label>
+                                <select name="procurementCategory" value={formData.procurementCategory} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
+                                    <option value="">-- เลือก --</option>
+                                    {(settings.procurementCategories || []).map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="font-bold block mb-1">โดยใช้เงิน:</label>
+                                <select name="project" value={formData.project} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm">
+                                    <option value="">-- เลือก --</option>
+                                    {(settings.budgetSources || []).map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">หากต้องการเพิ่มตัวเลือก กรุณาติดต่อ Admin</p>
+                            </div>
+                            <div>
+                                <label className="font-bold block mb-1">ซื้อด้วยสกุลเงิน:</label>
+                                <input type="text" name="currency" value={formData.currency} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                        </div>
+                    </fieldset>
 
+                    {/* Section 3: Financial Info */}
+                    <fieldset className="border p-4 rounded-lg space-y-4">
+                        <legend className="font-bold px-2 text-gray-600">ข้อมูลทางการเงิน (ถ้ามี)</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                             <div>
+                                <label className="font-bold block mb-1">เลขคุมทะเบียนใบเสร็จ:</label>
+                                <input type="text" name="receiptControlNumber" value={formData.receiptControlNumber} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" />
+                                <p className="text-xs text-gray-500 mt-1">มีผลกับการหักงบประมาณ</p>
+                            </div>
+                             <div>
+                                <label className="font-bold block mb-1">เลขที่ใบเสร็จ:</label>
+                                <input type="text" name="receiptNumber" value={formData.receiptNumber} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                             <div>
+                                <label className="font-bold block mb-1">เลขที่ใบสั่งซื้อ:</label>
+                                <input type="text" name="purchaseOrderNumber" value={formData.purchaseOrderNumber} onChange={handleFormChange} className="w-full border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    {/* Items Table */}
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-bold text-navy">รายการพัสดุ</h3>
-                            <button type="button" onClick={handleAddItem} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold hover:bg-blue-200">+ เพิ่มรายการ</button>
                         </div>
                         <div className="overflow-x-auto rounded-lg border border-gray-300">
                             <table className="min-w-full bg-white text-xs">
                                 <thead className="bg-gray-100">
                                     <tr>
-                                        <th className="p-2 w-10 text-center">#</th>
-                                        <th className="p-2 min-w-[150px]">รายการ (ชื่อ/ขนาด/ยี่ห้อ)</th>
+                                        <th className="p-2 w-10 text-center">ลำดับที่</th>
+                                        <th className="p-2 min-w-[200px]">ประเภท</th>
+                                        <th className="p-2 min-w-[250px]">รายการ พัสดุ / ซื้อ / จ้าง (ขนาด ยี่ห้อและคุณลักษณะชัดเจน)</th>
                                         <th className="p-2 w-16">จำนวน</th>
                                         <th className="p-2 w-16">หน่วย</th>
                                         <th className="p-2 w-24 text-right">ราคา/หน่วย</th>
-                                        <th className="p-2 w-24 text-right">รวมเงิน</th>
+                                        <th className="p-2 w-24 text-right">เป็นเงิน</th>
+                                        <th className="p-2 min-w-[120px]">สถานที่ใช้งาน</th>
                                         <th className="p-2 w-10 text-center">ลบ</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {items.map((item, index) => (
-                                        <tr key={item.id} className="border-b last:border-0">
-                                            <td className="p-2 text-center">{index + 1}</td>
-                                            <td className="p-2"><input type="text" value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500"/></td>
-                                            <td className="p-2"><input type="number" value={item.quantity} onChange={e => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full border-gray-300 rounded text-center px-1 py-1 focus:ring-1 focus:ring-blue-500"/></td>
-                                            <td className="p-2"><input type="text" value={item.unit} onChange={e => handleItemChange(item.id, 'unit', e.target.value)} className="w-full border-gray-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500"/></td>
-                                            <td className="p-2"><input type="number" value={item.unitPrice} onChange={e => handleItemChange(item.id, 'unitPrice', Number(e.target.value))} className="w-full border-gray-300 rounded text-right px-2 py-1 focus:ring-1 focus:ring-blue-500"/></td>
-                                            <td className="p-2"><input type="text" readOnly value={((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString()} className="w-full border-transparent bg-transparent text-right px-2 py-1 font-bold text-gray-700"/></td>
-                                            <td className="p-2 text-center"><button type="button" onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700 font-bold">×</button></td>
-                                        </tr>
-                                    ))}
+                                    {items.map((item, index) => {
+                                        const [mainCatName, subCatName] = item.type.split(' > ');
+                                        const subCategories = settings.materialCategories?.find(c => c.name === mainCatName)?.subCategories || [];
+
+                                        return (
+                                            <tr key={item.id} className="border-b last:border-0">
+                                                <td className="p-2 text-center">{index + 1}</td>
+                                                <td className="p-1 align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        <select
+                                                            value={mainCatName || ''}
+                                                            onChange={(e) => handleItemTypeChange(item.id, 'main', e.target.value)}
+                                                            className="w-full border-gray-300 rounded px-2 py-1 text-xs"
+                                                        >
+                                                            <option value="">-- เลือกประเภท --</option>
+                                                            {(settings.materialCategories || []).map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+                                                        </select>
+                                                        <select
+                                                            value={subCatName || ''}
+                                                            onChange={(e) => handleItemTypeChange(item.id, 'sub', e.target.value)}
+                                                            className="w-full border-gray-300 rounded px-2 py-1 text-xs"
+                                                            disabled={subCategories.length === 0}
+                                                        >
+                                                            <option value="">-- เลือกชนิด --</option>
+                                                            {subCategories.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </td>
+                                                <td className="p-2 align-top"><input type="text" value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500"/></td>
+                                                <td className="p-2 align-top"><input type="number" value={item.quantity} onChange={e => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full border-gray-300 rounded text-center px-1 py-1 focus:ring-1 focus:ring-blue-500"/></td>
+                                                <td className="p-2 align-top"><input type="text" value={item.unit} onChange={e => handleItemChange(item.id, 'unit', e.target.value)} className="w-full border-gray-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500"/></td>
+                                                <td className="p-2 align-top"><input type="number" value={item.unitPrice} onChange={e => handleItemChange(item.id, 'unitPrice', Number(e.target.value))} className="w-full border-gray-300 rounded text-right px-2 py-1 focus:ring-1 focus:ring-blue-500"/></td>
+                                                <td className="p-2 align-top"><input type="text" readOnly value={((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString()} className="w-full border-transparent bg-transparent text-right px-2 py-1 font-bold text-gray-700"/></td>
+                                                <td className="p-2 align-top"><input type="text" value={item.location} onChange={e => handleItemChange(item.id, 'location', e.target.value)} className="w-full border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500"/></td>
+                                                <td className="p-2 align-top text-center"><button type="button" onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700 font-bold">×</button></td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                                 <tfoot className="bg-gray-50 font-bold">
                                     <tr>
-                                        <td colSpan={5} className="p-3 text-right text-gray-600">รวมเป็นเงินทั้งสิ้น:</td>
-                                        <td colSpan={2} className="p-3 text-right text-blue-700 text-sm">{total.toLocaleString()} บาท</td>
+                                        <td colSpan={6} className="p-3 text-right text-gray-600">รวมเป็นเงินทั้งสิ้น:</td>
+                                        <td colSpan={3} className="p-3 text-right text-blue-700 text-sm">{total.toLocaleString()} บาท</td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
                     </div>
                     
-                    <div className="flex justify-end pt-6 border-t gap-3">
-                        <button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl shadow-lg shadow-green-500/30 font-bold disabled:opacity-50 transition-all transform active:scale-95">
-                            {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
-                        </button>
+                    <div className="flex justify-between items-center pt-6 border-t">
+                        <div className="flex gap-2">
+                            <button type="button" onClick={handleAddItem} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 text-xs shadow-sm">+ เพิ่มรายการ</button>
+                            <button type="button" onClick={handleImportItems} className="bg-yellow-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-yellow-600 text-xs shadow-sm">นำเข้ารายการ</button>
+                            <button type="button" onClick={handleClearItems} className="bg-blue-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-600 text-xs shadow-sm">ล้างข้อมูล</button>
+                        </div>
+                        <div className="flex gap-3">
+                            <button type="button" onClick={onCancel} className="bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-bold hover:bg-gray-300">ยกเลิก</button>
+                            <button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl shadow-lg shadow-green-500/30 font-bold disabled:opacity-50 transition-all transform active:scale-95">
+                                {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -732,6 +850,7 @@ const FormTemplateEditor: React.FC<FormTemplateEditorProps> = ({ settings, onSav
         { key: 'receipt_form', label: 'ใบตรวจรับพัสดุ' },
         { key: 'po_form', label: 'ใบสั่งซื้อ-จ้าง' },
         { key: 'quotation_form', label: 'ใบเสนอราคา' },
+        { key: 'hiring_form', label: 'ใบขออนุมัติจัดจ้าง' },
     ];
 
     const allVariables = [
@@ -965,6 +1084,7 @@ const SupplyPage: React.FC<SupplyPageProps> = ({
             case 'create_request': 
                 return <CreateRequestForm 
                             currentUser={currentUser} 
+                            personnel={personnel}
                             settings={settings} 
                             editingRecord={editingRecord} 
                             onSave={handleSaveAndNavigate} 
@@ -1127,13 +1247,13 @@ const populateTemplate = (templateKey: string, record: ProcurementRecord, settin
     }
     const tableRowsHtml = tableItems.map((item, index) => `
         <tr>
-            <td class="border border-black p-1 text-center">${item.quantity > 0 ? toThaiNumerals(index + 1) : ''}</td>
-            <td class="border border-black p-1 text-left">${item.description}</td>
-            <td class="border border-black p-1 text-center">${item.quantity > 0 ? toThaiNumerals(item.quantity) : ''}</td>
-            <td class="border border-black p-1 text-center">${item.unit}</td>
-            <td class="border border-black p-1 text-right">${item.unitPrice > 0 ? toThaiNumerals(item.unitPrice.toFixed(2)) : ''}</td>
-            <td class="border border-black p-1 text-right">${item.quantity * item.unitPrice > 0 ? toThaiNumerals((item.quantity * item.unitPrice).toFixed(2)) : ''}</td>
-            <td class="border border-black p-1"></td>
+            <td style="border: 1px solid black; padding: 4px; text-align: center;">${item.quantity > 0 ? toThaiNumerals(index + 1) : ''}</td>
+            <td style="border: 1px solid black; padding: 4px; text-align: left;">${item.description}</td>
+            <td style="border: 1px solid black; padding: 4px; text-align: center;">${item.quantity > 0 ? toThaiNumerals(item.quantity) : ''}</td>
+            <td style="border: 1px solid black; padding: 4px; text-align: center;">${item.unit}</td>
+            <td style="border: 1px solid black; padding: 4px; text-align: right;">${item.unitPrice > 0 ? toThaiNumerals(item.unitPrice.toFixed(2)) : ''}</td>
+            <td style="border: 1px solid black; padding: 4px; text-align: right;">${item.quantity * item.unitPrice > 0 ? toThaiNumerals((item.quantity * item.unitPrice).toFixed(2)) : ''}</td>
+            <td style="border: 1px solid black; padding: 4px;"></td>
         </tr>
     `).join('');
 
@@ -1165,7 +1285,7 @@ const populateTemplate = (templateKey: string, record: ProcurementRecord, settin
 };
 
 const MemoComponent: React.FC<ProcurementMemoProps & { templateKey: string, title: string }> = ({ record, settings, onBack, onPrint, type, templateKey, title }) => {
-    const populatedHtml = useMemo(() => populateTemplate(templateKey, record, settings), [record, settings]);
+    const populatedHtml = useMemo(() => populateTemplate(templateKey, record, settings), [record, settings, templateKey]);
 
     return (
         <div className="font-sarabun text-black w-full max-w-[210mm] mx-auto">
@@ -1199,6 +1319,6 @@ const DisbursementForm: React.FC<ProcurementMemoProps> = (props) => <MemoCompone
 const ReceiptForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="receipt_form" title="ใบตรวจรับพัสดุ" />;
 const PurchaseOrder: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="po_form" title="ใบสั่งซื้อ/จ้าง" />;
 const QuotationForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="quotation_form" title="ใบเสนอราคา" />;
-const HiringApprovalForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="procurement_report" title="ใบขออนุมัติจัดจ้าง" />;
+const HiringApprovalForm: React.FC<ProcurementMemoProps> = (props) => <MemoComponent {...props} templateKey="hiring_form" title="ใบขออนุมัติจัดจ้าง" />;
 
 export default SupplyPage;

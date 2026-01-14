@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Student, Personnel } from '../types';
 import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc } from '../utils';
@@ -70,9 +71,47 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
     
     const DocumentViewer: React.FC<{ title: string, files?: (File|string)[]}> = ({ title, files }) => {
         const safeFiles = safeParseArray(files);
+
+        const getFileIcon = (fileName: string) => {
+            const nameLower = String(fileName).toLowerCase();
+            if (/\.(pdf)/i.test(nameLower)) return 'https://img.icons8.com/plasticine/100/pdf.png';
+            if (/\.(doc|docx)/i.test(nameLower)) return 'https://img.icons8.com/plasticine/100/ms-word.png';
+            if (/\.(xls|xlsx)/i.test(nameLower)) return 'https://img.icons8.com/plasticine/100/ms-excel.png';
+            return 'https://img.icons8.com/plasticine/100/file.png';
+        };
+
+        const renderFile = (file: File | string, index: number) => {
+            const isImage = file instanceof File ? file.type.startsWith('image/') : /\.(jpg|jpeg|png|gif|webp)$/i.test(String(file));
+            
+            const baseName = title.replace('เอกสาร', '').trim();
+            const displayName = file instanceof File ? file.name : (safeFiles.length > 1 ? `${baseName} ${index + 1}` : baseName);
+            const actualFileName = file instanceof File ? file.name : String(file);
+
+            const previewUrl = getFirstImageSource(file);
+            
+            if (isImage) {
+                return (
+                    <a key={index} href={previewUrl || '#'} target="_blank" rel="noreferrer" className="block relative group">
+                        <img src={previewUrl || ''} alt={displayName} className="w-full h-24 object-cover rounded-lg border border-gray-200" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
+                        </div>
+                    </a>
+                );
+            }
+
+            return (
+                 <a key={index} href={getDriveViewUrl(file)} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white text-gray-800 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm">
+                    <img src={getFileIcon(actualFileName)} className="w-6 h-6 object-contain" alt="file-icon" />
+                    <span className="text-xs truncate font-semibold">{displayName}</span>
+                </a>
+            );
+        };
+
+
         if (!safeFiles || safeFiles.length === 0) {
             return (
-                <div className="p-3 border border-gray-100 rounded-lg bg-gray-50">
+                <div className="p-3 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
                     <h4 className="font-semibold text-gray-700 text-sm">{title}</h4>
                     <p className="text-xs text-gray-400 mt-1">ไม่มีไฟล์</p>
                 </div>
@@ -80,18 +119,11 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
         }
 
         return (
-            <div className="space-y-2 p-3 border border-blue-100 rounded-lg bg-blue-50/30">
-                <h4 className="font-semibold text-navy text-sm mb-1">{title}</h4>
-                {safeFiles.map((file, i) => {
-                    const url = getDriveViewUrl(file);
-                    const name = file instanceof File ? file.name : `เอกสาร ${i+1}`;
-                    return (
-                        <a key={i} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white text-blue-700 px-3 py-2 rounded border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm">
-                            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                            <span className="text-xs truncate">{name}</span>
-                        </a>
-                    );
-                })}
+            <div className="space-y-2 p-3 border border-gray-100 rounded-lg bg-white shadow-sm">
+                <h4 className="font-semibold text-navy text-sm mb-2">{title}</h4>
+                <div className="grid grid-cols-2 gap-2">
+                    {safeFiles.map(renderFile)}
+                </div>
             </div>
         );
     }
@@ -499,7 +531,7 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                             </nav>
                         </div>
                         <div className="pt-6">
-                            {activeTab === 'general' && ( <DetailSection title="ข้อมูลทั่วไปของนักเรียน"> <DetailItem label="ชั้น" value={student.studentClass} /> <DetailItem label="เรือนนอน" value={student.dormitory} /> <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} /> <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} /> <DetailItem label="เบอร์โทร" value={student.studentPhone} /> <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} fullWidth /> <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/> </DetailSection> )}
+                            {activeTab === 'general' && ( <DetailSection title="ข้อมูลทั่วไปของนักเรียน"> <DetailItem label="ชั้น" value={student.studentClass} /> <DetailItem label="เรือนนอน" value={student.dormitory} /> <DetailItem label="ประเภทความพิการ" value={student.disabilityType} /> <DetailItem label="เลขบัตรประชาชน" value={student.studentIdCard} /> <DetailItem label="วันเกิด" value={formatThaiDate(student.studentDob)} /> <DetailItem label="เบอร์โทร" value={student.studentPhone} /> <DetailItem label="ครูประจำชั้น" value={homeroomTeacherNames} fullWidth /> <DetailItem label="ที่อยู่" value={student.studentAddress} fullWidth/> </DetailSection> )}
                             {activeTab === 'family' && ( <DetailSection title="ข้อมูลครอบครัว"> <DetailItem label="ชื่อ-นามสกุลบิดา" value={student.fatherName} /> <DetailItem label="เลขบัตรประชาชนบิดา" value={student.fatherIdCard} /> <DetailItem label="เบอร์โทรบิดา" value={student.fatherPhone} /> <DetailItem label="ที่อยู่บิดา" value={student.fatherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลมารดา" value={student.motherName} /> <DetailItem label="เลขบัตรประชาชนมารดา" value={student.motherIdCard} /> <DetailItem label="เบอร์โทรมารดา" value={student.motherPhone} /> <DetailItem label="ที่อยู่มารดา" value={student.motherAddress} fullWidth/> <DetailItem label="ชื่อ-นามสกุลผู้ปกครอง" value={student.guardianName} /> <DetailItem label="เลขบัตรประชาชนผู้ปกครอง" value={student.guardianIdCard} /> <DetailItem label="เบอร์โทรผู้ปกครอง" value={student.guardianPhone} /> <DetailItem label="ที่อยู่ผู้ปกครอง" value={student.guardianAddress} fullWidth/> </DetailSection> )}
                             {activeTab === 'health' && ( <DetailSection title="ข้อมูลทางการแพทย์และสุขภาพ"> <DetailItem label="โรคประจำตัว" value={student.chronicDisease} fullWidth /> <DetailItem label="ประวัติการแพ้ยา" value={student.drugAllergy} fullWidth /> <DetailItem label="โรคภูมิแพ้" value={student.allergies} fullWidth /> <DetailItem label="ผลการตรวจทางการแพทย์" value={student.medicalExamResults} fullWidth /> <DetailItem label="ข้อจำกัดอื่น ๆ" value={student.otherLimitations} fullWidth /> </DetailSection> )}
                             {activeTab === 'iep' && ( <div className="space-y-6"> <DocumentViewer title="แผนการจัดการศึกษาเฉพาะบุคคล (IEP)" files={student.iepFiles} /> <DocumentViewer title="แผนการสอนเฉพาะบุคคล (IIP)" files={student.iipFiles} /> </div> )}
@@ -608,6 +640,12 @@ const ViewStudentModal: React.FC<ViewStudentModalProps> = ({ student, onClose, p
                                 <span className="font-bold whitespace-nowrap">เบอร์โทร:</span>
                                 <div className="border-b border-dotted border-black flex-grow px-2">{student.studentPhone || '""'}</div>
                             </div>
+                        </div>
+
+                        {/* New Row for Disability Type */}
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold whitespace-nowrap w-32">ประเภทความพิการ:</span>
+                            <div className="border-b border-dotted border-black flex-grow px-2">{student.disabilityType || '-'}</div>
                         </div>
 
                         {/* Row 5 */}

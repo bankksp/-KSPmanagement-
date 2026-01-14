@@ -26,6 +26,18 @@ export const STUDENT_CLASSES = [
 
 export const STUDENT_CLASSROOMS = Array.from({ length: 8 }, (_, i) => (i + 1).toString());
 
+export const DISABILITY_TYPES = [
+  "1. พิการทางการเห็น",
+  "2. พิการทางการได้ยินหรือสื่อความหมาย",
+  "3. พิการทางการเคลื่อนไหวหรือทางร่างกาย",
+  "4. พิการทางจิตใจหรือพฤติกรรม",
+  "5. พิการทางสติปัญญา",
+  "6. พิการทางการเรียนรู้ (Learning Disabilities)",
+  "7. พิการออทิสติก (Autistic Spectrum Disorder)",
+  "8. พิการทางการพูดและภาษา",
+  "9. พิการซ้อน"
+];
+
 export const LEARNING_AREAS = [
   "ภาษาไทย",
   "คณิตศาสตร์",
@@ -128,6 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
     formTemplates: {},
     supplyTypes: ['วัสดุ', 'ครุภัณฑ์', 'ที่ดิน/สิ่งก่อสร้าง', 'จ้างเหมาบริการ'],
     procurementMethods: ['เฉพาะเจาะจง', 'คัดเลือก', 'e-bidding', 'e-market'],
+    procurementCategories: ['วัสดุ', 'วัสดุถาวร', 'ครุภัณฑ์', 'หนังสือ', 'ทำวัสดุ', 'ทำวัสดุถาวร', 'ทำครุภัณฑ์', 'เหมาซ่อมแซม', 'เหมาปรับปรุง'],
     // Initialize Webhooks as empty strings
     webhookAttendance: '',
     webhookDormitory: '',
