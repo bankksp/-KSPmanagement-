@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Personnel, Student, SpecialRank } from '../types';
+import { Personnel, Student, SpecialRank, Settings, EducationBackground } from '../types';
 import { getFirstImageSource, buddhistToISO, isoToBuddhist, safeParseArray } from '../utils';
-import AddressSelector from './AddressSelector'; 
+import AddressSelector from './AddressSelector';
+import { EDUCATION_LEVELS } from '../constants';
 
 interface PersonnelModalProps {
     onClose: () => void;
@@ -13,6 +13,7 @@ interface PersonnelModalProps {
     isSaving: boolean;
     currentUserRole?: string;
     currentUser?: Personnel | null;
+    settings: Settings;
 }
 
 const initialFormData: Omit<Personnel, 'id'> = {
@@ -20,6 +21,8 @@ const initialFormData: Omit<Personnel, 'id'> = {
     personnelTitleOther: '',
     personnelName: '',
     position: '',
+    academicStanding: '',
+    educationBackgrounds: [],
     dob: '',
     idCard: '',
     email: '',
@@ -36,32 +39,8 @@ const initialFormData: Omit<Personnel, 'id'> = {
     specialRank: 'staff'
 };
 
-interface InputFieldProps {
-    name: keyof Omit<Personnel, 'id'>;
-    label: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    required?: boolean;
-    wrapperClass?: string;
-    type?: string;
-}
-
-const InputField: React.FC<InputFieldProps> = ({ name, label, value, onChange, required = false, wrapperClass = '', type = 'text' }) => (
-    <div className={wrapperClass}>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-        <input 
-            type={type} 
-            name={name} 
-            value={value} 
-            onChange={onChange} 
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
-            required={required} 
-        />
-    </div>
-);
-
-const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole, currentUser }) => {
-    const [formData, setFormData] = useState<any>(initialFormData); 
+const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole, currentUser, settings }) => {
+    const [formData, setFormData] = useState<Partial<Personnel>>(initialFormData as Partial<Personnel>);
     const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
     const isEditing = !!personnelToEdit;
@@ -70,6 +49,12 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
     const allClasses = useMemo(() => 
         Array.from(new Set(students.map(s => s.studentClass))).sort()
     , [students]);
+    
+    const profileImageUrl = useMemo(() => {
+        const file = safeParseArray(formData.profileImage)[0];
+        if (file instanceof File) return URL.createObjectURL(file);
+        return getFirstImageSource(formData.profileImage);
+    }, [formData.profileImage]);
 
     useEffect(() => {
         if (personnelToEdit) {
@@ -82,12 +67,22 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                 address: (personnelToEdit as any).address || '',
                 isSarabanAdmin: personnelToEdit.isSarabanAdmin || false,
                 specialRank: personnelToEdit.specialRank || 'staff',
-                advisoryClasses: safeParseArray(personnelToEdit.advisoryClasses)
+                advisoryClasses: safeParseArray(personnelToEdit.advisoryClasses),
+                educationBackgrounds: safeParseArray(personnelToEdit.educationBackgrounds),
+                academicStanding: personnelToEdit.academicStanding || '',
             });
         } else {
-            setFormData({ ...initialFormData, position: positions[0] || '' });
+            setFormData({ ...initialFormData, position: positions[0] || '' } as Partial<Personnel>);
         }
     }, [personnelToEdit, positions]);
+    
+    useEffect(() => {
+        return () => {
+            if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(profileImageUrl);
+            }
+        };
+    }, [profileImageUrl]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
@@ -132,6 +127,21 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
         setFormData((prev: any) => ({ ...prev, address: val }));
     };
 
+    const handleEducationChange = (index: number, field: keyof EducationBackground, value: string) => {
+        const updated = [...(formData.educationBackgrounds || [])];
+        updated[index] = { ...updated[index], [field]: value };
+        setFormData(prev => ({ ...prev, educationBackgrounds: updated }));
+    };
+
+    const addEducation = () => {
+        const newEducation: EducationBackground = { level: EDUCATION_LEVELS[0], faculty: '', major: '' };
+        setFormData(prev => ({ ...prev, educationBackgrounds: [...(prev.educationBackgrounds || []), newEducation] }));
+    };
+
+    const removeEducation = (index: number) => {
+        setFormData(prev => ({ ...prev, educationBackgrounds: (prev.educationBackgrounds || []).filter((_: any, i: number) => i !== index) }));
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -141,172 +151,151 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
         }
 
         const personnelData: Personnel = {
-            ...formData,
+            ...formData as Personnel,
             id: isEditing ? personnelToEdit!.id : Date.now(),
             password: formData.password || formData.idCard,
         };
         onSave(personnelData);
     };
-
-    const profileImageUrl = useMemo(() => {
-        return getFirstImageSource(formData.profileImage);
-    }, [formData.profileImage]);
-
-    useEffect(() => {
-        return () => {
-            if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(profileImageUrl);
-            }
-        };
-    }, [profileImageUrl]);
     
     const effectiveRole = currentUserRole || currentUser?.role;
     const currentAdvisoryClasses = safeParseArray(formData.advisoryClasses);
+    const educationBackgrounds = safeParseArray(formData.educationBackgrounds);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[60] p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b">
                     <h2 className="text-2xl font-bold text-navy">{isEditing ? 'แก้ไขข้อมูลบุคลากร' : 'เพิ่มข้อมูลบุคลากร'}</h2>
                 </div>
                 <form id="personnel-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-6 space-y-6">
-                    <div className="flex flex-col sm:flex-row gap-6 items-start">
-                        <div className="flex-shrink-0">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">รูปโปรไฟล์</label>
-                            <div className="mt-1 relative">
-                                <div className="w-32 h-40 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
-                                    {profileImageUrl ? (
-                                        <img src={profileImageUrl} alt="Profile Preview" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                    )}
+                    {/* Section 1: Personal and Professional Info */}
+                    <fieldset className="border p-4 rounded-lg">
+                        <legend className="text-lg font-bold text-navy px-2">ข้อมูลส่วนตัวและตำแหน่งงาน</legend>
+                        <div className="flex flex-col sm:flex-row gap-6 items-start mt-2">
+                            <div className="flex-shrink-0">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">รูปโปรไฟล์</label>
+                                <div className="mt-1 relative">
+                                    <div className="w-32 h-40 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border shadow-sm">
+                                        {profileImageUrl ? (
+                                            <img src={profileImageUrl} alt="Profile Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                        ) : (
+                                            <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                        )}
+                                    </div>
+                                    <label htmlFor="personnelProfileImage-upload" className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        <input id="personnelProfileImage-upload" name="profileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
+                                    </label>
                                 </div>
-                                <label htmlFor="profileImage-upload" className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                    <input id="profileImage-upload" name="profileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
-                                </label>
-                            </div>
-                            {effectiveRole === 'admin' && (
-                                <div className="mt-4 space-y-3">
-                                    <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                                        <label className="block text-sm font-bold text-blue-800 mb-2">สิทธิ์การใช้งาน</label>
-                                        <select 
-                                            name="role" 
-                                            value={formData.role} 
-                                            onChange={handleChange} 
-                                            className="w-full px-2 py-1 border border-blue-300 rounded text-sm text-navy bg-white mb-2"
-                                        >
-                                            <option value="user">User (ทั่วไป)</option>
-                                            <option value="pro">Pro (เจ้าหน้าที่)</option>
-                                            <option value="admin">Admin (ผู้ดูแลระบบ)</option>
-                                        </select>
-                                    </div>
-                                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
-                                        <label className="block text-sm font-bold text-purple-800 mb-2">ระดับบริหาร (Rank)</label>
-                                        <select 
-                                            name="specialRank" 
-                                            value={formData.specialRank} 
-                                            onChange={handleChange} 
-                                            className="w-full px-2 py-1 border border-purple-300 rounded text-sm text-navy bg-white"
-                                        >
-                                            <option value="staff">บุคลากรทั่วไป</option>
-                                            <option value="head">หัวหน้างาน</option>
-                                            <option value="deputy">รองผู้อำนวยการ</option>
-                                            <option value="director">ผู้อำนวยการ</option>
-                                        </select>
-                                    </div>
-                                    <div className="bg-orange-50 p-3 rounded border border-orange-200">
-                                        <label className="block text-sm font-bold text-orange-800 mb-2">สถานะผู้ใช้</label>
-                                        <select 
-                                            name="status" 
-                                            value={formData.status} 
-                                            onChange={handleChange} 
-                                            className="w-full px-2 py-1 border border-orange-300 rounded text-sm text-navy bg-white"
-                                        >
-                                            <option value="pending">รอการอนุมัติ</option>
-                                            <option value="approved">อนุมัติแล้ว</option>
-                                            <option value="blocked">ระงับการใช้งาน</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center gap-2 p-2">
-                                        <input 
-                                            type="checkbox" 
-                                            id="isSarabanAdmin" 
-                                            name="isSarabanAdmin" 
-                                            checked={formData.isSarabanAdmin} 
-                                            onChange={handleChange} 
-                                            className="w-4 h-4 text-blue-600 rounded"
-                                        />
-                                        <label htmlFor="isSarabanAdmin" className="text-sm font-bold text-gray-700">เจ้าหน้าที่สารบรรณ</label>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-grow space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า</label>
-                                    <select name="personnelTitle" value={formData.personnelTitle} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
-                                        {personnelTitles.map(title => <option key={title} value={title}>{title}</option>)}
-                                    </select>
-                                </div>
-                                {formData.personnelTitle === 'อื่นๆ' && (
-                                    <InputField name="personnelTitleOther" label="ระบุคำนำหน้า" value={formData.personnelTitleOther || ''} onChange={handleChange} required />
-                                )}
-                                <InputField name="personnelName" label="ชื่อ-นามสกุล" value={formData.personnelName} onChange={handleChange} required wrapperClass="md:col-span-2" />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
-                                    <select name="position" value={formData.position} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า *</label>
+                                    <select name="personnelTitle" value={formData.personnelTitle} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" required>
+                                        {personnelTitles.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div className="lg:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล *</label>
+                                    <input type="text" name="personnelName" value={formData.personnelName} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง *</label>
+                                    <select name="position" value={formData.position} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" required>
                                         {positions.map(p => <option key={p} value={p}>{p}</option>)}
                                     </select>
                                 </div>
-                                <InputField name="positionNumber" label="เลขที่ตำแหน่ง" value={formData.positionNumber || ''} onChange={handleChange} />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">วิทยฐานะ</label>
+                                    <select name="academicStanding" value={formData.academicStanding || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg">
+                                        <option value="">-- ไม่ระบุ --</option>
+                                        {(settings.academicStandings || []).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">เลขที่ตำแหน่ง</label>
+                                    <input type="text" name="positionNumber" value={formData.positionNumber || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" />
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">วันที่บรรจุแต่งตั้ง</label>
-                                    <input type="date" name="appointmentDate" value={buddhistToISO(formData.appointmentDate)} onChange={handleDateChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                                    <input type="date" name="appointmentDate" value={buddhistToISO(formData.appointmentDate)} onChange={handleDateChange} className="w-full px-3 py-2 border rounded-lg" />
                                 </div>
-                                <InputField name="idCard" label="เลขบัตรประชาชน" value={formData.idCard} onChange={handleChange} required />
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">วันเดือนปีเกิด</label>
-                                    <input type="date" name="dob" value={buddhistToISO(formData.dob)} onChange={handleDateChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required />
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">เลขบัตรประชาชน *</label>
+                                    <input type="text" name="idCard" value={formData.idCard} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" required />
                                 </div>
-                                <InputField name="phone" label="เบอร์โทรศัพท์" value={formData.phone} onChange={handleChange} required />
-                                <InputField name="email" label="Gmail (@gmail.com)" value={formData.email} onChange={handleChange} required />
-                                
-                                <div className="relative">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">ครูที่ปรึกษา / ประจำชั้น</label>
-                                    <button type="button" onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex justify-between items-center text-sm">
-                                        <span className="truncate">{currentAdvisoryClasses.length > 0 ? currentAdvisoryClasses.join(', ') : 'เลือกชั้นเรียน...'}</span>
-                                        <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path></svg>
-                                    </button>
-                                    {isClassDropdownOpen && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                            {allClasses.map(cls => (
-                                                <div key={cls} className="flex items-center p-2 hover:bg-blue-50 cursor-pointer" onClick={() => handleAdvisoryClassChange(cls)}>
-                                                    <input type="checkbox" checked={currentAdvisoryClasses.includes(cls)} onChange={() => {}} className="h-4 w-4 text-blue-600 rounded" />
-                                                    <span className="ml-2 text-sm text-gray-700">{cls}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">วันเดือนปีเกิด *</label>
+                                    <input type="date" name="dob" value={buddhistToISO(formData.dob)} onChange={handleDateChange} className="w-full px-3 py-2 border rounded-lg" required />
                                 </div>
-
-                                <InputField name="password" label="รหัสผ่าน (เว้นว่างเพื่อใช้เลขบัตรประชาชน)" value={formData.password || ''} onChange={handleChange} type="password" />
                             </div>
-
-                            <AddressSelector label="ที่อยู่ปัจจุบัน" value={formData.address || ''} onChange={handleAddressChange} />
                         </div>
-                    </div>
+                    </fieldset>
+                    
+                    {/* Section 2: Education */}
+                    <fieldset className="border p-4 rounded-lg">
+                        <legend className="text-lg font-bold text-navy px-2">ประวัติการศึกษา</legend>
+                        <div className="space-y-3 mt-2">
+                            {educationBackgrounds.map((edu: EducationBackground, index: number) => (
+                                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-2 p-3 bg-gray-50 rounded-lg items-center">
+                                    <select value={edu.level} onChange={(e) => handleEducationChange(index, 'level', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm">
+                                        {EDUCATION_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                                    </select>
+                                    <input type="text" placeholder="คณะ" value={edu.faculty} onChange={(e) => handleEducationChange(index, 'faculty', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm" />
+                                    <input type="text" placeholder="วิชาเอก" value={edu.major} onChange={(e) => handleEducationChange(index, 'major', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm" />
+                                    <button type="button" onClick={() => removeEducation(index)} className="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-bold">ลบ</button>
+                                </div>
+                            ))}
+                        </div>
+                        <button type="button" onClick={addEducation} className="mt-3 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold">+ เพิ่มวุฒิการศึกษา</button>
+                    </fieldset>
+
+                    {/* Section 3: Contact & System */}
+                    <fieldset className="border p-4 rounded-lg">
+                        <legend className="text-lg font-bold text-navy px-2">ข้อมูลติดต่อและระบบ</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรศัพท์ *</label>
+                                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" required />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Gmail *</label>
+                                <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" placeholder="example@gmail.com" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน</label>
+                                <input type="password" name="password" value={formData.password || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" placeholder="เว้นว่างเพื่อใช้เลขบัตร ปชช." />
+                            </div>
+                            <div className="lg:col-span-3">
+                                <AddressSelector label="ที่อยู่ปัจจุบัน" value={formData.address || ''} onChange={handleAddressChange} />
+                            </div>
+                            <div className="relative lg:col-span-3">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ครูที่ปรึกษา / ประจำชั้น</label>
+                                <button type="button" onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} className="w-full px-3 py-2 border rounded-lg bg-white text-left flex justify-between items-center text-sm">
+                                    <span className="truncate">{currentAdvisoryClasses.length > 0 ? currentAdvisoryClasses.join(', ') : 'เลือกชั้นเรียน...'}</span>
+                                </button>
+                                {isClassDropdownOpen && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                        {allClasses.map(cls => (
+                                            <div key={cls} className="flex items-center p-2 hover:bg-blue-50 cursor-pointer" onClick={() => handleAdvisoryClassChange(cls)}>
+                                                <input type="checkbox" checked={currentAdvisoryClasses.includes(cls)} readOnly className="h-4 w-4 rounded" />
+                                                <span className="ml-2 text-sm text-gray-700">{cls}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </fieldset>
                 </form>
-                <div className="p-6 border-t flex justify-end items-center space-x-3 bg-gray-50 rounded-b-xl">
-                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2.5 px-6 rounded-xl transition-colors">
+                <div className="p-6 border-t flex justify-end items-center space-x-3 bg-light-gray rounded-b-xl">
+                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
                         ยกเลิก
                     </button>
-                    <button type="submit" form="personnel-form" disabled={isSaving} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2.5 px-8 rounded-xl shadow-lg disabled:opacity-50 transition-all transform active:scale-95">
-                        {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                    <button type="submit" form="personnel-form" disabled={isSaving} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isSaving ? 'กำลังบันทึก...' : (isEditing ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูล')}
                     </button>
                 </div>
             </div>

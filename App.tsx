@@ -253,7 +253,7 @@ const App: React.FC = () => {
             setCertificateProjects(data.certificateProjects || []);
             setCertificateRequests(data.certificateRequests || []); 
             setMaintenanceRequests(data.maintenanceRequests || []);
-            setPerformanceReports(data.performanceReports || []);
+            setPerformanceReports((data.performanceReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate) })));
             setSarReports(data.sarReports || []);
             setDocuments(data.generalDocuments || data.documents || []); 
             setWorkflowDocuments(data.workflowDocuments || []);
@@ -634,7 +634,17 @@ const App: React.FC = () => {
                 ) : null;
             case 'personnel_report':
                 return currentUser ? (
-                    <PersonnelReportPage currentUser={currentUser} personnel={personnel} reports={performanceReports} onSave={(r) => handleGenericSave('savePerformanceReport', r, setPerformanceReports)} onDelete={(ids) => handleGenericDelete('deletePerformanceReports', ids, setPerformanceReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
+                    <PersonnelReportPage 
+                        currentUser={currentUser} 
+                        personnel={personnel} 
+                        reports={performanceReports} 
+                        onSave={(r) => handleGenericSave('savePerformanceReport', r, setPerformanceReports)} 
+                        onDelete={(ids) => handleGenericDelete('deletePerformanceReports', ids, setPerformanceReports)} 
+                        academicYears={settings.academicYears} 
+                        isSaving={isSaving} 
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
+                    />
                 ) : null;
             case 'personnel_sar': 
                 return currentUser ? (
@@ -747,9 +757,22 @@ const App: React.FC = () => {
             )}
             {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={() => setViewingStudent(null)} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} />}
             {isPersonnelModalOpen && (
-                <PersonnelModal onClose={() => setIsPersonnelModalOpen(false)} onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)} personnelToEdit={editingPersonnel} positions={settings.positions} students={students} isSaving={isSaving} currentUserRole={currentUser?.role} currentUser={currentUser} />
+                <PersonnelModal onClose={() => setIsPersonnelModalOpen(false)} onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)} personnelToEdit={editingPersonnel} positions={settings.positions} students={students} isSaving={isSaving} currentUserRole={currentUser?.role} currentUser={currentUser} settings={settings} />
             )}
-            {viewingPersonnel && <ViewPersonnelModal personnel={viewingPersonnel} onClose={() => setViewingPersonnel(null)} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} />}
+            {viewingPersonnel && (
+                <ViewPersonnelModal 
+                    personnel={viewingPersonnel} 
+                    onClose={() => setViewingPersonnel(null)} 
+                    schoolName={settings.schoolName} 
+                    schoolLogo={settings.schoolLogo} 
+                    currentUser={currentUser}
+                    students={students}
+                    leaveRecords={leaveRecords}
+                    performanceReports={performanceReports}
+                    sarReports={sarReports}
+                    academicPlans={academicPlans}
+                />
+            )}
         </div>
     );
 };

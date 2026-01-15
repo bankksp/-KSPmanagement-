@@ -1,6 +1,8 @@
+
+
 import React, { useState } from 'react';
 import { Settings, AttendancePeriodConfig } from '../types';
-import { getDirectDriveImageSrc, postToGoogleScript } from '../utils';
+import { getDirectDriveImageSrc, postToGoogleScript, buddhistToISO, isoToBuddhist } from '../utils';
 
 interface AdminDashboardProps {
     settings: Settings;
@@ -9,7 +11,7 @@ interface AdminDashboardProps {
     isSaving: boolean;
 }
 
-type AdminTab = 'general' | 'appearance' | 'lists' | 'attendance' | 'system';
+type AdminTab = 'general' | 'appearance' | 'lists' | 'attendance' | 'system' | 'personnel_settings';
 
 const AuthErrorModal: React.FC<{ error: string; onClose: () => void }> = ({ error, onClose }) => (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sarabun">
@@ -70,8 +72,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
     });
 
     const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value, type, checked } = e.target;
+        if (type === 'checkbox') {
+            setLocalSettings(prev => ({ ...prev, [name]: checked }));
+        } else {
+            setLocalSettings(prev => ({ ...prev, [name]: value }));
+        }
+    };
+    
+    const handleDateSettingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setLocalSettings(prev => ({ ...prev, [name]: value }));
+        setLocalSettings(prev => ({ ...prev, [name]: isoToBuddhist(value) }));
     };
     
     const handleThemeColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,6 +335,57 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                         </div>
                     </div>
                 );
+             case 'personnel_settings':
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200">
+                            <h3 className="text-lg font-bold text-navy mb-4">ตั้งค่าระบบรายงานการปฏิบัติงาน (PA)</h3>
+                            <p className="text-sm text-gray-500 mb-6">กำหนดช่วงเวลาการเปิด-ปิดระบบสำหรับการส่งรายงาน PA ของบุคลากร</p>
+                            
+                            {/* Round 1 */}
+                            <div className="space-y-4 p-4 border-l-4 border-blue-300 bg-blue-50/50 rounded-r-lg">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-bold text-blue-800">รอบที่ 1 (1 ต.ค. - 31 มี.ค.)</h4>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" name="isPaRound1Open" checked={localSettings.isPaRound1Open || false} onChange={handleSettingsChange} className="rounded" />
+                                        <span className="text-sm font-medium">เปิดรับรายงาน</span>
+                                    </label>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label>
+                                        <input type="date" name="paRound1StartDate" value={buddhistToISO(localSettings.paRound1StartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label>
+                                        <input type="date" name="paRound1EndDate" value={buddhistToISO(localSettings.paRound1EndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Round 2 */}
+                            <div className="space-y-4 p-4 border-l-4 border-green-300 bg-green-50/50 rounded-r-lg mt-6">
+                                 <div className="flex items-center justify-between">
+                                    <h4 className="font-bold text-green-800">รอบที่ 2 (1 เม.ย. - 30 ก.ย.)</h4>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" name="isPaRound2Open" checked={localSettings.isPaRound2Open || false} onChange={handleSettingsChange} className="rounded" />
+                                        <span className="text-sm font-medium">เปิดรับรายงาน</span>
+                                    </label>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label>
+                                        <input type="date" name="paRound2StartDate" value={buddhistToISO(localSettings.paRound2StartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label>
+                                        <input type="date" name="paRound2EndDate" value={buddhistToISO(localSettings.paRound2EndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
             case 'system':
                 return (
                     <div className="space-y-6">
@@ -410,8 +472,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                 <aside className="md:w-1/4">
                     <h2 className="text-xl font-bold text-navy mb-6 px-4">เมนูตั้งค่า</h2>
                     <nav className="space-y-1">
-                        {(['general', 'appearance', 'lists', 'attendance', 'system'] as AdminTab[]).map(tab => {
-                            const labels: Record<AdminTab, string> = { general: 'ทั่วไป', appearance: 'หน้าตาเว็บ', lists: 'จัดการข้อมูล', attendance: 'เช็คชื่อ', system: 'ระบบ' };
+                        {(['general', 'appearance', 'lists', 'personnel_settings', 'attendance', 'system'] as AdminTab[]).map(tab => {
+                            const labels: Record<AdminTab, string> = { general: 'ทั่วไป', appearance: 'หน้าตาเว็บ', lists: 'จัดการข้อมูล', personnel_settings: 'งานบุคคล', attendance: 'เช็คชื่อ', system: 'ระบบ' };
                             return (
                                 <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-3 rounded-2xl transition-all ${activeTab === tab ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-200' : 'text-gray-500 hover:bg-gray-100'}`}>
                                     {labels[tab]}
@@ -424,7 +486,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
                     <div className="mb-8 pb-4 border-b">
                          <h2 className="text-2xl font-black text-navy tracking-tight">
                              {
-                                {general: 'ตั้งค่าทั่วไป', appearance: 'ปรับแต่งหน้าตาเว็บ', lists: 'จัดการรายการข้อมูล', attendance: 'ตั้งค่าระบบเช็คชื่อ', system: 'ตั้งค่าระบบ'}[activeTab]
+                                {general: 'ตั้งค่าทั่วไป', appearance: 'ปรับแต่งหน้าตาเว็บ', lists: 'จัดการรายการข้อมูล', personnel_settings: 'ตั้งค่างานบุคคล', attendance: 'ตั้งค่าระบบเช็คชื่อ', system: 'ตั้งค่าระบบ'}[activeTab]
                              }
                         </h2>
                     </div>

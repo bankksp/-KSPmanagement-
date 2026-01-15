@@ -15,6 +15,15 @@ export const POSITIONS = [
   "ครูชำนาญการพิเศษ", "รองผู้อำนวยการชำนาญการ", "รองผู้อำนวยการชำนาญการพิเศษ"
 ];
 
+export const ACADEMIC_STANDINGS = ["ไม่มี", "ครูชำนาญการ", "ครูชำนาญการพิเศษ", "ครูเชี่ยวชาญ", "ครูเชี่ยวชาญพิเศษ"];
+
+export const EDUCATION_LEVELS = [
+  "ต่ำกว่าปริญญาตรี",
+  "ปริญญาตรี",
+  "ปริญญาโท",
+  "ปริญญาเอก"
+];
+
 export const LEAVE_TYPES = [
   "ลาป่วย", "ลากิจส่วนตัว", "ลาพักผ่อน", "ลาคลอดบุตร", "ลาไปช่วยเหลือภริยาที่คลอดบุตร", "ลาอุปสมบทหรือไปประกอบพิธีฮัจญ์", "ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล", "ลาไปศึกษา ฝึกอบรม ดูงาน หรือปฏิบัติการวิจัย"
 ];
@@ -141,6 +150,14 @@ export const DEFAULT_SETTINGS: Settings = {
     supplyTypes: ['วัสดุ', 'ครุภัณฑ์', 'ที่ดิน/สิ่งก่อสร้าง', 'จ้างเหมาบริการ'],
     procurementMethods: ['เฉพาะเจาะจง', 'คัดเลือก', 'e-bidding', 'e-market'],
     procurementCategories: ['วัสดุ', 'วัสดุถาวร', 'ครุภัณฑ์', 'หนังสือ', 'ทำวัสดุ', 'ทำวัสดุถาวร', 'ทำครุภัณฑ์', 'เหมาซ่อมแซม', 'เหมาปรับปรุง'],
+    academicStandings: ACADEMIC_STANDINGS,
+    // New PA Settings
+    paRound1StartDate: '',
+    paRound1EndDate: '',
+    isPaRound1Open: true,
+    paRound2StartDate: '',
+    paRound2EndDate: '',
+    isPaRound2Open: true,
     // Initialize Webhooks as empty strings
     webhookAttendance: '',
     webhookDormitory: '',

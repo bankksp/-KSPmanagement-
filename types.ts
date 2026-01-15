@@ -41,6 +41,15 @@ export interface Settings {
     budgetSources?: string[];
     procurementMethods?: string[]; // New: Dynamic Procurement Methods
     procurementCategories?: string[];
+    academicStandings?: string[];
+
+    // New PA Settings
+    paRound1StartDate?: string;
+    paRound1EndDate?: string;
+    isPaRound1Open?: boolean;
+    paRound2StartDate?: string;
+    paRound2EndDate?: string;
+    isPaRound2Open?: boolean;
     
     // New Structured Categories
     materialCategories?: MaterialCategory[]; 
@@ -242,12 +251,20 @@ export interface CertificateProject {
     status: 'active' | 'archived';
 }
 
+export interface EducationBackground {
+    level: string;
+    faculty: string;
+    major: string;
+}
+
 export interface Personnel {
   id: number;
   personnelTitle: string;
   personnelTitleOther?: string;
   personnelName: string;
   position: string;
+  academicStanding?: string;
+  educationBackgrounds?: EducationBackground[];
   dob: string;
   idCard: string;
   email: string; 
@@ -503,6 +520,9 @@ export interface PerformanceReport {
   personnelId: number;
   name: string;
   position: string;
+  academicStanding?: string;
+  major?: string;
+  agreementTitle?: string;
   academicYear: string;
   round: string; 
   file?: (File | string)[];

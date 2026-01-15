@@ -1,436 +1,484 @@
 
-import React, { useMemo, useEffect, useState } from 'react';
-import { Personnel } from '../types';
-import { getFirstImageSource, getDirectDriveImageSrc, formatThaiDate, normalizeDate } from '../utils';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
+import { Student, Personnel, LeaveRecord, PerformanceReport, SARReport, AcademicPlan, Page, EducationBackground } from '../types';
+import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc } from '../utils';
+
+type Tab = 'profile' | 'advisory' | 'leave' | 'pa' | 'sar' | 'plans';
 
 interface ViewPersonnelModalProps {
     personnel: Personnel;
     onClose: () => void;
     schoolName: string;
     schoolLogo: string;
+    currentUser: Personnel | null;
+    students: Student[];
+    leaveRecords: LeaveRecord[];
+    performanceReports: PerformanceReport[];
+    sarReports: SARReport[];
+    academicPlans: AcademicPlan[];
 }
 
-const calculateAge = (dobString: string): string => {
-    if (!dobString) return '-';
-    const birthDate = normalizeDate(dobString);
-    if (!birthDate) return '-';
-    
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-    }
-    return age >= 0 ? age.toString() : '-';
-};
-
-const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ personnel, onClose, schoolName, schoolLogo }) => {
+const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ 
+    personnel, onClose, schoolName, schoolLogo, currentUser,
+    students, leaveRecords, performanceReports, sarReports, academicPlans
+}) => {
+    const [activeTab, setActiveTab] = useState<Tab>('profile');
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
 
-    const profileImageUrl = useMemo(() => {
-        return getFirstImageSource(personnel.profileImage);
-    }, [personnel.profileImage]);
+    // Data Filtering
+    const myAdvisoryStudents = useMemo(() => students.filter(s => safeParseArray(s.homeroomTeachers).includes(personnel.id)), [students, personnel.id]);
+    const myLeaveRecords = useMemo(() => leaveRecords.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [leaveRecords, personnel.id]);
+    const myPaReports = useMemo(() => performanceReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [performanceReports, personnel.id]);
+    const mySarReports = useMemo(() => sarReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [sarReports, personnel.id]);
+    const myAcademicPlans = useMemo(() => academicPlans.filter(p => p.teacherId === personnel.id).sort((a,b) => b.id - a.id), [academicPlans, personnel.id]);
+
+    const profileImageUrl = useMemo(() => getFirstImageSource(personnel.profileImage), [personnel.profileImage]);
 
     useEffect(() => {
-        return () => {
-            if (profileImageUrl && profileImageUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(profileImageUrl);
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setIsExportMenuOpen(false);
             }
         };
-    }, [profileImageUrl]);
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
     
-    const advisoryClassesText = useMemo(() => {
-        const classes: unknown = personnel.advisoryClasses;
-        if (Array.isArray(classes)) {
-            return classes.length > 0 ? classes.join(', ') : '-';
-        }
-        if (typeof classes === 'string' && classes.trim() !== '') {
-            return classes;
-        }
-        return '-';
-    }, [personnel.advisoryClasses]);
-
-    const fullName = useMemo(() => {
-        const title = personnel.personnelTitle === 'อื่นๆ' ? personnel.personnelTitleOther : personnel.personnelTitle;
-        return `${title || ''} ${personnel.personnelName || ''}`.trim();
-    }, [personnel]);
-
-
-    const DetailItem: React.FC<{ label: string; value?: string | number; fullWidth?: boolean }> = ({ label, value, fullWidth = false }) => (
-        <div className={fullWidth ? 'md:col-span-2' : ''}>
-            <p className="text-sm font-medium text-secondary-gray">{label}</p>
-            <p className="text-md font-semibold text-gray-800 break-words">{value || '-'}</p>
-        </div>
-    );
+    // --- Export Handlers ---
+    const handlePrint = () => { window.print(); setIsExportMenuOpen(false); };
     
-    // --- Export Functions ---
-
-    const handlePrint = () => {
-        setIsExportMenuOpen(false);
-        window.print();
-    };
-
-    const exportToWord = () => {
-        const logoSrc = getDirectDriveImageSrc(schoolLogo);
-        const photoHtml = profileImageUrl 
-            ? `<img src="${profileImageUrl}" style="width: 3.81cm; height: 5.08cm; object-fit: cover; border: 1px solid #000;">` 
-            : `<div style="width: 3.81cm; height: 5.08cm; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-size: 14pt;">รูปถ่าย</div>`;
-
-        const htmlString = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head>
-                <meta charset='utf-8'>
-                <title>Personnel Record - ${personnel.personnelName}</title>
-                <style>
-                    @page { size: A4; margin: 2cm; mso-page-orientation: portrait; }
-                    body { font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.4; }
-                    .header-title { font-size: 22pt; font-weight: bold; text-align: center; margin: 0; }
-                    .header-sub { font-size: 18pt; font-weight: bold; text-align: center; margin: 0; }
-                    table { width: 100%; border-collapse: collapse; border: none; }
-                    td { vertical-align: top; padding: 4px 0; }
-                    .label { font-weight: bold; margin-right: 5px; }
-                    .value { border-bottom: 1px dotted #000; padding: 0 5px; display: inline-block; min-width: 50px; }
-                    .section-title { font-weight: bold; font-size: 18pt; border-bottom: 1px solid #000; margin-top: 20px; margin-bottom: 10px; }
-                    .photo-cell { text-align: right; vertical-align: top; padding-left: 20px; width: 4.5cm; }
-                </style>
-            </head>
-            <body>
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <img src="${logoSrc}" width="80" height="80" style="margin-bottom: 10px;" />
-                    <p class="header-title">${schoolName}</p>
-                    <p class="header-sub">ประวัติข้าราชการครูและบุคลากรทางการศึกษา</p>
-                </div>
-
-                 <table style="width: 100%;">
-                    <tr>
-                        <td valign="top">
-                            <p><span class="label">ชื่อ-นามสกุล:</span> <span class="value">${fullName}</span></p>
-                            <p>
-                                <span class="label">ตำแหน่ง:</span> <span class="value">${personnel.position}</span>
-                                &nbsp;&nbsp;
-                                <span class="label">เลขที่ตำแหน่ง:</span> <span class="value">${personnel.positionNumber || '-'}</span>
-                            </p>
-                             <p>
-                                <span class="label">วันเดือนปีเกิด:</span> <span class="value">${formatThaiDate(personnel.dob) || '-'}</span>
-                                &nbsp;&nbsp;
-                                <span class="label">อายุ:</span> <span class="value">${calculateAge(personnel.dob)} ปี</span>
-                            </p>
-                            <p>
-                                <span class="label">เลขบัตรประชาชน:</span> <span class="value">${personnel.idCard || '-'}</span>
-                            </p>
-                             <p>
-                                <span class="label">วันที่บรรจุแต่งตั้ง:</span> <span class="value">${formatThaiDate(personnel.appointmentDate) || '-'}</span>
-                            </p>
-                             <p>
-                                <span class="label">เบอร์โทรศัพท์:</span> <span class="value">${personnel.phone || '-'}</span>
-                            </p>
-                        </td>
-                        <td class="photo-cell" valign="top">
-                            ${photoHtml}
-                        </td>
-                    </tr>
-                </table>
-
-                <div class="section-title">ภาระงาน</div>
-                 <p><span class="label">ครูที่ปรึกษา:</span> <span class="value">${advisoryClassesText}</span></p>
-
-                 <br/><br/><br/>
-                 <table style="width: 100%; text-align: right;">
-                    <tr>
-                        <td>
-                            <p>ลงชื่อ ........................................................... เจ้าของประวัติ</p>
-                            <p>(${fullName})</p>
-                            <p>วันที่ ........./........./.............</p>
-                        </td>
-                    </tr>
-                 </table>
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob(['\ufeff', htmlString], { type: 'application/msword' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `ประวัติบุคลากร_${personnel.personnelName}.doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        setIsExportMenuOpen(false);
-    };
-
-    const exportToExcel = () => {
-         const data = [
-            ['หัวข้อ', 'ข้อมูล'],
-            ['ชื่อ-นามสกุล', fullName],
-            ['ตำแหน่ง', personnel.position],
-            ['เลขที่ตำแหน่ง', personnel.positionNumber],
-            ['เลขบัตรประชาชน', personnel.idCard],
-            ['วันเดือนปีเกิด', formatThaiDate(personnel.dob)],
-            ['อายุ', calculateAge(personnel.dob)],
-            ['เบอร์โทร', personnel.phone],
-            ['วันที่บรรจุ', formatThaiDate(personnel.appointmentDate)],
-            ['ครูที่ปรึกษา', advisoryClassesText]
-        ];
-
+    const handleExportExcel = () => {
+        const headers = ['ID', 'คำนำหน้า', 'ชื่อ-นามสกุล', 'ตำแหน่ง', 'วิทยฐานะ', 'เลขบัตรประชาชน', 'วันเกิด', 'เบอร์โทร', 'อีเมล', 'วันที่บรรจุ'];
+        const p = personnel;
+        const row = [p.id, p.personnelTitle, p.personnelName, p.position, p.academicStanding, p.idCard, p.dob, p.phone, p.email, p.appointmentDate];
+        
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        data.forEach(row => {
-            csvContent += row.map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(",") + "\r\n";
-        });
+        csvContent += headers.join(",") + "\r\n";
+        csvContent += row.map(d => `"${String(d || '').replace(/"/g, '""')}"`).join(",") + "\r\n";
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `ข้อมูลบุคลากร_${personnel.personnelName}.csv`);
+        link.setAttribute("download", `personnel_${p.id}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         setIsExportMenuOpen(false);
-    }
+    };
 
-    const handleExportIDCard = () => {
+    const handleExportWord = () => {
+         const htmlContent = `
+            <html><head><meta charset='utf-8'><title>Personnel Profile</title><style>body { font-family: 'TH SarabunPSK', sans-serif; font-size: 16pt; } .label { font-weight: bold; }</style></head>
+            <body>
+                <h1 align="center">ข้อมูลประวัติบุคลากร</h1>
+                <p><span class="label">ชื่อ-สกุล:</span> ${personnel.personnelName}</p>
+                <p><span class="label">ตำแหน่ง:</span> ${personnel.position}</p>
+                <p><span class="label">วิทยฐานะ:</span> ${personnel.academicStanding || '-'}</p>
+                <p><span class="label">เบอร์โทร:</span> ${personnel.phone}</p>
+            </body></html>
+        `;
+        const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `personnel_profile_${personnel.id}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setIsExportMenuOpen(false);
+    };
+
+    const handlePrintCard = () => {
         setIsExportMenuOpen(false);
         const logoSrc = getDirectDriveImageSrc(schoolLogo);
         const photoSrc = profileImageUrl || '';
-        
+
         const html = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>บัตรประจำตัวบุคลากร - ${personnel.personnelName}</title>
-                <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+                <title>บัตรประจำตัว - ${personnel.personnelName}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
                 <style>
                     @page { size: 8.6cm 5.4cm; margin: 0; }
-                    body { margin: 0; padding: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f3f4f6; }
-                    .card-container { width: 8.6cm; height: 5.4cm; position: relative; overflow: hidden; background: #fff; border: 1px solid #e5e7eb; box-sizing: border-box; }
-                    .bg-graphic { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background: linear-gradient(120deg, #f8fafc 40%, #e2e8f0 40%, #cbd5e1 100%); }
-                    .circle-deco { position: absolute; right: -30px; top: -30px; width: 150px; height: 150px; background: rgba(30, 58, 138, 0.05); border-radius: 50%; }
-                    .header { position: relative; z-index: 10; padding: 10px 14px 0 14px; display: flex; justify-content: space-between; align-items: flex-start; }
-                    .logo { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+                    body { margin: 0; font-family: 'Kanit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .card { 
+                        width: 8.6cm; height: 5.4cm; 
+                        background-color: #f0f2f5; 
+                        position: relative; overflow: hidden;
+                        display: flex; flex-direction: column;
+                    }
+                    .card::before {
+                        content: ''; position: absolute;
+                        top: -4cm; right: -5cm;
+                        width: 10cm; height: 10cm;
+                        background-color: #e9ecef;
+                        border-radius: 50%;
+                        z-index: 0;
+                    }
+                    .header {
+                        position: absolute; top: 0.3cm; left: 0.6cm; right: 0.6cm;
+                        display: flex; justify-content: space-between; align-items: flex-start; z-index: 10;
+                    }
+                    .logo { width: 0.8cm; height: 0.8cm; }
                     .header-text { text-align: right; }
-                    .org-name { font-size: 8px; color: #64748b; font-weight: 500; letter-spacing: 0.3px; }
-                    .school-name { font-size: 13px; font-weight: 700; color: #1e3a8a; line-height: 1.1; margin-top: 2px; }
-                    .province { font-size: 9px; color: #1e40af; font-weight: 500; margin-top: 1px; }
-                    .content { position: relative; z-index: 10; display: flex; padding: 8px 14px; gap: 12px; }
-                    .photo-box { width: 2.2cm; height: 2.7cm; background: #e2e8f0; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; flex-shrink: 0; }
-                    .photo-box img { width: 100%; height: 100%; object-fit: cover; }
-                    .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-                    .person-name { font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
-                    .role-badge { display: inline-block; background: linear-gradient(to right, #fbbf24, #f59e0b); color: #78350f; font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: fit-content; }
-                    .data-row { display: flex; align-items: baseline; font-size: 9px; line-height: 1.4; color: #334155; }
-                    .label { font-weight: 600; color: #64748b; width: 55px; flex-shrink: 0; }
-                    .value { font-weight: 500; }
-                    .footer { position: absolute; bottom: 0; left: 0; width: 100%; height: 24px; background: #1e293b; color: rgba(255,255,255,0.9); display: flex; justify-content: space-between; align-items: center; padding: 0 6px; font-size: 8px; font-weight: 400; z-index: 20; }
-                    .phone-container { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-weight: 400; color: #fff; font-size: 9px; white-space: nowrap; width: 130px; flex-shrink: 0; text-align: right; margin-right: 7px; }
+                    .org-name { font-size: 5pt; font-weight: 500; color: #495057; }
+                    .school-name { font-size: 11pt; font-weight: 700; color: #2d3748; line-height: 1; }
+                    .province { font-size: 7pt; font-weight: 600; color: #4a5568; }
+                    .body {
+                        position: relative; z-index: 5; flex-grow: 1;
+                        padding: 0.6cm; padding-top: 1.5cm;
+                        display: flex; gap: 0.5cm; align-items: center;
+                    }
+                    .photo {
+                        width: 2.3cm; height: 2.8cm; border-radius: 0.3cm;
+                        object-fit: cover; flex-shrink: 0; border: 3px solid white;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    }
+                    .info { flex-grow: 1; }
+                    .name { font-size: 13pt; font-weight: 700; color: #212529; margin: 0 0 0.3cm 0; line-height: 1.2; }
+                    .details-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.1cm 0.3cm; font-size: 7pt; }
+                    .label { font-weight: 500; color: #6c757d; }
+                    .value { font-weight: 600; color: #343a40; }
+                    .footer {
+                        margin-top: auto; height: 0.8cm; background: #2d3748; color: #ffffff;
+                        display: flex; justify-content: space-between; align-items: center;
+                        padding: 0 0.6cm; font-size: 7pt; font-weight: 500; z-index: 10;
+                    }
                 </style>
             </head>
             <body onload="window.print()">
-                <div class="card-container">
-                    <div class="bg-graphic"></div>
-                    <div class="circle-deco"></div>
+                <div class="card">
+                    <div class="card::before"></div>
                     <div class="header">
-                        <img src="${logoSrc}" class="logo" onerror="this.style.opacity=0">
+                        <img src="${logoSrc}" class="logo">
                         <div class="header-text">
                             <div class="org-name">สำนักบริหารงานการศึกษาพิเศษ</div>
-                            <div class="school-name">โรงเรียนกาฬสินธุ์ปัญญานุกูล</div>
+                            <div class="school-name">${schoolName}</div>
                             <div class="province">จังหวัดกาฬสินธุ์</div>
                         </div>
                     </div>
-                    <div class="content">
-                        <div class="photo-box">
-                             ${photoSrc ? `<img src="${photoSrc}">` : ''}
-                        </div>
-                        <div class="info-col">
-                            <div class="person-name">${fullName}</div>
-                            <div class="role-badge">${personnel.position}</div>
-                            <div class="data-row"><span class="label">ID Card</span><span class="value">${personnel.idCard}</span></div>
-                            <div class="data-row"><span class="label">เบอร์โทร</span><span class="value">${personnel.phone}</span></div>
-                            <div class="data-row"><span class="label">บรรจุเมื่อ</span><span class="value">${formatThaiDate(personnel.appointmentDate) || '-'}</span></div>
+                    <div class="body">
+                        <img src="${photoSrc}" class="photo" onerror="this.style.opacity=0">
+                        <div class="info">
+                            <div class="name">${personnel.personnelName}</div>
+                            <div class="details-grid">
+                                <div class="label">ID Card</div>
+                                <div class="value">${personnel.idCard || '-'}</div>
+                                <div class="label">เบอร์โทร</div>
+                                <div class="value">${personnel.phone || '-'}</div>
+                                <div class="label">บรรจุเมื่อ</div>
+                                <div class="value">${formatThaiDate(personnel.appointmentDate)}</div>
+                            </div>
                         </div>
                     </div>
                     <div class="footer">
-                         <div>ผู้ออกบัตร: ผู้อำนวยการสถานศึกษา</div>
-                        <div class="phone-container">โทร. 043-840842</div>
+                        <span>ผู้ออกบัตร: ผู้อำนวยการสถานศึกษา</span>
+                        <span>โทร. 043-840842</span>
                     </div>
                 </div>
             </body>
-            </html>
-        `;
-        const win = window.open('', '_blank', 'width=600,height=400');
+            </html>`;
+
+        const win = window.open('', '_blank');
         if (win) { win.document.write(html); win.document.close(); }
     };
 
+    // UI Components
+    const TabButton = ({ tab, label, icon }: { tab: Tab, label: string, icon: React.ReactNode }) => (
+        <button
+            onClick={() => setActiveTab(tab)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === tab ? 'bg-primary-blue text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
+        >
+            {icon} {label}
+        </button>
+    );
+
+    const DetailItem = ({ label, value }: { label: string, value?: string | number | null }) => (
+        <div>
+            <p className="text-xs text-gray-500 uppercase font-semibold">{label}</p>
+            <p className="text-sm font-medium text-gray-800 break-words">{value || '-'}</p>
+        </div>
+    );
+
+    const StatusBadge = ({ status }: { status: string }) => {
+        const style = {
+            approved: 'bg-green-100 text-green-700',
+            pending: 'bg-yellow-100 text-yellow-700',
+            rejected: 'bg-red-100 text-red-700',
+            needs_edit: 'bg-red-100 text-red-700',
+        }[status] || 'bg-gray-100 text-gray-700';
+        const label = {
+            approved: 'อนุมัติแล้ว',
+            pending: 'รอตรวจสอบ',
+            rejected: 'ไม่อนุมัติ',
+            needs_edit: 'ต้องแก้ไข',
+        }[status] || status;
+        return <span className={`px-2 py-1 rounded-full text-xs font-bold ${style}`}>{label}</span>;
+    };
+
+    // Render Functions for each Tab
+    const renderProfileTab = () => {
+        const educationBackgrounds = safeParseArray(personnel.educationBackgrounds) as EducationBackground[];
+
+        return (
+            <div className="space-y-6">
+                <h3 className="font-bold text-lg text-navy">ข้อมูลส่วนตัวและตำแหน่งงาน</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <DetailItem label="คำนำหน้า" value={personnel.personnelTitle === 'อื่นๆ' ? personnel.personnelTitleOther : personnel.personnelTitle} />
+                    <DetailItem label="ชื่อ-นามสกุล" value={personnel.personnelName} />
+                    <DetailItem label="ตำแหน่ง" value={personnel.position} />
+                    <DetailItem label="วิทยฐานะ" value={personnel.academicStanding} />
+                    <DetailItem label="เลขที่ตำแหน่ง" value={personnel.positionNumber} />
+                    <DetailItem label="วันที่บรรจุ" value={formatThaiDate(personnel.appointmentDate)} />
+                    <DetailItem label="เลขบัตรประชาชน" value={personnel.idCard} />
+                    <DetailItem label="วันเกิด" value={formatThaiDate(personnel.dob)} />
+                    <DetailItem label="เบอร์โทรศัพท์" value={personnel.phone} />
+                    <DetailItem label="Email" value={personnel.email} />
+                    <DetailItem label="ที่อยู่" value={(personnel as any).address} />
+                </div>
+                <div className="mt-6">
+                    <h4 className="font-bold text-gray-700 mb-2">ประวัติการศึกษา</h4>
+                    {educationBackgrounds.length > 0 ? (
+                        <div className="space-y-3">
+                            {educationBackgrounds.map((edu, index) => (
+                                <div key={index} className="bg-gray-50 p-3 rounded-lg border">
+                                    <p className="font-bold text-sm text-navy">{edu.level}</p>
+                                    <p className="text-xs text-gray-600">คณะ: {edu.faculty || '-'}</p>
+                                    <p className="text-xs text-gray-600">วิชาเอก: {edu.major || '-'}</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : <p className="text-sm text-gray-500 italic">ไม่มีข้อมูล</p>}
+                </div>
+            </div>
+        )
+    };
+
+    const renderAdvisoryTab = () => (
+        <div>
+            <h3 className="font-bold text-lg text-navy mb-4">นักเรียนในที่ปรึกษา ({myAdvisoryStudents.length} คน)</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {myAdvisoryStudents.map(student => (
+                    <div key={student.id} className="bg-white p-3 rounded-xl border border-gray-200 flex items-center gap-3">
+                        <img src={getFirstImageSource(student.studentProfileImage) || ''} onError={(e) => e.currentTarget.src = `https://ui-avatars.com/api/?name=${student.studentName}&background=random`} alt={student.studentName} className="w-12 h-12 rounded-full object-cover"/>
+                        <div>
+                            <p className="font-bold text-sm text-gray-800">{student.studentName}</p>
+                            <p className="text-xs text-gray-500">{student.studentClass}</p>
+                        </div>
+                    </div>
+                ))}
+                {myAdvisoryStudents.length === 0 && <p className="text-gray-500 col-span-full">ไม่พบข้อมูลนักเรียนในที่ปรึกษา</p>}
+            </div>
+        </div>
+    );
+
+    const renderLeaveTab = () => (
+        <div>
+            <h3 className="font-bold text-lg text-navy mb-4">ประวัติการลา</h3>
+            <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                    <thead className="bg-gray-50"><tr><th className="p-2">ประเภท</th><th className="p-2">ช่วงเวลา</th><th className="p-2">จำนวนวัน</th><th className="p-2">สถานะ</th></tr></thead>
+                    <tbody>
+                        {myLeaveRecords.map(r => (
+                            <tr key={r.id} className="border-b"><td className="p-2">{r.type}</td><td className="p-2">{r.startDate} - {r.endDate}</td><td className="p-2">{r.daysCount}</td><td className="p-2"><StatusBadge status={r.status}/></td></tr>
+                        ))}
+                    </tbody>
+                </table>
+                 {myLeaveRecords.length === 0 && <p className="text-gray-500 p-4 text-center">ไม่พบข้อมูลการลา</p>}
+            </div>
+        </div>
+    );
+    
+    const renderPaTab = () => (
+        <div>
+            <h3 className="font-bold text-lg text-navy mb-4">ประวัติการส่งรายงาน PA</h3>
+            <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                     <thead className="bg-gray-50"><tr><th className="p-2">ปีการศึกษา</th><th className="p-2">รอบ</th><th className="p-2">หัวข้อ</th><th className="p-2">สถานะ</th></tr></thead>
+                     <tbody>
+                        {myPaReports.map(r => (
+                            <tr key={r.id} className="border-b"><td className="p-2">{r.academicYear}</td><td className="p-2">{r.round}</td><td className="p-2">{r.agreementTitle}</td><td className="p-2"><StatusBadge status={r.status}/></td></tr>
+                        ))}
+                     </tbody>
+                </table>
+                {myPaReports.length === 0 && <p className="text-gray-500 p-4 text-center">ไม่พบข้อมูลรายงาน PA</p>}
+            </div>
+        </div>
+    );
+    
+    const renderSarTab = () => (
+         <div>
+            <h3 className="font-bold text-lg text-navy mb-4">ประวัติการส่งรายงาน SAR</h3>
+            <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                     <thead className="bg-gray-50"><tr><th className="p-2">ปีการศึกษา</th><th className="p-2">วันที่ส่ง</th><th className="p-2">ไฟล์</th><th className="p-2">สถานะ</th></tr></thead>
+                     <tbody>
+                        {mySarReports.map(r => (
+                            <tr key={r.id} className="border-b"><td className="p-2">{r.academicYear}</td><td className="p-2">{r.submissionDate}</td><td className="p-2"><a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" className="text-blue-600 hover:underline">ดูไฟล์</a></td><td className="p-2"><StatusBadge status={r.status}/></td></tr>
+                        ))}
+                     </tbody>
+                </table>
+                 {mySarReports.length === 0 && <p className="text-gray-500 p-4 text-center">ไม่พบข้อมูลรายงาน SAR</p>}
+            </div>
+        </div>
+    );
+
+    const renderPlansTab = () => (
+        <div>
+            <h3 className="font-bold text-lg text-navy mb-4">ประวัติการส่งแผนการสอน</h3>
+            <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                     <thead className="bg-gray-50"><tr><th className="p-2">วิชา</th><th className="p-2">วันที่ส่ง</th><th className="p-2">ไฟล์แนบ</th><th className="p-2">สถานะ</th></tr></thead>
+                     <tbody>
+                        {myAcademicPlans.map(p => (
+                            <tr key={p.id} className="border-b">
+                                <td className="p-2">{p.subjectName}</td>
+                                <td className="p-2">{p.date}</td>
+                                <td className="p-2 flex gap-2">
+                                    <a href={getDriveViewUrl(safeParseArray(p.courseStructureFile)[0])} target="_blank" className="text-blue-600 hover:underline">โครงสร้าง</a>
+                                    <a href={getDriveViewUrl(safeParseArray(p.lessonPlanFile)[0])} target="_blank" className="text-blue-600 hover:underline">แผนฯ</a>
+                                </td>
+                                <td className="p-2"><StatusBadge status={p.status}/></td>
+                            </tr>
+                        ))}
+                     </tbody>
+                </table>
+                {myAcademicPlans.length === 0 && <p className="text-gray-500 p-4 text-center">ไม่พบข้อมูลแผนการสอน</p>}
+            </div>
+        </div>
+    );
+
+// FIX: Renamed the 'key' property in the tabs array to 'tab' to avoid type conflicts.
+    const tabs = [
+        { tab: 'profile' as Tab, label: 'ประวัติส่วนตัว', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
+        { tab: 'advisory' as Tab, label: 'ครูที่ปรึกษา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+        { tab: 'leave' as Tab, label: 'ประวัติการลา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
+        { tab: 'pa' as Tab, label: 'รายงาน PA', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+        { tab: 'sar' as Tab, label: 'รายงาน SAR', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+        { tab: 'plans' as Tab, label: 'แผนการสอน', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg> },
+    ];
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[70] p-4" onClick={onClose}>
-            <style>{`
-                @media print {
-                    #print-dashboard { display: none !important; }
-                    #print-section-personnel { display: block !important; }
-                    @page { size: A4 portrait; margin: 2cm; }
-                    body { font-family: 'TH Sarabun PSK', 'Sarabun', sans-serif; font-size: 16pt; }
-                    .print-dotted-line { border-bottom: 1px dotted #000; flex-grow: 1; margin-left: 5px; padding-left: 5px; }
-                }
-            `}</style>
-            
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[70] p-2 sm:p-4 font-sarabun print-container" onClick={onClose}>
             <div 
-                className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col print:fixed print:inset-0 print:w-full print:h-full print:max-w-none print:rounded-none print:z-[100] print:bg-white" 
+                className="bg-gray-50 rounded-2xl shadow-2xl w-full max-w-md md:max-w-3xl lg:max-w-5xl max-h-[95vh] flex flex-col print:hidden" 
                 onClick={e => e.stopPropagation()}
             >
-                <div className="p-5 border-b flex justify-between items-center print:hidden">
-                    <h2 className="text-2xl font-bold text-navy">รายละเอียดข้อมูลบุคลากร</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                {/* Screen-only content */}
+                <div className="p-6 border-b bg-white rounded-t-2xl flex flex-col sm:flex-row justify-between items-start gap-4">
+                    <div className="flex items-center gap-4">
+                        <img src={profileImageUrl || ''} onError={(e) => e.currentTarget.src = `https://ui-avatars.com/api/?name=${personnel.personnelName}`} alt="Profile" className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md"/>
+                        <div>
+                            <h2 className="text-2xl font-bold text-navy">{personnel.personnelName}</h2>
+                            <p className="text-gray-500">{personnel.position}</p>
+                            <div className="flex gap-2 mt-2">
+                                {personnel.role === 'admin' && <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded">Admin</span>}
+                                {personnel.isSarabanAdmin && <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Saraban</span>}
+                                {personnel.specialRank && personnel.specialRank !== 'staff' && <span className="text-xs font-bold bg-gray-200 text-gray-700 px-2 py-1 rounded">{personnel.specialRank}</span>}
+                            </div>
+                        </div>
+                    </div>
+                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
+                <div className="flex border-b bg-white overflow-x-auto no-scrollbar p-2">
+                    {tabs.map((item) => <TabButton key={item.tab} tab={item.tab} label={item.label} icon={item.icon} />)}
+                </div>
 
-                <div className="flex-grow overflow-y-auto p-6 print:overflow-visible print:p-8">
-                    
-                    {/* ---------------- PRINT LAYOUT (Official A4 Government Record) ---------------- */}
-                    <div id="print-section-personnel" className="hidden print:block print-visible font-sarabun text-black leading-normal">
-                        
-                        <div className="text-center mb-6">
-                             <img src={getDirectDriveImageSrc(schoolLogo)} alt="logo" className="h-20 w-auto mx-auto mb-2" />
-                             <h1 className="text-2xl font-bold">{schoolName}</h1>
-                             <h2 className="text-xl font-bold mt-1">ประวัติข้าราชการครูและบุคลากรทางการศึกษา</h2>
-                        </div>
-
-                        <div className="flex justify-between items-start">
-                            <div className="flex-grow pr-8 space-y-2 text-lg w-2/3">
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">ชื่อ-นามสกุล:</span>
-                                    <span className="print-dotted-line">{fullName}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">ตำแหน่ง:</span>
-                                    <span className="print-dotted-line">{personnel.position}</span>
-                                    <span className="font-bold shrink-0 ml-4">เลขที่ตำแหน่ง:</span>
-                                    <span className="print-dotted-line">{personnel.positionNumber || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">วันเดือนปีเกิด:</span>
-                                    <span className="print-dotted-line">{formatThaiDate(personnel.dob) || '-'}</span>
-                                    <span className="font-bold shrink-0 ml-4">อายุ:</span>
-                                    <span className="print-dotted-line">{calculateAge(personnel.dob)} ปี</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">เลขบัตรประชาชน:</span>
-                                    <span className="print-dotted-line">{personnel.idCard || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">วันที่บรรจุแต่งตั้ง:</span>
-                                    <span className="print-dotted-line">{formatThaiDate(personnel.appointmentDate) || '-'}</span>
-                                 </div>
-                                 <div className="flex items-baseline">
-                                    <span className="font-bold shrink-0">เบอร์โทรศัพท์:</span>
-                                    <span className="print-dotted-line">{personnel.phone || '-'}</span>
-                                 </div>
+                <div className="flex-grow overflow-y-auto p-4 sm:p-6">
+                    {activeTab === 'profile' && renderProfileTab()}
+                    {activeTab === 'advisory' && renderAdvisoryTab()}
+                    {activeTab === 'leave' && renderLeaveTab()}
+                    {activeTab === 'pa' && renderPaTab()}
+                    {activeTab === 'sar' && renderSarTab()}
+                    {activeTab === 'plans' && renderPlansTab()}
+                </div>
+                 <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3">
+                    <div className="relative" ref={exportMenuRef}>
+                        <button 
+                            type="button" 
+                            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            ดาวน์โหลด / ส่งออก
+                        </button>
+                         {isExportMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-2 w-60 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+                                <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b"><svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>พิมพ์ / บันทึก PDF</button>
+                                <button onClick={handleExportWord} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b"><svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>ส่งออก Word (.doc)</button>
+                                <button onClick={handleExportExcel} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b"><svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>ส่งออก Excel (.csv)</button>
+                                <button onClick={handlePrintCard} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors"><svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>บัตรประจำตัวบุคลากร</button>
                             </div>
-
-                            <div className="w-[4cm] h-[5.2cm] border border-black flex items-center justify-center bg-gray-50 shrink-0 mb-4 self-start">
-                                {profileImageUrl ? (
-                                    <img src={profileImageUrl} className="w-full h-full object-cover" alt="Profile" />
-                                ) : (
-                                    <span className="text-gray-400 text-sm">รูปถ่าย</span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="mt-8 mb-4 border-b border-black">
-                            <h3 className="text-lg font-bold pb-1">ภาระงาน</h3>
-                        </div>
-                        
-                         <div className="space-y-2 text-lg">
-                             <div className="flex items-baseline">
-                                <span className="font-bold shrink-0">ครูที่ปรึกษา:</span>
-                                <span className="print-dotted-line">{advisoryClassesText}</span>
-                            </div>
-                        </div>
-
-                         <div className="mt-16 flex justify-end text-lg">
-                            <div className="text-center w-72">
-                                <p className="mb-8">ลงชื่อ ........................................................... เจ้าของประวัติ</p>
-                                <p className="mb-2">({fullName})</p>
-                                <p>วันที่ ........./........./.............</p>
-                            </div>
-                        </div>
+                         )}
                     </div>
+                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                        ปิด
+                    </button>
+                </div>
+            </div>
 
-                    {/* ---------------- SCREEN LAYOUT ---------------- */}
-                    <div className="print:hidden">
-                        <div className="flex flex-col sm:flex-row gap-6 items-start mb-6">
-                            <div className="flex-shrink-0 w-full sm:w-40">
-                                <div className="w-40 h-52 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden mx-auto shadow-md">
-                                    {profileImageUrl ? (
-                                        <img 
-                                            src={profileImageUrl} 
-                                            alt="Profile" 
-                                            className="w-full h-full object-cover" 
-                                            onError={(e) => {
-                                                const target = e.currentTarget;
-                                                target.onerror = null; 
-                                                target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
-                                                target.outerHTML = `<svg class="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`;
-                                            }}
-                                        />
-                                    ) : (
-                                        <svg className="w-24 h-24 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex-grow">
-                                <h3 className="text-3xl font-bold text-navy">{fullName}</h3>
-                                <p className="text-xl text-secondary-gray mb-4">{personnel.position}</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                                    <DetailItem label="วันเดือนปีเกิด" value={formatThaiDate(personnel.dob)} />
-                                    <DetailItem label="อายุ" value={`${calculateAge(personnel.dob)} ปี`} />
-                                    <DetailItem label="เลขบัตรประชาชน" value={personnel.idCard} />
-                                    <DetailItem label="เบอร์โทร" value={personnel.phone} />
-                                    <DetailItem label="วันที่บรรจุ" value={formatThaiDate(personnel.appointmentDate)} />
-                                    <DetailItem label="เลขตำแหน่ง" value={personnel.positionNumber} />
-                                    <DetailItem label="ครูที่ปรึกษา" value={advisoryClassesText} fullWidth />
-                                </div>
-                            </div>
+            {/* Print-only content - Replaced with official form style */}
+            <div className="hidden print:block font-sarabun text-black print-area-memo" style={{ padding: '1.5cm', fontSize: '16pt' }}>
+                <div className="text-center mb-6">
+                    <img src={getDirectDriveImageSrc(schoolLogo)} alt="logo" className="w-20 h-20 object-contain mx-auto mb-2" />
+                    <h1 className="text-xl font-bold">{schoolName}</h1>
+                    <h2 className="text-lg font-bold">แบบบันทึกข้อมูลบุคลากรรายบุคคล</h2>
+                </div>
+
+                <div className="flex gap-6">
+                    <div className="flex-grow space-y-3 text-base">
+                        <div className="flex items-baseline"><span className="font-bold w-32">ชื่อ-นามสกุล:</span><div className="border-b border-dotted border-black flex-grow px-2">{`${personnel.personnelTitle || ''} ${personnel.personnelName}`}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">ตำแหน่ง:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.position}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">เลขบัตรประชาชน:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.idCard}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">วันเกิด:</span><div className="border-b border-dotted border-black flex-grow px-2">{formatThaiDate(personnel.dob)}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">วิทยฐานะ:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.academicStanding || '-'}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">เลขที่ตำแหน่ง:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.positionNumber || '-'}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">เบอร์โทร:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.phone}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">ที่อยู่:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.address || '-'}</div></div>
+                        <div className="flex items-baseline"><span className="font-bold w-32">วันที่บรรจุ:</span><div className="border-b border-dotted border-black flex-grow px-2">{formatThaiDate(personnel.appointmentDate)}</div></div>
+                    </div>
+                    <div className="w-[3.5cm] flex-shrink-0 flex flex-col items-center">
+                        <div className="w-[3.5cm] h-[4.5cm] border-2 border-black flex items-center justify-center bg-gray-100 overflow-hidden p-0.5">
+                            {profileImageUrl ? <img src={profileImageUrl} alt="profile" className="w-full h-full object-cover" /> : <span className="text-sm text-gray-400">รูปถ่าย</span>}
                         </div>
                     </div>
                 </div>
 
-                 <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3 print:hidden">
-                    <div className="relative">
-                        <button 
-                            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow-md transition-all"
-                        >
-                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                             ดาวน์โหลด / ส่งออก
-                        </button>
-                        
-                        {isExportMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
-                                <button onClick={handlePrint} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-primary-blue flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                    พิมพ์ / บันทึก PDF
-                                </button>
-                                <button onClick={exportToWord} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1.01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    ส่งออก Word (.doc)
-                                </button>
-                                <button onClick={exportToExcel} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-green-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    ส่งออก Excel (.csv)
-                                </button>
-                                <button onClick={handleExportIDCard} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-orange-600 flex items-center gap-3 transition-colors border-b border-gray-50">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
-                                    บัตรประจำตัวบุคลากร
-                                </button>
+                <div className="mt-8">
+                    <h3 className="font-bold text-lg border-b-2 border-black mb-3 inline-block">ข้อมูลการศึกษา</h3>
+                    <div className="space-y-3">
+                        {(safeParseArray(personnel.educationBackgrounds) as EducationBackground[]).map((edu, index) => (
+                            <div key={index} className="flex items-baseline">
+                                <span className="font-bold w-36">{edu.level}:</span>
+                                <div className="border-b border-dotted border-black flex-grow px-2">{edu.faculty}{edu.major ? `, สาขา ${edu.major}` : ''}</div>
                             </div>
-                        )}
+                        ))}
+                        {(safeParseArray(personnel.educationBackgrounds).length === 0) && <p className="text-gray-500 italic">ไม่มีข้อมูล</p>}
                     </div>
-                    <button type="button" onClick={onClose} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg">
-                        ปิด
-                    </button>
+                </div>
+                
+                 <div className="mt-8">
+                    <h3 className="font-bold text-lg border-b-2 border-black mb-3 inline-block">ข้อมูลการปฏิบัติงาน</h3>
+                    <div className="space-y-3">
+                         <div className="flex items-baseline"><span className="font-bold w-36">อีเมล:</span><div className="border-b border-dotted border-black flex-grow px-2">{personnel.email}</div></div>
+                         <div className="flex items-baseline"><span className="font-bold w-36">ชั้นเรียนในที่ปรึกษา:</span><div className="border-b border-dotted border-black flex-grow px-2">{safeParseArray(personnel.advisoryClasses).join(', ') || '-'}</div></div>
+                    </div>
+                </div>
+
+                <div className="mt-24 flex justify-end">
+                    <div className="text-center w-80 space-y-2">
+                        <p>...........................................................</p>
+                        <p>(...........................................................)</p>
+                        <p>ผู้รับรองข้อมูล</p>
+                        <p>วันที่ ......... เดือน ......................... พ.ศ. .............</p>
+                    </div>
                 </div>
             </div>
         </div>
