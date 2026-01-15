@@ -201,6 +201,7 @@ const App: React.FC = () => {
                 if (!p.status) p.status = 'approved';
                 p.dob = normalizeDateString(p.dob);
                 p.appointmentDate = normalizeDateString(p.appointmentDate);
+                p.highestDecorationDate = normalizeDateString(p.highestDecorationDate);
                 return p;
             });
             setPersonnel(fetchedPersonnel);

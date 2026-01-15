@@ -36,7 +36,9 @@ const initialFormData: Omit<Personnel, 'id'> = {
     role: 'user',
     status: 'approved',
     isSarabanAdmin: false,
-    specialRank: 'staff'
+    specialRank: 'staff',
+    highestDecoration: '',
+    highestDecorationDate: ''
 };
 
 const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, personnelToEdit, positions, students, isSaving, currentUserRole, currentUser, settings }) => {
@@ -45,7 +47,7 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
 
     const isEditing = !!personnelToEdit;
     const personnelTitles = ['นาย', 'นาง', 'นางสาว', 'อื่นๆ'];
-
+    
     const allClasses = useMemo(() => 
         Array.from(new Set(students.map(s => s.studentClass))).sort()
     , [students]);
@@ -221,6 +223,14 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">วันที่บรรจุแต่งตั้ง</label>
                                     <input type="date" name="appointmentDate" value={buddhistToISO(formData.appointmentDate)} onChange={handleDateChange} className="w-full px-3 py-2 border rounded-lg" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">เครื่องราชอิสริยาภรณ์สูงสุด</label>
+                                    <input type="text" name="highestDecoration" value={formData.highestDecoration || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" placeholder="เช่น ท.ช., ป.ม." />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">วันที่ได้รับเครื่องราชฯ</label>
+                                    <input type="date" name="highestDecorationDate" value={buddhistToISO(formData.highestDecorationDate)} onChange={handleDateChange} className="w-full px-3 py-2 border rounded-lg" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">เลขบัตรประชาชน *</label>

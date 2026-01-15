@@ -283,6 +283,8 @@ export interface Personnel {
   isSarabanAdmin?: boolean; 
   specialRank?: SpecialRank;
   token?: string; 
+  highestDecoration?: string;
+  highestDecorationDate?: string;
 }
 
 export interface ThemeColors {
