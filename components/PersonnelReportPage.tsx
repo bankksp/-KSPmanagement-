@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { PerformanceReport, Personnel, Settings } from '../types';
 import { getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate, getDriveViewUrl, safeParseArray } from '../utils';
@@ -182,9 +181,9 @@ const PersonnelReportPage: React.FC<{
         });
 
         const statusData = [
-            { name: 'รอตรวจสอบ', value: statusCounts.pending, color: '#F59E0B' },
-            { name: 'อนุมัติแล้ว', value: statusCounts.approved, color: '#10B981' },
-            { name: 'ต้องแก้ไข', value: statusCounts.needs_edit, color: '#EF4444' },
+            { name: 'รอตรวจ', value: statusCounts.pending, color: '#F59E0B' },
+            { name: 'ผ่าน', value: statusCounts.approved, color: '#10B981' },
+            { name: 'ไม่ผ่าน', value: statusCounts.needs_edit, color: '#EF4444' },
         ].filter(d => d.value > 0);
 
         const standingData = Object.entries(academicStandingCounts)
@@ -199,7 +198,7 @@ const PersonnelReportPage: React.FC<{
             const matchesSearch = 
                 (r.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (r.agreementTitle || '').toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesYear = !filterYear || r.academicYear === filterYear;
+            const matchesYear = !filterYear || String(r.academicYear) === String(filterYear);
             const matchesPosition = !filterPosition || r.position === filterPosition;
             const matchesRound = !filterRound || r.round === filterRound;
             return matchesSearch && matchesYear && matchesPosition && matchesRound;
@@ -230,7 +229,7 @@ const PersonnelReportPage: React.FC<{
     const handleStatusUpdate = (reportId: number, newStatus: PerformanceReport['status']) => {
         const reportToUpdate = reports.find(r => r.id === reportId);
         if (reportToUpdate) {
-            const statusLabels: Record<PerformanceReport['status'], string> = { 'pending': 'รอตรวจสอบ', 'approved': 'อนุมัติ', 'needs_edit': 'ปรับปรุง' };
+            const statusLabels: Record<PerformanceReport['status'], string> = { 'pending': 'รอตรวจ', 'approved': 'ผ่าน', 'needs_edit': 'ไม่ผ่าน' };
             if (window.confirm(`ต้องการเปลี่ยนสถานะของ ${reportToUpdate.name} เป็น "${statusLabels[newStatus]}" หรือไม่?`)) {
                 onSave({ ...reportToUpdate, status: newStatus });
             }
@@ -270,9 +269,9 @@ const PersonnelReportPage: React.FC<{
     
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'approved': return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold border border-green-200">อนุมัติแล้ว</span>;
-            case 'needs_edit': return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold border border-red-200">ปรับปรุง</span>;
-            default: return <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-bold border border-yellow-200">รอตรวจสอบ</span>;
+            case 'approved': return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold border border-green-200">ผ่าน</span>;
+            case 'needs_edit': return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold border border-red-200">ไม่ผ่าน</span>;
+            default: return <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-bold border border-yellow-200">รอตรวจ</span>;
         }
     };
 
@@ -291,9 +290,9 @@ const PersonnelReportPage: React.FC<{
                 <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-white p-4 rounded-xl shadow border border-gray-100"><p className="text-sm text-gray-500">ทั้งหมด</p><p className="text-3xl font-bold text-navy">{stats.total}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow border border-yellow-100"><p className="text-sm text-yellow-600">รอตรวจสอบ</p><p className="text-3xl font-bold text-yellow-700">{stats.pending}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow border border-green-100"><p className="text-sm text-green-600">อนุมัติแล้ว</p><p className="text-3xl font-bold text-green-700">{stats.approved}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow border border-red-100"><p className="text-sm text-red-600">ต้องแก้ไข</p><p className="text-3xl font-bold text-red-700">{stats.needs_edit}</p></div>
+                        <div className="bg-white p-4 rounded-xl shadow border border-yellow-100"><p className="text-sm text-yellow-600">รอตรวจ</p><p className="text-3xl font-bold text-yellow-700">{stats.pending}</p></div>
+                        <div className="bg-white p-4 rounded-xl shadow border border-green-100"><p className="text-sm text-green-600">ผ่าน</p><p className="text-3xl font-bold text-green-700">{stats.approved}</p></div>
+                        <div className="bg-white p-4 rounded-xl shadow border border-red-100"><p className="text-sm text-red-600">ไม่ผ่าน</p><p className="text-3xl font-bold text-red-700">{stats.needs_edit}</p></div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div className="bg-white p-6 rounded-xl shadow h-80"><h3 className="font-bold mb-2">สถานะรายงาน</h3><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={stats.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" isAnimationActive={false}>{stats.statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
@@ -341,7 +340,7 @@ const PersonnelReportPage: React.FC<{
                     </div>
                     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
                         {selectedIds.size > 0 && isAdminOrPro && <div className="mb-4 flex justify-end"><button onClick={handleDelete} className="bg-red-500 text-white px-3 py-1 rounded text-sm font-bold">ลบ {selectedIds.size} รายการ</button></div>}
-                        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><thead className="bg-gray-50 text-gray-600"><tr><th className="p-3 w-8"><input type="checkbox" className="rounded" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredReports.map(r=>r.id)) : new Set())}/></th><th className="p-3">ปี/รอบ</th><th className="p-3">วันที่ส่ง</th><th className="p-3">ชื่อ-สกุล</th><th className="p-3">ตำแหน่ง/วิทยฐานะ</th><th className="p-3">หัวข้อข้อตกลง</th><th className="p-3">ไฟล์</th><th className="p-3 text-center">สถานะ</th><th className="p-3 text-center">จัดการ</th></tr></thead><tbody className="divide-y">{filteredReports.map(r => (<tr key={r.id} className="hover:bg-gray-50"><td className="p-3"><input type="checkbox" className="rounded" checked={selectedIds.has(r.id)} onChange={() => {const next = new Set(selectedIds); if (next.has(r.id)) next.delete(r.id); else next.add(r.id); setSelectedIds(next);}} /></td><td className="p-3 whitespace-nowrap"><div>{r.academicYear}</div><div className="text-xs text-gray-500">รอบที่ {r.round}</div></td><td className="p-3 whitespace-nowrap">{formatThaiDate(r.submissionDate)}</td><td className="p-3 font-medium text-navy">{r.name}</td><td className="p-3"><div>{r.position}</div><div className="text-xs text-blue-600">{r.academicStanding || '-'}</div></td><td className="p-3 text-gray-600 max-w-xs truncate">{r.agreementTitle || '-'}</td><td className="p-3"><a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">ดูไฟล์</a></td>
+                        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><thead className="bg-gray-50 text-gray-600"><tr><th className="p-3 w-8"><input type="checkbox" className="rounded" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredReports.map(r=>r.id)) : new Set())}/></th><th className="p-3">ปี/รอบ</th><th className="p-3">วันที่ส่ง</th><th className="p-3">ชื่อ-สกุล</th><th className="p-3">ตำแหน่ง/วิทยฐานะ</th><th className="p-3">หัวข้อข้อตกลง</th><th className="p-3">ไฟล์</th><th className="p-3 text-center">สถานะ</th><th className="p-3 text-center">จัดการ</th></tr></thead><tbody className="divide-y">{filteredReports.map(r => (<tr key={r.id} className="hover:bg-gray-50"><td className="p-3"><input type="checkbox" className="rounded" checked={selectedIds.has(r.id)} onChange={() => {const next = new Set(selectedIds); if (next.has(r.id)) next.delete(r.id); else next.add(r.id); setSelectedIds(next);}} /></td><td className="p-3 whitespace-nowrap"><div>{r.academicYear}</div><div className="text-xs text-gray-500">รอบที่ {r.round}</div></td><td className="p-3 whitespace-nowrap">{formatThaiDate(r.submissionDate)}</td><td className="p-3 font-medium text-navy whitespace-nowrap">{r.name}</td><td className="p-3"><div className="whitespace-nowrap">{r.position}</div><div className="text-xs text-blue-600 whitespace-nowrap">{r.academicStanding || '-'}</div></td><td className="p-3 text-gray-600">{r.agreementTitle || '-'}</td><td className="p-3"><a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">ดูไฟล์</a></td>
                         <td className="p-3 text-center">
                             {isAdminOrPro ? (
                                 <select 
@@ -353,9 +352,9 @@ const PersonnelReportPage: React.FC<{
                                           r.status === 'needs_edit' ? 'bg-red-100 text-red-700 border-red-200 focus:ring-red-400' :
                                           'bg-yellow-100 text-yellow-700 border-yellow-200 focus:ring-yellow-400'}`}
                                 >
-                                    <option value="pending">รอตรวจสอบ</option>
-                                    <option value="approved">อนุมัติแล้ว</option>
-                                    <option value="needs_edit">ปรับปรุง</option>
+                                    <option value="pending">รอตรวจ</option>
+                                    <option value="approved">ผ่าน</option>
+                                    <option value="needs_edit">ไม่ผ่าน</option>
                                 </select>
                             ) : (
                                 getStatusBadge(r.status)

@@ -1,10 +1,10 @@
 
 
 import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { Student, Personnel, LeaveRecord, PerformanceReport, SARReport, AcademicPlan, Page, EducationBackground } from '../types';
-import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc } from '../utils';
+import { Student, Personnel, LeaveRecord, PerformanceReport, SARReport, AcademicPlan, Page, EducationBackground, Achievement } from '../types';
+import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc, parseThaiDateForSort } from '../utils';
 
-type Tab = 'profile' | 'advisory' | 'leave' | 'pa' | 'sar' | 'plans';
+type Tab = 'profile' | 'advisory' | 'leave' | 'pa' | 'sar' | 'plans' | 'achievements';
 
 interface ViewPersonnelModalProps {
     personnel: Personnel;
@@ -17,11 +17,12 @@ interface ViewPersonnelModalProps {
     performanceReports: PerformanceReport[];
     sarReports: SARReport[];
     academicPlans: AcademicPlan[];
+    achievements: Achievement[];
 }
 
 const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ 
     personnel, onClose, schoolName, schoolLogo, currentUser,
-    students, leaveRecords, performanceReports, sarReports, academicPlans
+    students, leaveRecords, performanceReports, sarReports, academicPlans, achievements
 }) => {
     const [activeTab, setActiveTab] = useState<Tab>('profile');
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -33,6 +34,8 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
     const myPaReports = useMemo(() => performanceReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [performanceReports, personnel.id]);
     const mySarReports = useMemo(() => sarReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [sarReports, personnel.id]);
     const myAcademicPlans = useMemo(() => academicPlans.filter(p => p.teacherId === personnel.id).sort((a,b) => b.id - a.id), [academicPlans, personnel.id]);
+    const myAchievements = useMemo(() => (achievements || []).filter(a => a.personnelId === personnel.id).sort((a, b) => parseThaiDateForSort(b.date) - parseThaiDateForSort(a.date)), [achievements, personnel.id]);
+
 
     const profileImageUrl = useMemo(() => getFirstImageSource(personnel.profileImage), [personnel.profileImage]);
 
@@ -355,15 +358,55 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
             </div>
         </div>
     );
+    
+    const renderAchievementsTab = () => (
+        <div>
+            <h3 className="font-bold text-lg text-navy mb-4">ผลงานและเกียรติบัตร ({myAchievements.length})</h3>
+             {myAchievements.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {myAchievements.map(ach => {
+                        const firstAttachment = getFirstImageSource(ach.attachments);
+                        const isPdf = safeParseArray(ach.attachments).some(f => typeof f === 'string' && f.toLowerCase().includes('.pdf'));
+                        
+                        return (
+                            <div key={ach.id} className="aspect-square bg-gray-100 rounded-xl relative overflow-hidden group border border-gray-200 shadow-sm cursor-pointer">
+                                {firstAttachment ? (
+                                    <img src={firstAttachment} alt={ach.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"/>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">
+                                        {isPdf ? '📄' : '🏆'}
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">{ach.title}</h4>
+                                    <p className="text-xs text-gray-300 mt-1">{formatThaiDate(ach.date)}</p>
+                                </div>
+                                {safeParseArray(ach.attachments).length > 1 && (
+                                    <div className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm text-gray-700 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">
+                                        +{safeParseArray(ach.attachments).length}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+             ) : (
+                <div className="text-center py-12 bg-gray-50 rounded-lg text-gray-500 border border-dashed">
+                    ยังไม่มีข้อมูลผลงาน
+                </div>
+             )}
+        </div>
+    );
 
-// FIX: Renamed the `key` property in the tabs array to `tab` to avoid type conflicts.
-    const tabs = [
-        { tab: 'profile' as Tab, label: 'ประวัติส่วนตัว', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
-        { tab: 'advisory' as Tab, label: 'ครูที่ปรึกษา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-        { tab: 'leave' as Tab, label: 'ประวัติการลา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
-        { tab: 'pa' as Tab, label: 'รายงาน PA', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
-        { tab: 'sar' as Tab, label: 'รายงาน SAR', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-        { tab: 'plans' as Tab, label: 'แผนการสอน', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg> },
+    {/* // FIX: Removed the extra `key` property from the objects in this array as it does not exist on the type definition and is not needed. */}
+    const tabs: { tab: Tab; label: string; icon: React.ReactNode; }[] = [
+        { tab: 'profile', label: 'ประวัติส่วนตัว', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
+        { tab: 'achievements', label: 'ผลงาน', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
+        { tab: 'advisory', label: 'ครูที่ปรึกษา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+        { tab: 'leave', label: 'ประวัติการลา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
+        { tab: 'pa', label: 'รายงาน PA', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+        { tab: 'sar', label: 'รายงาน SAR', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+        { tab: 'plans', label: 'แผนการสอน', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg> },
     ];
 
     return (
@@ -396,6 +439,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
 
                 <div className="flex-grow overflow-y-auto p-4 sm:p-6">
                     {activeTab === 'profile' && renderProfileTab()}
+                    {activeTab === 'achievements' && renderAchievementsTab()}
                     {activeTab === 'advisory' && renderAdvisoryTab()}
                     {activeTab === 'leave' && renderLeaveTab()}
                     {activeTab === 'pa' && renderPaTab()}
@@ -427,7 +471,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
                 </div>
             </div>
 
-            {/* Print-only content - Replaced with official form style */}
+            {/* Print-only content - Specific Layout for Individual Student Record */}
             <div className="hidden print:block font-sarabun text-black print-area-memo" style={{ padding: '1.5cm', fontSize: '16pt' }}>
                 <div className="text-center mb-6">
                     <img src={getDirectDriveImageSrc(schoolLogo)} alt="logo" className="w-20 h-20 object-contain mx-auto mb-2" />

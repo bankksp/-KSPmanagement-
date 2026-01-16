@@ -1,6 +1,6 @@
 
 
-import { Settings, Ingredient, NutritionTargetGroup, AttendancePeriodConfig, MaterialCategory } from "./types";
+import { Settings, Ingredient, NutritionTargetGroup, AttendancePeriodConfig, MaterialCategory, AchievementLevel } from "./types";
 
 export const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (2560 + i).toString());
 
@@ -16,6 +16,13 @@ export const POSITIONS = [
 ];
 
 export const ACADEMIC_STANDINGS = ["ไม่มี", "ครูชำนาญการ", "ครูชำนาญการพิเศษ", "ครูเชี่ยวชาญ", "ครูเชี่ยวชาญพิเศษ"];
+
+export const ACHIEVEMENT_LEVELS: { id: AchievementLevel; label: string }[] = [
+  { id: 'school', label: 'ระดับสถานศึกษา' },
+  { id: 'district', label: 'ระดับเขตพื้นที่' },
+  { id: 'province', label: 'ระดับจังหวัด' },
+  { id: 'nation', label: 'ระดับประเทศ' },
+];
 
 export const EDUCATION_LEVELS = [
   "ต่ำกว่าปริญญาตรี",

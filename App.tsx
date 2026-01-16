@@ -37,9 +37,10 @@ import NutritionPage from './components/NutritionPage';
 import DutyPage from './components/DutyPage';
 import LeavePage from './components/LeavePage';
 import WorkflowPage from './components/WorkflowPage';
+import AchievementPage from './components/AchievementPage';
 import AIChatPopup from './components/AIChatPopup'; // New Import
 
-import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument, CertificateProject, ProcurementRecord } from './types';
+import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument, CertificateProject, ProcurementRecord, Achievement } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
 import { prepareDataForApi, postToGoogleScript, isoToBuddhist, normalizeDate, safeParseArray, getCurrentThaiDate } from './utils';
 
@@ -97,6 +98,7 @@ const App: React.FC = () => {
     const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
     const [performanceReports, setPerformanceReports] = useState<PerformanceReport[]>([]);
     const [sarReports, setSarReports] = useState<SARReport[]>([]);
+    const [achievements, setAchievements] = useState<Achievement[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [workflowDocuments, setWorkflowDocuments] = useState<WorkflowDocument[]>([]);
     const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
@@ -256,6 +258,7 @@ const App: React.FC = () => {
             setMaintenanceRequests(data.maintenanceRequests || []);
             setPerformanceReports((data.performanceReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate) })));
             setSarReports(data.sarReports || []);
+            setAchievements((data.achievements || []).map((a: any) => ({ ...a, date: normalizeDateString(a.date) })));
             setDocuments(data.generalDocuments || data.documents || []); 
             setWorkflowDocuments(data.workflowDocuments || []);
             setServiceRecords(data.serviceRecords || []);
@@ -471,7 +474,7 @@ const App: React.FC = () => {
             const items = Array.isArray(responseData) ? responseData : [responseData];
             
             const processedItems = items.map((saved: any) => {
-                 if (action === 'saveLeaveRecord' || action === 'saveDutyRecord') {
+                 if (action === 'saveLeaveRecord' || action === 'saveDutyRecord' || action === 'saveAchievement') {
                     saved.date = normalizeDateString(saved.date);
                     if (saved.startDate) saved.startDate = normalizeDateString(saved.startDate);
                     if (saved.endDate) saved.endDate = normalizeDateString(saved.endDate);
@@ -651,6 +654,18 @@ const App: React.FC = () => {
                 return currentUser ? (
                     <PersonnelSARPage currentUser={currentUser} personnel={personnel} reports={sarReports} onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)} onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
                 ) : null;
+             case 'personnel_achievements':
+                return currentUser ? (
+                    <AchievementPage
+                        currentUser={currentUser}
+                        personnel={personnel}
+                        achievements={achievements}
+                        onSave={(a) => handleGenericSave('saveAchievement', a, setAchievements)}
+                        onDelete={(ids) => handleGenericDelete('deleteAchievements', ids, setAchievements)}
+                        isSaving={isSaving}
+                        academicYears={settings.academicYears}
+                    />
+                ) : null;
             case 'personnel_duty':
                 return currentUser ? (
                     <DutyPage currentUser={currentUser} records={dutyRecords} onSave={(r) => handleGenericSave('saveDutyRecord', r, setDutyRecords)} onDelete={(ids) => handleGenericDelete('deleteDutyRecords', ids, setDutyRecords)} settings={settings} onSaveSettings={(s) => handleSaveAdminSettings(s, false)} isSaving={isSaving} />
@@ -772,6 +787,7 @@ const App: React.FC = () => {
                     performanceReports={performanceReports}
                     sarReports={sarReports}
                     academicPlans={academicPlans}
+                    achievements={achievements}
                 />
             )}
         </div>

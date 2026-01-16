@@ -4,7 +4,7 @@
  * Version: 2.2 (Complete Feature Parity & Robustness)
  */
 // NEW: Increased version number to reflect changes.
-const SCRIPT_VERSION = "2.2.0";
+const SCRIPT_VERSION = "2.2.1";
 
 const FOLDER_NAME = "D-school_Uploads"; 
 const SCHOOL_NAME = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
@@ -28,6 +28,7 @@ const SHEET_NAMES = {
   MAINTENANCE_REQUESTS: "MaintenanceRequests",
   PERFORMANCE_REPORTS: "PerformanceReports",
   SAR_REPORTS: "SARReports",
+  ACHIEVEMENTS: "Achievements",
   DOCUMENTS: "GeneralDocuments",
   CONSTRUCTION_RECORDS: "ConstructionRecords",
   PROJECT_PROPOSALS: "ProjectProposals",
@@ -360,6 +361,7 @@ function routeGenericAction(action, request, uploadFolder) {
         'deleteSDQRecords': SHEET_NAMES.SDQ_RECORDS, 'deleteMealPlans': SHEET_NAMES.MEAL_PLANS,
         'deleteIngredients': SHEET_NAMES.INGREDIENTS, 'deleteStudentAttendance': SHEET_NAMES.STUDENT_ATTENDANCE,
         'deletePersonnelAttendance': SHEET_NAMES.PERSONNEL_ATTENDANCE,
+        'deleteAchievements': SHEET_NAMES.ACHIEVEMENTS,
         'deleteWorkflowDocs': SHEET_NAMES.WORKFLOW_DOCS
      };
      const targetSheetName = sheetMap[action];
@@ -384,6 +386,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveMaintenanceRequest': SHEET_NAMES.MAINTENANCE_REQUESTS,
     'savePerformanceReport': SHEET_NAMES.PERFORMANCE_REPORTS,
     'saveSARReport': SHEET_NAMES.SAR_REPORTS,
+    'saveAchievement': SHEET_NAMES.ACHIEVEMENTS,
     'saveDocument': SHEET_NAMES.DOCUMENTS,
     'saveConstructionRecord': SHEET_NAMES.CONSTRUCTION_RECORDS,
     'saveProjectProposal': SHEET_NAMES.PROJECT_PROPOSALS,

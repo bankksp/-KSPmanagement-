@@ -287,6 +287,20 @@ export interface Personnel {
   highestDecorationDate?: string;
 }
 
+export type AchievementLevel = 'school' | 'district' | 'province' | 'nation';
+
+export interface Achievement {
+  id: number;
+  personnelId: number;
+  personnelName: string; 
+  date: string;
+  title: string;
+  level: AchievementLevel;
+  description?: string;
+  attachments: (File | string)[];
+  academicYear: string;
+}
+
 export interface ThemeColors {
   primary: string;
   primaryHover: string;
@@ -638,6 +652,7 @@ export type Page =
     | 'personnel' 
     | 'personnel_duty'
     | 'personnel_leave'
+    | 'personnel_achievements'
     | 'admin' 
     | 'profile'
     | 'academic_plans'
