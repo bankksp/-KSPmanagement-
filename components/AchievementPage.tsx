@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Achievement, Personnel, AchievementLevel } from '../types';
 import { ACHIEVEMENT_LEVELS } from '../constants';
@@ -258,17 +257,18 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
             alert('ไม่มีข้อมูลให้ส่งออก');
             return;
         }
-        const headers = ['วันที่', 'ปีการศึกษา', 'ชื่อ-สกุล', 'เรื่อง/รายการ', 'ระดับผลงาน'];
+        const headers = ['วันที่', 'ปีการศึกษา', 'ชื่อ-สกุล', 'เรื่อง/รายการ', 'ระดับผลงาน', 'คำอธิบาย'];
         const rows = filteredAllAchievements.map(ach => [
             ach.date,
             ach.academicYear,
             ach.personnelName,
             ach.title,
-            ACHIEVEMENT_LEVELS.find(l => l.id === ach.level)?.label || ach.level
+            ACHIEVEMENT_LEVELS.find(l => l.id === ach.level)?.label || ach.level,
+            ach.description || ''
         ]);
 
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        csvContent += headers.join(",") + "\r\n";
+        csvContent += headers.map(h => `"${h}"`).join(",") + "\r\n";
         rows.forEach(row => {
             csvContent += row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(",") + "\r\n";
         });
@@ -276,6 +276,7 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         const yearSuffix = filterYear ? filterYear : 'all-years';
+        link.setAttribute("href", encodedUri);
         link.setAttribute("download", `achievements_export_${yearSuffix}.csv`);
         document.body.appendChild(link);
         link.click();
