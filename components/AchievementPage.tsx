@@ -3,8 +3,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Achievement, Personnel, AchievementLevel } from '../types';
 import { ACHIEVEMENT_LEVELS } from '../constants';
-// FIX: Import necessary utility functions to resolve reference errors.
 import { getCurrentThaiDate, getFirstImageSource, safeParseArray, buddhistToISO, isoToBuddhist, formatThaiDate, getDirectDriveImageSrc } from '../utils';
+
+interface AchievementPageProps {
+    currentUser: Personnel;
+    personnel: Personnel[];
+    achievements: Achievement[];
+    onSave: (achievement: Achievement) => void;
+    onDelete: (ids: number[]) => void;
+    isSaving: boolean;
+    academicYears: string[];
+}
 
 // --- MODAL: View Achievement ---
 const ViewAchievementModal: React.FC<{
@@ -203,16 +212,6 @@ const EditAchievementModal: React.FC<{
 };
 
 // --- Main Page Component ---
-interface AchievementPageProps {
-    currentUser: Personnel;
-    personnel: Personnel[];
-    achievements: Achievement[];
-    onSave: (achievement: Achievement) => void;
-    onDelete: (ids: number[]) => void;
-    isSaving: boolean;
-    academicYears: string[];
-}
-
 const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personnel, achievements, onSave, onDelete, isSaving, academicYears }) => {
     const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -220,12 +219,28 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
     const [viewingAchievement, setViewingAchievement] = useState<Achievement | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterYear, setFilterYear] = useState<string>('');
+    const [myFilterYear, setMyFilterYear] = useState<string>('');
 
     const isAdmin = currentUser.role === 'admin' || currentUser.role === 'pro';
 
     const myAchievements = useMemo(() => {
-        return achievements.filter(a => a.personnelId === currentUser.id).sort((a,b) => new Date(buddhistToISO(a.date)!).getTime() - new Date(buddhistToISO(a.date)!).getTime());
+        return achievements.filter(a => a.personnelId === currentUser.id);
     }, [achievements, currentUser.id]);
+    
+    const myFilteredAndGroupedAchievements = useMemo(() => {
+        const filtered = myAchievements.filter(ach => !myFilterYear || String(ach.academicYear) === String(myFilterYear));
+
+        const groups: Record<string, Achievement[]> = {};
+        filtered.forEach(ach => {
+            const year = ach.academicYear || 'ไม่ระบุ';
+            if (!groups[year]) {
+                groups[year] = [];
+            }
+            groups[year].push(ach);
+        });
+        
+        return Object.entries(groups).sort(([yearA], [yearB]) => yearB.localeCompare(yearA));
+    }, [myAchievements, myFilterYear]);
     
     const filteredAllAchievements = useMemo(() => {
         return achievements.filter(ach => {
@@ -239,6 +254,10 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
     }, [achievements, filterYear, searchTerm]);
 
     const handleExportExcel = () => {
+        if (filteredAllAchievements.length === 0) {
+            alert('ไม่มีข้อมูลให้ส่งออก');
+            return;
+        }
         const headers = ['วันที่', 'ปีการศึกษา', 'ชื่อ-สกุล', 'เรื่อง/รายการ', 'ระดับผลงาน'];
         const rows = filteredAllAchievements.map(ach => [
             ach.date,
@@ -291,28 +310,45 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
             )}
             
             {activeTab === 'my' && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {myAchievements.map(ach => {
-                        const firstAttachment = getFirstImageSource(ach.attachments);
-                        const isPdf = safeParseArray(ach.attachments).some(f => typeof f === 'string' && f.toLowerCase().includes('.pdf'));
-                        return(
-                            <div key={ach.id} className="aspect-square bg-gray-100 rounded-xl relative overflow-hidden group border border-gray-200 shadow-sm cursor-pointer" onClick={() => setViewingAchievement(ach)}>
-                                {firstAttachment ? (
-                                    <img src={firstAttachment} alt={ach.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"/>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">{isPdf ? '📄' : '🏆'}</div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">{ach.title}</h4>
-                                    <p className="text-xs text-gray-300 mt-1">{formatThaiDate(ach.date)}</p>
+                <>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <label className="text-sm font-bold text-gray-700">ปีการศึกษา:</label>
+                        <select value={myFilterYear} onChange={e => setMyFilterYear(e.target.value)} className="border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">ทั้งหมด</option>
+                            {[...academicYears].reverse().map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-6">
+                        {myFilteredAndGroupedAchievements.map(([year, achievementsInYear]) => (
+                            <div key={year}>
+                                <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">ผลงานปีการศึกษา {year}</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {achievementsInYear.map(ach => {
+                                        const firstAttachment = getFirstImageSource(ach.attachments);
+                                        const isPdf = safeParseArray(ach.attachments).some(f => typeof f === 'string' && f.toLowerCase().includes('.pdf'));
+                                        return(
+                                            <div key={ach.id} className="aspect-square bg-gray-100 rounded-xl relative overflow-hidden group border border-gray-200 shadow-sm cursor-pointer" onClick={() => setViewingAchievement(ach)}>
+                                                {firstAttachment ? (
+                                                    <img src={firstAttachment} alt={ach.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"/>
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">{isPdf ? '📄' : '🏆'}</div>
+                                                )}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                                    <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">{ach.title}</h4>
+                                                    <p className="text-xs text-gray-300 mt-1">{formatThaiDate(ach.date)}</p>
+                                                </div>
+                                                {safeParseArray(ach.attachments).length > 1 && (
+                                                    <div className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm text-gray-700 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">+{safeParseArray(ach.attachments).length}</div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
-                                {safeParseArray(ach.attachments).length > 1 && (
-                                    <div className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm text-gray-700 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">+{safeParseArray(ach.attachments).length}</div>
-                                )}
                             </div>
-                        )
-                    })}
-                </div>
+                        ))}
+                        {myFilteredAndGroupedAchievements.length === 0 && <div className="text-center text-gray-500 py-8 bg-gray-50 rounded-lg">ไม่พบผลงาน{myFilterYear ? ` ในปีการศึกษา ${myFilterYear}` : ''}</div>}
+                    </div>
+                </>
             )}
 
             {activeTab === 'all' && isAdmin && (
@@ -332,7 +368,7 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
                             <label className="text-xs font-medium text-gray-500">ปีการศึกษา</label>
                             <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full border rounded-lg px-3 py-2 mt-1 bg-white">
                                 <option value="">ทั้งหมด</option>
-                                {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
+                                {[...academicYears].reverse().map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         </div>
                         <button onClick={handleExportExcel} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm h-fit shadow-sm hover:bg-green-700 flex items-center gap-2">
