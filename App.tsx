@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -39,6 +38,7 @@ import LeavePage from './components/LeavePage';
 import WorkflowPage from './components/WorkflowPage';
 import AchievementPage from './components/AchievementPage';
 import AIChatPopup from './components/AIChatPopup'; // New Import
+import LoadingModal from './components/LoadingModal'; // New Import
 
 import { Report, Student, Personnel, Settings, StudentAttendance, PersonnelAttendance, Page, AcademicPlan, PlanStatus, SupplyItem, SupplyRequest, DurableGood, CertificateRequest, MaintenanceRequest, PerformanceReport, SARReport, Document, HomeVisit, ServiceRecord, ConstructionRecord, ProjectProposal, SDQRecord, MealPlan, Ingredient, DutyRecord, LeaveRecord, WorkflowDocument, CertificateProject, ProcurementRecord, Achievement } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INGREDIENTS } from './constants';
@@ -113,6 +113,7 @@ const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<Personnel | null>(null);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+    const [showSyncToast, setShowSyncToast] = useState(false);
 
     useEffect(() => {
         const root = document.documentElement;
@@ -309,8 +310,12 @@ const App: React.FC = () => {
         } finally {
             setIsLoading(false);
             setIsSyncing(false);
+            if (isBackground && !fetchError) {
+                setShowSyncToast(true);
+                setTimeout(() => setShowSyncToast(false), 4000);
+            }
         }
-    }, [isAuthenticated, currentUser?.id, hasInitialData]);
+    }, [isAuthenticated, currentUser?.id, hasInitialData, fetchError]);
 
     const isUIBusy = useMemo(() => {
         return isReportModalOpen || 
@@ -334,12 +339,27 @@ const App: React.FC = () => {
     }, [isAuthenticated, fetchData]);
 
     useEffect(() => {
-        if (isAuthenticated && isUIBusy) return;
         const intervalId = setInterval(() => {
-            if (isAuthenticated && !document.hidden) {
-                fetchData(true);
+            if (!isAuthenticated || document.hidden || isUIBusy) {
+                return;
             }
+
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && (
+                activeEl.tagName === 'INPUT' ||
+                activeEl.tagName === 'TEXTAREA' ||
+                activeEl.tagName === 'SELECT' ||
+                activeEl.getAttribute('contenteditable') === 'true'
+            );
+
+            if (isTyping) {
+                console.log('User is typing. Skipping background sync.');
+                return;
+            }
+            
+            fetchData(true);
         }, 60000); 
+
         return () => clearInterval(intervalId);
     }, [fetchData, isUIBusy, isAuthenticated]);
 
@@ -364,7 +384,7 @@ const App: React.FC = () => {
             }
             return Promise.resolve(); 
         } catch(e) { 
-            console.error(e);
+            console.error(e); 
             return Promise.reject(e); 
         } finally { 
             setIsSaving(false); 
@@ -750,6 +770,12 @@ const App: React.FC = () => {
                     studentAttendance={studentAttendance} 
                 />
             </div>
+            {showSyncToast && (
+                <div className="fixed bottom-20 right-6 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in-up z-[1200] border-2 border-white/50">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span className="font-bold text-sm">ข้อมูลได้รับการอัปเดตแล้ว</span>
+                </div>
+            )}
             <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleSessionLogin} personnelList={personnel} onRegisterClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }} />
             <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} positions={settings.positions} isSaving={isSaving} />
             {isReportModalOpen && (
@@ -790,6 +816,7 @@ const App: React.FC = () => {
                     achievements={achievements}
                 />
             )}
+            <LoadingModal isOpen={isSaving} />
         </div>
     );
 };

@@ -295,20 +295,20 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h2 className="text-2xl font-bold text-navy">ระบบเก็บผลงาน (Portfolio)</h2>
-                <button onClick={() => handleOpenEditModal()} className="bg-primary-blue text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-blue-700 flex items-center gap-2">
+                <button onClick={() => handleOpenEditModal()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center gap-2">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                     เพิ่มผลงาน
                 </button>
             </div>
 
-            {isAdmin && (
-                <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2 w-fit">
-                    <button onClick={() => setActiveTab('my')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'my' ? 'bg-primary-blue text-white' : 'bg-gray-100 text-gray-600'}`}>ผลงานของฉัน</button>
-                    <button onClick={() => setActiveTab('all')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'all' ? 'bg-primary-blue text-white' : 'bg-gray-100 text-gray-600'}`}>ผลงานทั้งหมด</button>
-                </div>
-            )}
+            <div className="bg-gray-100 p-1.5 rounded-full flex flex-wrap gap-2 w-fit">
+                <button onClick={() => setActiveTab('my')} className={`px-6 py-2 rounded-full font-bold text-sm transition-all ${activeTab === 'my' ? 'bg-primary-blue text-white shadow' : 'bg-white text-gray-600 shadow-sm'}`}>ผลงานของฉัน</button>
+                {isAdmin && (
+                    <button onClick={() => setActiveTab('all')} className={`px-6 py-2 rounded-full font-bold text-sm transition-all ${activeTab === 'all' ? 'bg-primary-blue text-white shadow' : 'bg-white text-gray-600 shadow-sm'}`}>ผลงานทั้งหมด</button>
+                )}
+            </div>
             
             {activeTab === 'my' && (
                 <>
@@ -353,7 +353,7 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
             )}
 
             {activeTab === 'all' && isAdmin && (
-                <div className="bg-white p-4 rounded-xl shadow-lg space-y-4">
+                <div className="bg-white p-4 rounded-xl shadow-lg space-y-4 animate-fade-in">
                     <div className="flex flex-wrap gap-4 items-end">
                         <div className="flex-grow">
                             <label className="text-xs font-medium text-gray-500">ค้นหา</label>
@@ -378,35 +378,36 @@ const AchievementPage: React.FC<AchievementPageProps> = ({ currentUser, personne
                         </button>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-100">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="p-3">วันที่</th>
-                                    <th className="p-3">ปีการศึกษา</th>
-                                    <th className="p-3">ชื่อ-สกุล</th>
-                                    <th className="p-3">เรื่อง</th>
-                                    <th className="p-3">ระดับ</th>
-                                    <th className="p-3 text-center">จัดการ</th>
+                                    <th className="p-3 font-semibold text-left text-gray-600">วันที่</th>
+                                    <th className="p-3 font-semibold text-left text-gray-600">ปีการศึกษา</th>
+                                    <th className="p-3 font-semibold text-left text-gray-600">ชื่อ-สกุล</th>
+                                    <th className="p-3 font-semibold text-left text-gray-600">เรื่อง</th>
+                                    <th className="p-3 font-semibold text-left text-gray-600">ระดับ</th>
+                                    <th className="p-3 font-semibold text-center text-gray-600">จัดการ</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-100">
                                 {filteredAllAchievements.map(ach => (
-                                    <tr key={ach.id} className="border-b hover:bg-gray-50">
-                                        <td className="p-3 whitespace-nowrap">{formatThaiDate(ach.date)}</td>
-                                        <td className="p-3 whitespace-nowrap">{ach.academicYear}</td>
-                                        <td className="p-3">{ach.personnelName}</td>
-                                        <td className="p-3">{ach.title}</td>
-                                        <td className="p-3">{ACHIEVEMENT_LEVELS.find(l=>l.id===ach.level)?.label}</td>
-                                        <td className="p-3 text-center">
+                                    <tr key={ach.id} className="hover:bg-gray-50">
+                                        <td className="p-3 whitespace-nowrap text-gray-700">{formatThaiDate(ach.date)}</td>
+                                        <td className="p-3 whitespace-nowrap text-gray-700">{ach.academicYear}</td>
+                                        <td className="p-3 whitespace-nowrap font-medium text-gray-900">{ach.personnelName}</td>
+                                        <td className="p-3 whitespace-nowrap text-gray-800">{ach.title}</td>
+                                        <td className="p-3 whitespace-nowrap text-gray-700">{ACHIEVEMENT_LEVELS.find(l=>l.id===ach.level)?.label}</td>
+                                        <td className="p-3 text-center whitespace-nowrap">
                                             <button onClick={() => setViewingAchievement(ach)} className="text-blue-600 hover:underline text-xs font-bold">ดู</button>
-                                            <button onClick={() => onDelete([ach.id])} className="text-red-500 hover:underline text-xs font-bold ml-2">ลบ</button>
+                                            <button onClick={() => onDelete([ach.id])} className="text-red-500 hover:underline text-xs font-bold ml-4">ลบ</button>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
+                    {filteredAllAchievements.length === 0 && <div className="text-center text-gray-500 py-8">ไม่พบผลงาน</div>}
                 </div>
             )}
             
