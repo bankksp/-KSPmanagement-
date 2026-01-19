@@ -814,6 +814,7 @@ const App: React.FC = () => {
                     sarReports={sarReports}
                     academicPlans={academicPlans}
                     achievements={achievements}
+                    academicYears={settings.academicYears}
                 />
             )}
             <LoadingModal isOpen={isSaving} />

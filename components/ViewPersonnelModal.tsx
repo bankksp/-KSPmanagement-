@@ -18,15 +18,17 @@ interface ViewPersonnelModalProps {
     sarReports: SARReport[];
     academicPlans: AcademicPlan[];
     achievements: Achievement[];
+    academicYears: string[];
 }
 
 const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({ 
     personnel, onClose, schoolName, schoolLogo, currentUser,
-    students, leaveRecords, performanceReports, sarReports, academicPlans, achievements
+    students, leaveRecords, performanceReports, sarReports, academicPlans, achievements, academicYears
 }) => {
     const [activeTab, setActiveTab] = useState<Tab>('profile');
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
     const exportMenuRef = useRef<HTMLDivElement>(null);
+    const [achievementFilterYear, setAchievementFilterYear] = useState<string>('');
 
     // Data Filtering
     const myAdvisoryStudents = useMemo(() => students.filter(s => safeParseArray(s.homeroomTeachers).includes(personnel.id)), [students, personnel.id]);
@@ -35,6 +37,21 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
     const mySarReports = useMemo(() => sarReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [sarReports, personnel.id]);
     const myAcademicPlans = useMemo(() => academicPlans.filter(p => p.teacherId === personnel.id).sort((a,b) => b.id - a.id), [academicPlans, personnel.id]);
     const myAchievements = useMemo(() => (achievements || []).filter(a => a.personnelId === personnel.id).sort((a, b) => parseThaiDateForSort(b.date) - parseThaiDateForSort(a.date)), [achievements, personnel.id]);
+
+    const myFilteredAndGroupedAchievements = useMemo(() => {
+        const filtered = myAchievements.filter(ach => !achievementFilterYear || String(ach.academicYear) === String(achievementFilterYear));
+
+        const groups: Record<string, Achievement[]> = {};
+        filtered.forEach(ach => {
+            const year = ach.academicYear || 'ไม่ระบุ';
+            if (!groups[year]) {
+                groups[year] = [];
+            }
+            groups[year].push(ach);
+        });
+        
+        return Object.entries(groups).sort(([yearA], [yearB]) => yearB.localeCompare(yearA));
+    }, [myAchievements, achievementFilterYear]);
 
 
     const profileImageUrl = useMemo(() => getFirstImageSource(personnel.profileImage), [personnel.profileImage]);
@@ -193,7 +210,8 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
     };
 
     // UI Components
-    const TabButton = ({ tab, label, icon }: { tab: Tab, label: string, icon: React.ReactNode }) => (
+    // Fix: Update TabButton component to correctly handle `tab` and `icon` props, and display the icon.
+    const TabButton: React.FC<{ tab: Tab; label: string; icon: React.ReactNode; }> = ({ tab, label, icon }) => (
         <button
             onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === tab ? 'bg-primary-blue text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -361,42 +379,51 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
     
     const renderAchievementsTab = () => (
         <div>
-            <h3 className="font-bold text-lg text-navy mb-4">ผลงานและเกียรติบัตร ({myAchievements.length})</h3>
-             {myAchievements.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {myAchievements.map(ach => {
-                        const firstAttachment = getFirstImageSource(ach.attachments);
-                        const isPdf = safeParseArray(ach.attachments).some(f => typeof f === 'string' && f.toLowerCase().includes('.pdf'));
-                        
-                        return (
-                            <div key={ach.id} className="aspect-square bg-gray-100 rounded-xl relative overflow-hidden group border border-gray-200 shadow-sm cursor-pointer">
-                                {firstAttachment ? (
-                                    <img src={firstAttachment} alt={ach.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"/>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">
-                                        {isPdf ? '📄' : '🏆'}
-                                    </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">{ach.title}</h4>
-                                    <p className="text-xs text-gray-300 mt-1">{formatThaiDate(ach.date)}</p>
-                                </div>
-                                {safeParseArray(ach.attachments).length > 1 && (
-                                    <div className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm text-gray-700 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">
-                                        +{safeParseArray(ach.attachments).length}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                <h3 className="font-bold text-lg text-navy">ผลงานและเกียรติบัตร ({myAchievements.length})</h3>
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-bold text-gray-700 whitespace-nowrap">ปีการศึกษา:</label>
+                    <select 
+                        value={achievementFilterYear} 
+                        onChange={e => setAchievementFilterYear(e.target.value)} 
+                        className="border rounded-lg px-3 py-1 text-sm bg-white shadow-sm focus:ring-2 focus:ring-primary-blue"
+                    >
+                        <option value="">ทั้งหมด</option>
+                        {[...(academicYears || [])].reverse().map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
                 </div>
-             ) : (
-                <div className="text-center py-12 bg-gray-50 rounded-lg text-gray-500 border border-dashed">
-                    ยังไม่มีข้อมูลผลงาน
-                </div>
-             )}
+            </div>
+            <div className="space-y-6">
+                {myFilteredAndGroupedAchievements.map(([year, achievementsInYear]) => (
+                    <div key={year}>
+                        <h4 className="text-md font-bold text-gray-700 mb-3 border-b pb-2">ผลงานปีการศึกษา {year}</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {achievementsInYear.map(ach => {
+                                const firstAttachment = getFirstImageSource(ach.attachments);
+                                const isPdf = safeParseArray(ach.attachments).some(f => typeof f === 'string' && f.toLowerCase().includes('.pdf'));
+                                
+                                return (
+                                    <div key={ach.id} className="aspect-square bg-gray-100 rounded-xl relative overflow-hidden group border border-gray-200 shadow-sm cursor-pointer">
+                                        {firstAttachment ? (
+                                            <img src={firstAttachment} alt={ach.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"/>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">{isPdf ? '📄' : '🏆'}</div>
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                            <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">{ach.title}</h4>
+                                            <p className="text-xs text-gray-300 mt-1">{formatThaiDate(ach.date)}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+                {myFilteredAndGroupedAchievements.length === 0 && <div className="text-center py-12 bg-gray-50 rounded-lg text-gray-500 border border-dashed">ไม่พบผลงาน{achievementFilterYear ? ` ในปีการศึกษา ${achievementFilterYear}` : ''}</div>}
+            </div>
         </div>
     );
+
 
     const tabs: { tab: Tab; label: string; icon: React.ReactNode; }[] = [
         { tab: 'profile', label: 'ประวัติส่วนตัว', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
@@ -429,7 +456,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
                         </div>
                     </div>
                      <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
                 <div className="flex border-b bg-white overflow-x-auto no-scrollbar p-2">
