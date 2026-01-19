@@ -241,7 +241,7 @@ const App: React.FC = () => {
             }));
             setLeaveRecords(normLeaveRecords);
 
-            setAcademicPlans(data.academicPlans || []);
+            setAcademicPlans((data.academicPlans || []).map((p: any) => ({ ...p, date: normalizeDateString(p.date) })));
             setSupplyItems(data.supplyItems || []);
             
             const rawSupplyData = data.supplyRequests || []; 
