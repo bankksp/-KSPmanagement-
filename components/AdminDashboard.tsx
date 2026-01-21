@@ -338,49 +338,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ settings, onSave, onExi
              case 'personnel_settings':
                 return (
                     <div className="space-y-6">
-                        <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200">
-                            <h3 className="text-lg font-bold text-navy mb-4">ตั้งค่าระบบรายงานการปฏิบัติงาน (PA)</h3>
-                            <p className="text-sm text-gray-500 mb-6">กำหนดช่วงเวลาการเปิด-ปิดระบบสำหรับการส่งรายงาน PA ของบุคลากร</p>
-                            
-                            {/* Round 1 */}
-                            <div className="space-y-4 p-4 border-l-4 border-blue-300 bg-blue-50/50 rounded-r-lg">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="font-bold text-blue-800">รอบที่ 1 (1 ต.ค. - 31 มี.ค.)</h4>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" name="isPaRound1Open" checked={localSettings.isPaRound1Open || false} onChange={handleSettingsChange} className="rounded" />
-                                        <span className="text-sm font-medium">เปิดรับรายงาน</span>
-                                    </label>
+                        <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 space-y-8">
+                            {/* PA Reports */}
+                            <div>
+                                <h3 className="text-lg font-bold text-navy mb-2">ระบบรายงานการปฏิบัติงาน (PA)</h3>
+                                <div className="space-y-4 p-4 border-l-4 border-blue-300 bg-blue-50/50 rounded-r-lg">
+                                    <div className="flex items-center justify-between"><h4 className="font-bold text-blue-800">รอบที่ 1 (1 ต.ค. - 31 มี.ค.)</h4><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="isPaRound1Open" checked={localSettings.isPaRound1Open || false} onChange={handleSettingsChange} className="rounded" /><span className="text-sm font-medium">เปิดรับรายงาน</span></label></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label><input type="date" name="paRound1StartDate" value={buddhistToISO(localSettings.paRound1StartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div><div><label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label><input type="date" name="paRound1EndDate" value={buddhistToISO(localSettings.paRound1EndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div></div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label>
-                                        <input type="date" name="paRound1StartDate" value={buddhistToISO(localSettings.paRound1StartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label>
-                                        <input type="date" name="paRound1EndDate" value={buddhistToISO(localSettings.paRound1EndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
-                                    </div>
+                                <div className="space-y-4 p-4 border-l-4 border-green-300 bg-green-50/50 rounded-r-lg mt-4">
+                                    <div className="flex items-center justify-between"><h4 className="font-bold text-green-800">รอบที่ 2 (1 เม.ย. - 30 ก.ย.)</h4><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="isPaRound2Open" checked={localSettings.isPaRound2Open || false} onChange={handleSettingsChange} className="rounded" /><span className="text-sm font-medium">เปิดรับรายงาน</span></label></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label><input type="date" name="paRound2StartDate" value={buddhistToISO(localSettings.paRound2StartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div><div><label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label><input type="date" name="paRound2EndDate" value={buddhistToISO(localSettings.paRound2EndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div></div>
                                 </div>
                             </div>
                             
-                            {/* Round 2 */}
-                            <div className="space-y-4 p-4 border-l-4 border-green-300 bg-green-50/50 rounded-r-lg mt-6">
-                                 <div className="flex items-center justify-between">
-                                    <h4 className="font-bold text-green-800">รอบที่ 2 (1 เม.ย. - 30 ก.ย.)</h4>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" name="isPaRound2Open" checked={localSettings.isPaRound2Open || false} onChange={handleSettingsChange} className="rounded" />
-                                        <span className="text-sm font-medium">เปิดรับรายงาน</span>
-                                    </label>
+                            {/* Salary Promotion Reports */}
+                            <div>
+                                <h3 className="text-lg font-bold text-navy mb-2">ระบบรายงานผลงาน (เพื่อเลื่อนเงินเดือน)</h3>
+                                <div className="space-y-4 p-4 border-l-4 border-purple-300 bg-purple-50/50 rounded-r-lg">
+                                    <div className="flex items-center justify-between"><h4 className="font-bold text-purple-800">ช่วงเวลาส่งรายงาน</h4><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="isSalaryReportOpen" checked={localSettings.isSalaryReportOpen || false} onChange={handleSettingsChange} className="rounded" /><span className="text-sm font-medium">เปิดรับรายงาน</span></label></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label><input type="date" name="salaryReportStartDate" value={buddhistToISO(localSettings.salaryReportStartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div><div><label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label><input type="date" name="salaryReportEndDate" value={buddhistToISO(localSettings.salaryReportEndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div></div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label>
-                                        <input type="date" name="paRound2StartDate" value={buddhistToISO(localSettings.paRound2StartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label>
-                                        <input type="date" name="paRound2EndDate" value={buddhistToISO(localSettings.paRound2EndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/>
-                                    </div>
+                            </div>
+
+                            {/* SAR Reports */}
+                            <div>
+                                <h3 className="text-lg font-bold text-navy mb-2">ระบบรายงาน SAR</h3>
+                                <div className="space-y-4 p-4 border-l-4 border-teal-300 bg-teal-50/50 rounded-r-lg">
+                                    <div className="flex items-center justify-between"><h4 className="font-bold text-teal-800">ช่วงเวลาส่งรายงาน</h4><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="isSarOpen" checked={localSettings.isSarOpen || false} onChange={handleSettingsChange} className="rounded" /><span className="text-sm font-medium">เปิดรับรายงาน</span></label></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-medium text-gray-600">วันที่เริ่ม</label><input type="date" name="sarStartDate" value={buddhistToISO(localSettings.sarStartDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div><div><label className="text-xs font-medium text-gray-600">วันที่สิ้นสุด</label><input type="date" name="sarEndDate" value={buddhistToISO(localSettings.sarEndDate)} onChange={handleDateSettingChange} className="w-full border rounded-lg p-2 mt-1 text-sm"/></div></div>
                                 </div>
                             </div>
                         </div>

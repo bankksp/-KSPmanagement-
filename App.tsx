@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -476,6 +475,7 @@ const App: React.FC = () => {
             if(t === 'student') {
                 setStudentAttendance(prev => prev.filter(r => !ids.includes(String(r.id))));
             } else {
+                // FIX: Use .includes() for arrays instead of .has()
                 setPersonnelAttendance(prev => prev.filter(r => !ids.includes(String(r.id))));
             }
             alert('ลบข้อมูลเรียบร้อย');
@@ -658,7 +658,23 @@ const App: React.FC = () => {
                 ) : null;
             case 'personnel_report':
                 return currentUser ? (
-                    <PersonnelReportPage 
+                    <PersonnelReportPage
+                        mode="pa" 
+                        currentUser={currentUser} 
+                        personnel={personnel} 
+                        reports={performanceReports} 
+                        onSave={(r) => handleGenericSave('savePerformanceReport', r, setPerformanceReports)} 
+                        onDelete={(ids) => handleGenericDelete('deletePerformanceReports', ids, setPerformanceReports)} 
+                        academicYears={settings.academicYears} 
+                        isSaving={isSaving} 
+                        settings={settings}
+                        onSaveSettings={(s) => handleSaveAdminSettings(s, false)}
+                    />
+                ) : null;
+            case 'personnel_salary_report':
+                return currentUser ? (
+                    <PersonnelReportPage
+                        mode="salary_promotion"
                         currentUser={currentUser} 
                         personnel={personnel} 
                         reports={performanceReports} 
@@ -672,7 +688,7 @@ const App: React.FC = () => {
                 ) : null;
             case 'personnel_sar': 
                 return currentUser ? (
-                    <PersonnelSARPage currentUser={currentUser} personnel={personnel} reports={sarReports} onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)} onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} />
+                    <PersonnelSARPage currentUser={currentUser} personnel={personnel} reports={sarReports} onSave={(r) => handleGenericSave('saveSARReport', r, setSarReports)} onDelete={(ids) => handleGenericDelete('deleteSARReports', ids, setSarReports)} academicYears={settings.academicYears} positions={settings.positions} isSaving={isSaving} settings={settings} />
                 ) : null;
              case 'personnel_achievements':
                 return currentUser ? (

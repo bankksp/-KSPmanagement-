@@ -51,6 +51,16 @@ export interface Settings {
     paRound2EndDate?: string;
     isPaRound2Open?: boolean;
     
+    // New Salary Report Settings
+    salaryReportStartDate?: string;
+    salaryReportEndDate?: string;
+    isSalaryReportOpen?: boolean;
+
+    // New SAR Report Settings
+    sarStartDate?: string;
+    sarEndDate?: string;
+    isSarOpen?: boolean;
+
     // New Structured Categories
     materialCategories?: MaterialCategory[]; 
     formTemplates?: { [templateKey: string]: string };
@@ -538,7 +548,6 @@ export interface PerformanceReport {
   position: string;
   academicStanding?: string;
   major?: string;
-  agreementTitle?: string;
   academicYear: string;
   round: string; 
   file?: (File | string)[];
@@ -546,6 +555,7 @@ export interface PerformanceReport {
   status: 'pending' | 'approved' | 'needs_edit';
   submissionDate: string;
   note?: string;
+  reportType?: 'pa' | 'salary_promotion';
 }
 
 export interface SARReport {
@@ -661,6 +671,7 @@ export type Page =
     | 'finance_projects' 
     | 'durable_goods'
     | 'personnel_report'
+    | 'personnel_salary_report'
     | 'personnel_sar'
     | 'general_docs'
     | 'general_repair'

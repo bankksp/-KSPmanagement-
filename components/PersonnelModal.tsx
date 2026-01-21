@@ -175,21 +175,57 @@ const PersonnelModal: React.FC<PersonnelModalProps> = ({ onClose, onSave, person
                     <fieldset className="border p-4 rounded-lg">
                         <legend className="text-lg font-bold text-navy px-2">ข้อมูลส่วนตัวและตำแหน่งงาน</legend>
                         <div className="flex flex-col sm:flex-row gap-6 items-start mt-2">
-                            <div className="flex-shrink-0">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">รูปโปรไฟล์</label>
-                                <div className="mt-1 relative">
-                                    <div className="w-32 h-40 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border shadow-sm">
-                                        {profileImageUrl ? (
-                                            <img src={profileImageUrl} alt="Profile Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                        ) : (
-                                            <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                        )}
+                            <div className="flex-shrink-0 space-y-4 w-full sm:w-auto">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">รูปโปรไฟล์</label>
+                                    <div className="mt-1 relative">
+                                        <div className="w-32 h-40 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden border shadow-sm">
+                                            {profileImageUrl ? (
+                                                <img src={profileImageUrl} alt="Profile Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                            ) : (
+                                                <svg className="w-20 h-20 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                            )}
+                                        </div>
+                                        <label htmlFor="personnelProfileImage-upload" className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            <input id="personnelProfileImage-upload" name="profileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
+                                        </label>
                                     </div>
-                                    <label htmlFor="personnelProfileImage-upload" className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                        <input id="personnelProfileImage-upload" name="profileImage" type="file" onChange={handleImageChange} accept="image/*" className="sr-only" />
-                                    </label>
                                 </div>
+                                
+                                {effectiveRole === 'admin' && (
+                                    <div className="space-y-3">
+                                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                                            <label className="block text-sm font-bold text-blue-800 mb-1">สิทธิ์การใช้งาน</label>
+                                            <select name="role" value={formData.role || 'user'} onChange={handleChange} className="w-full border rounded-lg px-2 py-1.5 text-sm">
+                                                <option value="user">User</option>
+                                                <option value="pro">Pro</option>
+                                                <option value="admin">Admin</option>
+                                            </select>
+                                        </div>
+                                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
+                                            <label className="block text-sm font-bold text-purple-800 mb-1">ระดับบริหาร (Rank)</label>
+                                            <select name="specialRank" value={formData.specialRank || 'staff'} onChange={handleChange} className="w-full border rounded-lg px-2 py-1.5 text-sm">
+                                                <option value="staff">Staff (เจ้าหน้าที่)</option>
+                                                <option value="head">Head (หัวหน้างาน)</option>
+                                                <option value="deputy">Deputy (รองผู้อำนวยการ)</option>
+                                                <option value="director">Director (ผู้อำนวยการ)</option>
+                                            </select>
+                                        </div>
+                                        <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
+                                            <label className="block text-sm font-bold text-orange-800 mb-1">สถานะผู้ใช้</label>
+                                            <select name="status" value={formData.status || 'approved'} onChange={handleChange} className="w-full border rounded-lg px-2 py-1.5 text-sm">
+                                                <option value="approved">อนุมัติแล้ว</option>
+                                                <option value="pending">รออนุมัติ</option>
+                                                <option value="blocked">ระงับ</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center pt-2">
+                                            <input type="checkbox" id="isSarabanAdmin" name="isSarabanAdmin" checked={formData.isSarabanAdmin || false} onChange={handleChange} className="h-4 w-4 rounded" />
+                                            <label htmlFor="isSarabanAdmin" className="ml-2 text-sm font-medium text-gray-700">เจ้าหน้าที่สารบรรณ</label>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

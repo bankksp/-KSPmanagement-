@@ -165,6 +165,14 @@ export const DEFAULT_SETTINGS: Settings = {
     paRound2StartDate: '',
     paRound2EndDate: '',
     isPaRound2Open: true,
+    // New Salary Report Settings
+    salaryReportStartDate: '',
+    salaryReportEndDate: '',
+    isSalaryReportOpen: true,
+    // New SAR Report Settings
+    sarStartDate: '',
+    sarEndDate: '',
+    isSarOpen: true,
     // Initialize Webhooks as empty strings
     webhookAttendance: '',
     webhookDormitory: '',

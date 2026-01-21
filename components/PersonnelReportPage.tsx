@@ -3,7 +3,6 @@ import { PerformanceReport, Personnel, Settings } from '../types';
 import { getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate, getDriveViewUrl, safeParseArray } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
-// --- MODAL COMPONENT (Re-used) ---
 interface PerformanceReportModalProps {
     onSave: (report: PerformanceReport) => void;
     onClose: () => void;
@@ -12,10 +11,11 @@ interface PerformanceReportModalProps {
     academicYears: string[];
     academicStandings: string[];
     reportToEdit: PerformanceReport | null;
+    mode: 'pa' | 'salary_promotion';
 }
 
 const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
-    onSave, onClose, isSaving, currentUser, academicYears, academicStandings, reportToEdit
+    onSave, onClose, isSaving, currentUser, academicYears, academicStandings, reportToEdit, mode
 }) => {
     const [formData, setFormData] = useState<Partial<PerformanceReport>>({});
     
@@ -31,13 +31,13 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
                 position: currentUser.position,
                 academicStanding: currentUser.academicStanding || '',
                 major: currentUser.educationBackgrounds?.[0]?.major || '',
-                agreementTitle: '',
                 file: [],
                 status: 'pending',
                 submissionDate: getCurrentThaiDate(),
+                reportType: mode,
             });
         }
-    }, [reportToEdit, currentUser, academicYears]);
+    }, [reportToEdit, currentUser, academicYears, mode]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -51,15 +51,20 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
             ...formData,
             id: formData.id || Date.now(),
             submissionDate: formData.submissionDate || getCurrentThaiDate(),
+            reportType: mode,
         } as PerformanceReport;
         onSave(newReport);
     };
+
+    const modalTitle = mode === 'pa' 
+        ? 'รายงานการปฏิบัติงาน (PA)' 
+        : 'รายงานผลการปฏิบัติงาน (เพื่อเลื่อนเงินเดือน)';
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b">
-                    <h2 className="text-xl font-bold text-navy">{formData.id ? 'แก้ไขรายงาน' : 'เพิ่มรายงานการปฏิบัติงาน (PA)'}</h2>
+                    <h2 className="text-xl font-bold text-navy">{formData.id ? 'แก้ไขรายงาน' : `เพิ่ม${modalTitle}`}</h2>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -94,10 +99,6 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
                         <input type="text" value={formData.major || ''} onChange={e => setFormData({...formData, major: e.target.value})} className="w-full border rounded-lg px-3 py-2 bg-gray-100" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อเรื่องข้อตกลงในการพัฒนางาน</label>
-                        <input type="text" value={formData.agreementTitle || ''} onChange={e => setFormData({...formData, agreementTitle: e.target.value})} className="w-full border rounded-lg px-3 py-2" />
-                    </div>
-                    <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">ไฟล์รายงาน (PDF, Word)</label>
                         <input type="file" onChange={handleFileChange} className="w-full text-sm" />
                          {safeParseArray(formData.file).length > 0 && <p className="mt-2 text-xs text-green-600 font-bold">✓ เลือกไฟล์เรียบร้อย: { (formData.file![0] as File).name || 'ไฟล์เดิม'}</p>}
@@ -116,7 +117,8 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
 
 
 // --- MAIN PAGE COMPONENT (Redesigned) ---
-const PersonnelReportPage: React.FC<{
+interface PersonnelReportPageProps {
+    mode: 'pa' | 'salary_promotion';
     currentUser: Personnel;
     personnel: Personnel[];
     reports: PerformanceReport[];
@@ -126,7 +128,11 @@ const PersonnelReportPage: React.FC<{
     isSaving: boolean;
     settings: Settings;
     onSaveSettings: (settings: Settings) => void;
-}> = ({ currentUser, personnel, reports, onSave, onDelete, academicYears, isSaving, settings, onSaveSettings }) => {
+}
+
+const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
+    mode, currentUser, personnel, reports, onSave, onDelete, academicYears, isSaving, settings, onSaveSettings
+}) => {
     
     const [activeTab, setActiveTab] = useState<'stats' | 'list'>('stats');
 
@@ -140,39 +146,61 @@ const PersonnelReportPage: React.FC<{
 
     const isAdminOrPro = currentUser.role === 'admin' || currentUser.role === 'pro';
 
+    const pageConfig = {
+        pa: {
+            title: "ระบบรายงานการปฏิบัติงาน (Performance Agreement - PA)",
+            reportType: 'pa'
+        },
+        salary_promotion: {
+            title: "ระบบรายงานผลการปฏิบัติงาน (เพื่อเลื่อนเงินเดือน)",
+            reportType: 'salary_promotion'
+        }
+    };
+    
+    const currentConfig = pageConfig[mode];
+
+    const relevantReports = useMemo(() => {
+        return reports.filter(r => {
+            if (mode === 'pa') return r.reportType === 'pa' || !r.reportType;
+            return r.reportType === mode;
+        });
+    }, [reports, mode]);
+
     const submissionStatus = useMemo(() => {
         const now = new Date();
-        const { isPaRound1Open, paRound1StartDate, paRound1EndDate, isPaRound2Open, paRound2StartDate, paRound2EndDate } = settings;
-        
         const checkDateRange = (startStr?: string, endStr?: string) => {
-            if (!startStr || !endStr) return true; // If no dates set, assume open
+            if (!startStr || !endStr) return true;
             try {
                 const start = new Date(buddhistToISO(startStr));
                 const end = new Date(buddhistToISO(endStr));
-                end.setHours(23, 59, 59, 999); // Include the whole end day
+                end.setHours(23, 59, 59, 999);
                 return now >= start && now <= end;
-            } catch (e) {
-                return true; // Failsafe if date is invalid
-            }
+            } catch (e) { return true; }
         };
 
-        let round1Open = isPaRound1Open && checkDateRange(paRound1StartDate, paRound1EndDate);
-        let round2Open = isPaRound2Open && checkDateRange(paRound2StartDate, paRound2EndDate);
+        if (mode === 'salary_promotion') {
+            const isOpen = settings.isSalaryReportOpen && checkDateRange(settings.salaryReportStartDate, settings.salaryReportEndDate);
+            return { isOpen: isOpen || isAdminOrPro, round1: { isOpen, start: settings.salaryReportStartDate, end: settings.salaryReportEndDate }, round2: { isOpen: false } };
+        }
+        
+        // PA Logic
+        const round1Open = settings.isPaRound1Open && checkDateRange(settings.paRound1StartDate, settings.paRound1EndDate);
+        const round2Open = settings.isPaRound2Open && checkDateRange(settings.paRound2StartDate, settings.paRound2EndDate);
         
         return { 
             isOpen: round1Open || round2Open || isAdminOrPro,
-            round1: { isOpen: isPaRound1Open, start: paRound1StartDate, end: paRound1EndDate },
-            round2: { isOpen: isPaRound2Open, start: paRound2StartDate, end: paRound2EndDate },
+            round1: { isOpen: settings.isPaRound1Open, start: settings.paRound1StartDate, end: settings.paRound1EndDate },
+            round2: { isOpen: settings.isPaRound2Open, start: settings.paRound2StartDate, end: settings.paRound2EndDate },
         };
 
-    }, [settings, isAdminOrPro]);
+    }, [settings, isAdminOrPro, mode]);
 
     const stats = useMemo(() => {
-        const total = reports.length;
+        const total = relevantReports.length;
         const statusCounts: { [key in 'pending' | 'approved' | 'needs_edit']: number } = { pending: 0, approved: 0, needs_edit: 0 };
         const academicStandingCounts: Record<string, number> = {};
         
-        reports.forEach(r => {
+        relevantReports.forEach(r => {
             if (r.status in statusCounts) {
                 statusCounts[r.status]++;
             }
@@ -191,23 +219,21 @@ const PersonnelReportPage: React.FC<{
             .sort((a,b) => b.value - a.value);
         
         return { total, ...statusCounts, statusData, standingData };
-    }, [reports]);
+    }, [relevantReports]);
 
     const filteredReports = useMemo(() => {
-        return reports.filter(r => {
-            const matchesSearch = 
-                (r.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (r.agreementTitle || '').toLowerCase().includes(searchTerm.toLowerCase());
+        return relevantReports.filter(r => {
+            const matchesSearch = (r.name || '').toLowerCase().includes(searchTerm.toLowerCase());
             const matchesYear = !filterYear || String(r.academicYear) === String(filterYear);
             const matchesPosition = !filterPosition || r.position === filterPosition;
             const matchesRound = !filterRound || r.round === filterRound;
             return matchesSearch && matchesYear && matchesPosition && matchesRound;
         }).sort((a, b) => b.id - a.id);
-    }, [reports, searchTerm, filterYear, filterPosition, filterRound]);
+    }, [relevantReports, searchTerm, filterYear, filterPosition, filterRound]);
     
     const handleOpenModal = (report?: PerformanceReport) => {
         if (!submissionStatus.isOpen) {
-            alert('อยู่นอกช่วงเวลาที่กำหนดให้ส่งรายงาน PA');
+            alert('อยู่นอกช่วงเวลาที่กำหนดให้ส่งรายงาน');
             return;
         }
         setEditingReport(report || null);
@@ -241,7 +267,7 @@ const PersonnelReportPage: React.FC<{
             alert('ไม่มีข้อมูลให้ส่งออก');
             return;
         }
-        const headers = ['ลำดับ', 'ชื่อ-สกุล', 'ตำแหน่ง', 'วิทยฐานะ', 'วิชาเอก', 'ปีการศึกษา', 'รอบ', 'ชื่อเรื่องข้อตกลงในการพัฒนางาน'];
+        const headers = ['ลำดับ', 'ชื่อ-สกุล', 'ตำแหน่ง', 'วิทยฐานะ', 'วิชาเอก', 'ปีการศึกษา', 'รอบ'];
         const rows = filteredReports.map((r, index) => [
             index + 1,
             r.name,
@@ -249,8 +275,7 @@ const PersonnelReportPage: React.FC<{
             r.academicStanding || '-',
             r.major || '-',
             r.academicYear,
-            r.round,
-            r.agreementTitle || '-'
+            r.round
         ]);
 
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
@@ -261,7 +286,7 @@ const PersonnelReportPage: React.FC<{
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `รายงาน-PA-${getCurrentThaiDate().replace(/\//g, '-')}.csv`);
+        link.setAttribute("download", `รายงาน-${currentConfig.reportType}-${getCurrentThaiDate().replace(/\//g, '-')}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -279,7 +304,7 @@ const PersonnelReportPage: React.FC<{
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-navy">ระบบรายงานการปฏิบัติงาน (Performance Agreement - PA)</h2>
+            <h2 className="text-2xl font-bold text-navy">{currentConfig.title}</h2>
             
             <div className="bg-white p-2 rounded-xl shadow-sm flex flex-wrap gap-2">
                 <button onClick={() => setActiveTab('stats')} className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'stats' ? 'bg-primary-blue text-white' : 'text-gray-600'}`}>ภาพรวมสถิติ</button>
@@ -289,7 +314,7 @@ const PersonnelReportPage: React.FC<{
             {activeTab === 'stats' && (
                 <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white p-4 rounded-xl shadow border border-gray-100"><p className="text-sm text-gray-500">ทั้งหมด</p><p className="text-3xl font-bold text-navy">{stats.total}</p></div>
+                        <div className="bg-white p-4 rounded-xl shadow border border-gray-100"><p className="text-sm">ทั้งหมด</p><p className="text-3xl font-bold">{stats.total}</p></div>
                         <div className="bg-white p-4 rounded-xl shadow border border-yellow-100"><p className="text-sm text-yellow-600">รอตรวจ</p><p className="text-3xl font-bold text-yellow-700">{stats.pending}</p></div>
                         <div className="bg-white p-4 rounded-xl shadow border border-green-100"><p className="text-sm text-green-600">ผ่าน</p><p className="text-3xl font-bold text-green-700">{stats.approved}</p></div>
                         <div className="bg-white p-4 rounded-xl shadow border border-red-100"><p className="text-sm text-red-600">ไม่ผ่าน</p><p className="text-3xl font-bold text-red-700">{stats.needs_edit}</p></div>
@@ -304,12 +329,12 @@ const PersonnelReportPage: React.FC<{
             {activeTab === 'list' && (
                 <div className="animate-fade-in space-y-4">
                     <div className={`p-4 rounded-lg mb-4 text-sm ${submissionStatus.isOpen ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                        <p className="font-bold">{submissionStatus.isOpen ? '🟢 ระบบเปิดรับรายงาน PA' : '🔴 ระบบปิดรับรายงาน PA'}</p>
+                        <p className="font-bold">{submissionStatus.isOpen ? '🟢 ระบบเปิดรับรายงาน' : '🔴 ระบบปิดรับรายงาน'}</p>
                         <ul className="list-disc list-inside mt-1 text-xs">
-                            {submissionStatus.round1.isOpen && <li>รอบที่ 1: เปิดรับ {submissionStatus.round1.start && submissionStatus.round1.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round1.start)} ถึง ${formatThaiDate(submissionStatus.round1.end)}` : ''}</li>}
-                            {submissionStatus.round2.isOpen && <li>รอบที่ 2: เปิดรับ {submissionStatus.round2.start && submissionStatus.round2.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round2.start)} ถึง ${formatThaiDate(submissionStatus.round2.end)}` : ''}</li>}
-                            {!submissionStatus.isOpen && !isAdminOrPro && <li>กรุณารอช่วงเวลาที่กำหนด หรือติดต่อผู้ดูแลระบบ</li>}
-                            {isAdminOrPro && <li className="text-purple-700">ผู้ดูแลระบบสามารถส่งรายงานได้ตลอดเวลา</li>}
+                           {submissionStatus.round1.isOpen && <li>{mode === 'pa' ? 'รอบที่ 1:' : ''} เปิดรับ {submissionStatus.round1.start && submissionStatus.round1.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round1.start)} ถึง ${formatThaiDate(submissionStatus.round1.end)}` : ''}</li>}
+                           {mode === 'pa' && submissionStatus.round2.isOpen && <li>รอบที่ 2: เปิดรับ {submissionStatus.round2.start && submissionStatus.round2.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round2.start)} ถึง ${formatThaiDate(submissionStatus.round2.end)}` : ''}</li>}
+                           {!submissionStatus.isOpen && !isAdminOrPro && <li>กรุณารอช่วงเวลาที่กำหนด หรือติดต่อผู้ดูแลระบบ</li>}
+                           {isAdminOrPro && <li className="text-purple-700">ผู้ดูแลระบบสามารถส่งรายงานได้ตลอดเวลา</li>}
                         </ul>
                     </div>
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -340,7 +365,7 @@ const PersonnelReportPage: React.FC<{
                     </div>
                     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
                         {selectedIds.size > 0 && isAdminOrPro && <div className="mb-4 flex justify-end"><button onClick={handleDelete} className="bg-red-500 text-white px-3 py-1 rounded text-sm font-bold">ลบ {selectedIds.size} รายการ</button></div>}
-                        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><thead className="bg-gray-50 text-gray-600"><tr><th className="p-3 w-8"><input type="checkbox" className="rounded" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredReports.map(r=>r.id)) : new Set())}/></th><th className="p-3">ปี/รอบ</th><th className="p-3">วันที่ส่ง</th><th className="p-3">ชื่อ-สกุล</th><th className="p-3">ตำแหน่ง/วิทยฐานะ</th><th className="p-3">หัวข้อข้อตกลง</th><th className="p-3">ไฟล์</th><th className="p-3 text-center">สถานะ</th><th className="p-3 text-center">จัดการ</th></tr></thead><tbody className="divide-y">{filteredReports.map(r => (<tr key={r.id} className="hover:bg-gray-50"><td className="p-3"><input type="checkbox" className="rounded" checked={selectedIds.has(r.id)} onChange={() => {const next = new Set(selectedIds); if (next.has(r.id)) next.delete(r.id); else next.add(r.id); setSelectedIds(next);}} /></td><td className="p-3 whitespace-nowrap"><div>{r.academicYear}</div><div className="text-xs text-gray-500">รอบที่ {r.round}</div></td><td className="p-3 whitespace-nowrap">{formatThaiDate(r.submissionDate)}</td><td className="p-3 font-medium text-navy whitespace-nowrap">{r.name}</td><td className="p-3"><div className="whitespace-nowrap">{r.position}</div><div className="text-xs text-blue-600 whitespace-nowrap">{r.academicStanding || '-'}</div></td><td className="p-3 text-gray-600">{r.agreementTitle || '-'}</td><td className="p-3"><a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">ดูไฟล์</a></td>
+                        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><thead className="bg-gray-50 text-gray-600"><tr><th className="p-3 w-8"><input type="checkbox" className="rounded" onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredReports.map(r=>r.id)) : new Set())}/></th><th className="p-3">ปี/รอบ</th><th className="p-3">วันที่ส่ง</th><th className="p-3">ชื่อ-สกุล</th><th className="p-3">ตำแหน่ง/วิทยฐานะ</th><th className="p-3">ไฟล์</th><th className="p-3 text-center">สถานะ</th><th className="p-3 text-center">จัดการ</th></tr></thead><tbody className="divide-y">{filteredReports.map(r => (<tr key={r.id} className="hover:bg-gray-50"><td className="p-3"><input type="checkbox" className="rounded" checked={selectedIds.has(r.id)} onChange={() => {const next = new Set(selectedIds); if (next.has(r.id)) next.delete(r.id); else next.add(r.id); setSelectedIds(next);}} /></td><td className="p-3 whitespace-nowrap"><div>{r.academicYear}</div><div className="text-xs text-gray-500">รอบที่ {r.round}</div></td><td className="p-3 whitespace-nowrap">{formatThaiDate(r.submissionDate)}</td><td className="p-3 font-medium text-navy whitespace-nowrap">{r.name}</td><td className="p-3"><div className="whitespace-nowrap">{r.position}</div><div className="text-xs text-blue-600 whitespace-nowrap">{r.academicStanding || '-'}</div></td><td className="p-3"><a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">ดูไฟล์</a></td>
                         <td className="p-3 text-center">
                             {isAdminOrPro ? (
                                 <select 
@@ -374,6 +399,7 @@ const PersonnelReportPage: React.FC<{
                     academicYears={academicYears}
                     academicStandings={settings.academicStandings || []}
                     reportToEdit={editingReport}
+                    mode={mode}
                 />
             )}
         </div>
