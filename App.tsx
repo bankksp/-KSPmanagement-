@@ -96,6 +96,7 @@ const App: React.FC = () => {
     const [certificateRequests, setCertificateRequests] = useState<CertificateRequest[]>([]);
     const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
     const [performanceReports, setPerformanceReports] = useState<PerformanceReport[]>([]);
+    const [salaryPromotionReports, setSalaryPromotionReports] = useState<PerformanceReport[]>([]);
     const [sarReports, setSarReports] = useState<SARReport[]>([]);
     const [achievements, setAchievements] = useState<Achievement[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
@@ -256,8 +257,16 @@ const App: React.FC = () => {
             setCertificateProjects(data.certificateProjects || []);
             setCertificateRequests(data.certificateRequests || []); 
             setMaintenanceRequests(data.maintenanceRequests || []);
-            setPerformanceReports((data.performanceReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate) })));
-            setSarReports(data.sarReports || []);
+
+            // Split Performance Reports into PA and Salary Promotion
+            const allPerfReports = (data.performanceReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate), academicYear: String(r.academicYear || '') }));
+            setPerformanceReports(allPerfReports.filter(r => r.reportType !== 'salary_promotion'));
+            const oldSalaryReports = allPerfReports.filter(r => r.reportType === 'salary_promotion');
+            const newSalaryReportsRaw = (data.salaryPromotionReports || []);
+            const newSalaryReports = newSalaryReportsRaw.map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate), academicYear: String(r.academicYear || '') }));
+            setSalaryPromotionReports([...oldSalaryReports, ...newSalaryReports]);
+
+            setSarReports((data.sarReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate), academicYear: String(r.academicYear || '') })));
             setAchievements((data.achievements || []).map((a: any) => ({ ...a, date: normalizeDateString(a.date) })));
             setDocuments(data.generalDocuments || data.documents || []); 
             setWorkflowDocuments(data.workflowDocuments || []);
@@ -317,7 +326,8 @@ const App: React.FC = () => {
     }, [isAuthenticated, currentUser?.id, hasInitialData, fetchError]);
 
     const isUIBusy = useMemo(() => {
-        return isReportModalOpen || 
+        return isSaving ||
+               isReportModalOpen || 
                isStudentModalOpen || 
                isPersonnelModalOpen || 
                isLoginModalOpen || 
@@ -326,6 +336,7 @@ const App: React.FC = () => {
                !!editingStudent ||
                !!editingPersonnel;
     }, [
+        isSaving,
         isReportModalOpen, isStudentModalOpen, isPersonnelModalOpen, 
         isLoginModalOpen, isRegisterModalOpen, 
         editingReport, editingStudent, editingPersonnel
@@ -475,7 +486,6 @@ const App: React.FC = () => {
             if(t === 'student') {
                 setStudentAttendance(prev => prev.filter(r => !ids.includes(String(r.id))));
             } else {
-                // FIX: Use .includes() for arrays instead of .has()
                 setPersonnelAttendance(prev => prev.filter(r => !ids.includes(String(r.id))));
             }
             alert('ลบข้อมูลเรียบร้อย');
@@ -494,17 +504,23 @@ const App: React.FC = () => {
             const items = Array.isArray(responseData) ? responseData : [responseData];
             
             const processedItems = items.map((saved: any) => {
+                if (!saved) return null;
+                const newSaved = { ...saved };
                  if (action === 'saveLeaveRecord' || action === 'saveDutyRecord' || action === 'saveAchievement') {
-                    saved.date = normalizeDateString(saved.date);
-                    if (saved.startDate) saved.startDate = normalizeDateString(saved.startDate);
-                    if (saved.endDate) saved.endDate = normalizeDateString(saved.endDate);
+                    newSaved.date = normalizeDateString(newSaved.date);
+                    if (newSaved.startDate) newSaved.startDate = normalizeDateString(newSaved.startDate);
+                    if (newSaved.endDate) newSaved.endDate = normalizeDateString(newSaved.endDate);
+                } else if (action === 'savePerformanceReport' || action === 'saveSARReport' || action === 'saveSalaryPromotionReport') {
+                    newSaved.submissionDate = normalizeDateString(newSaved.submissionDate);
+                    if (newSaved.academicYear) {
+                        newSaved.academicYear = String(newSaved.academicYear);
+                    }
                 }
-                // Handle Procurement items parsing
                 if (action === 'saveSupplyRequest') {
-                    saved.items = safeJsonParse(saved.items) || [];
+                    newSaved.items = safeJsonParse(newSaved.items) || [];
                 }
-                return saved;
-            });
+                return newSaved;
+            }).filter(Boolean); // Filter out any null items
 
             setter((prev: any[]) => {
                 let newPrev = [...prev];
@@ -518,11 +534,12 @@ const App: React.FC = () => {
                 });
                 return newPrev;
             });
-            alert('บันทึกเรียบร้อย');
+            // Removed alert from generic save to allow specific alerts in components
             return true;
-        } catch(e) { 
-            console.error(e); 
-            alert('Error saving'); 
+        } catch(e: any) { 
+            console.error("Generic Save Error:", e); 
+            const errorMessage = e.message || 'Unknown error';
+            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล:\n' + errorMessage + '\n\nอาจเกิดจากไฟล์ขนาดใหญ่หรือการเชื่อมต่ออินเทอร์เน็ตมีปัญหา กรุณาลองใหม่อีกครั้ง'); 
             return false;
         } finally { setIsSaving(false); }
     };
@@ -677,9 +694,9 @@ const App: React.FC = () => {
                         mode="salary_promotion"
                         currentUser={currentUser} 
                         personnel={personnel} 
-                        reports={performanceReports} 
-                        onSave={(r) => handleGenericSave('savePerformanceReport', r, setPerformanceReports)} 
-                        onDelete={(ids) => handleGenericDelete('deletePerformanceReports', ids, setPerformanceReports)} 
+                        reports={salaryPromotionReports} 
+                        onSave={(r) => handleGenericSave('saveSalaryPromotionReport', r, setSalaryPromotionReports)} 
+                        onDelete={(ids) => handleGenericDelete('deleteSalaryPromotionReports', ids, setSalaryPromotionReports)} 
                         academicYears={settings.academicYears} 
                         isSaving={isSaving} 
                         settings={settings}
@@ -793,7 +810,13 @@ const App: React.FC = () => {
                 </div>
             )}
             <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleSessionLogin} personnelList={personnel} onRegisterClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }} />
-            <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => handleGenericSave('addPersonnel', p, setPersonnel)} positions={settings.positions} isSaving={isSaving} />
+            <RegisterModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={async (p) => { 
+                const success = await handleGenericSave('addPersonnel', p, setPersonnel); 
+                if (success) { 
+                    setIsRegisterModalOpen(false); 
+                    alert('ลงทะเบียนสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติ'); 
+                } 
+            }} positions={settings.positions} isSaving={isSaving} />
             {isReportModalOpen && (
                 <ReportModal onClose={handleCloseReportModal} onSave={handleSaveReport} reportToEdit={editingReport} academicYears={settings.academicYears} dormitories={settings.dormitories} positions={settings.positions} isSaving={isSaving} personnel={personnel} currentUser={currentUser} students={students} />
             )}
@@ -815,7 +838,10 @@ const App: React.FC = () => {
             )}
             {viewingStudent && <ViewStudentModal student={viewingStudent} onClose={() => setViewingStudent(null)} personnel={personnel} schoolName={settings.schoolName} schoolLogo={settings.schoolLogo} currentUser={currentUser} />}
             {isPersonnelModalOpen && (
-                <PersonnelModal onClose={() => setIsPersonnelModalOpen(false)} onSave={(p) => handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel)} personnelToEdit={editingPersonnel} positions={settings.positions} students={students} isSaving={isSaving} currentUserRole={currentUser?.role} currentUser={currentUser} settings={settings} />
+                <PersonnelModal onClose={() => setIsPersonnelModalOpen(false)} onSave={async (p) => { 
+                    const success = await handleGenericSave(editingPersonnel ? 'updatePersonnel' : 'addPersonnel', p, setPersonnel); 
+                    if (success) setIsPersonnelModalOpen(false); 
+                }} personnelToEdit={editingPersonnel} positions={settings.positions} students={students} isSaving={isSaving} currentUserRole={currentUser?.role} currentUser={currentUser} settings={settings} />
             )}
             {viewingPersonnel && (
                 <ViewPersonnelModal 
@@ -826,7 +852,7 @@ const App: React.FC = () => {
                     currentUser={currentUser}
                     students={students}
                     leaveRecords={leaveRecords}
-                    performanceReports={performanceReports}
+                    performanceReports={[...performanceReports, ...salaryPromotionReports]}
                     sarReports={sarReports}
                     academicPlans={academicPlans}
                     achievements={achievements}

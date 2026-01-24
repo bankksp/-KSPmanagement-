@@ -2,9 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PerformanceReport, Personnel, Settings } from '../types';
 import { getCurrentThaiDate, buddhistToISO, isoToBuddhist, formatThaiDate, getDriveViewUrl, safeParseArray } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import StatsCard from './StatsCard';
 
 interface PerformanceReportModalProps {
-    onSave: (report: PerformanceReport) => void;
+    onSave: (report: PerformanceReport) => Promise<boolean | void>;
     onClose: () => void;
     isSaving: boolean;
     currentUser: Personnel;
@@ -23,11 +24,12 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
         if (reportToEdit) {
             setFormData(reportToEdit);
         } else {
+            const title = currentUser.personnelTitle === 'อื่นๆ' ? currentUser.personnelTitleOther : currentUser.personnelTitle;
             setFormData({
                 academicYear: (new Date().getFullYear() + 543).toString(),
                 round: '1',
                 personnelId: currentUser.id,
-                name: currentUser.personnelName,
+                name: `${title} ${currentUser.personnelName}`,
                 position: currentUser.position,
                 academicStanding: currentUser.academicStanding || '',
                 major: currentUser.educationBackgrounds?.[0]?.major || '',
@@ -45,7 +47,7 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const newReport: PerformanceReport = {
             ...formData,
@@ -53,7 +55,8 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
             submissionDate: formData.submissionDate || getCurrentThaiDate(),
             reportType: mode,
         } as PerformanceReport;
-        onSave(newReport);
+        
+        await onSave(newReport);
     };
 
     const modalTitle = mode === 'pa' 
@@ -61,52 +64,52 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
         : 'รายงานผลการปฏิบัติงาน (เพื่อเลื่อนเงินเดือน)';
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className="p-6 border-b">
-                    <h2 className="text-xl font-bold text-navy">{formData.id ? 'แก้ไขรายงาน' : `เพิ่ม${modalTitle}`}</h2>
+                <div className="p-6 border-b bg-primary-blue text-white rounded-t-2xl">
+                    <h2 className="text-xl font-bold">{formData.id ? 'แก้ไขรายงาน' : `เพิ่ม${modalTitle}`}</h2>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+                <form id="performance-report-form" onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto bg-gray-50/50">
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p><span className="font-bold">วันที่ส่ง:</span> {formData.submissionDate}</p>
+                        <p><span className="font-bold">ชื่อผู้รายงาน:</span> {formData.name}</p>
+                        <p><span className="font-bold">ตำแหน่ง:</span> {formData.position}</p>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">ปีการศึกษา</label>
-                            <select value={formData.academicYear} onChange={e => setFormData({...formData, academicYear: e.target.value})} className="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                            <select value={formData.academicYear} onChange={e => setFormData({...formData, academicYear: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                                 {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">รอบการประเมิน</label>
-                            <select value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} className="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                            <select value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                                 <option value="1">รอบที่ 1 (1 ต.ค. - 31 มี.ค.)</option>
                                 <option value="2">รอบที่ 2 (1 เม.ย. - 30 ก.ย.)</option>
                             </select>
                         </div>
                     </div>
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                        <p><span className="font-bold">วันที่ส่ง:</span> {formData.submissionDate}</p>
-                        <p><span className="font-bold">ชื่อผู้รายงาน:</span> {formData.name}</p>
-                        <p><span className="font-bold">ตำแหน่ง:</span> {formData.position}</p>
-                    </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">วิทยฐานะ</label>
-                        <select value={formData.academicStanding || ''} onChange={e => setFormData({...formData, academicStanding: e.target.value})} className="w-full border rounded-lg px-3 py-2 bg-gray-100">
+                        <select value={formData.academicStanding || ''} onChange={e => setFormData({...formData, academicStanding: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                              <option value="">-- ไม่ระบุ --</option>
                             {(academicStandings || []).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">วิชาเอก</label>
-                        <input type="text" value={formData.major || ''} onChange={e => setFormData({...formData, major: e.target.value})} className="w-full border rounded-lg px-3 py-2 bg-gray-100" />
+                        <input type="text" value={formData.major || ''} onChange={e => setFormData({...formData, major: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">ไฟล์รายงาน (PDF, Word)</label>
-                        <input type="file" onChange={handleFileChange} className="w-full text-sm" />
+                        <input type="file" onChange={handleFileChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-primary-blue hover:file:bg-blue-100" />
                          {safeParseArray(formData.file).length > 0 && <p className="mt-2 text-xs text-green-600 font-bold">✓ เลือกไฟล์เรียบร้อย: { (formData.file![0] as File).name || 'ไฟล์เดิม'}</p>}
                     </div>
                 </form>
-                <div className="p-4 border-t flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
-                    <button onClick={handleSubmit} disabled={isSaving} className="px-6 py-2 bg-primary-blue text-white rounded-lg font-bold shadow disabled:opacity-50">
+                <div className="p-4 border-t flex justify-end gap-3 bg-gray-50 rounded-b-2xl">
+                    <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg font-bold hover:bg-gray-300 text-gray-700">ยกเลิก</button>
+                    <button type="submit" form="performance-report-form" disabled={isSaving} className="px-6 py-2 bg-primary-blue text-white rounded-lg font-bold shadow disabled:opacity-50 hover:bg-primary-hover">
                         {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
                     </button>
                 </div>
@@ -116,13 +119,12 @@ const PerformanceReportModal: React.FC<PerformanceReportModalProps> = ({
 };
 
 
-// --- MAIN PAGE COMPONENT (Redesigned) ---
 interface PersonnelReportPageProps {
     mode: 'pa' | 'salary_promotion';
     currentUser: Personnel;
     personnel: Personnel[];
     reports: PerformanceReport[];
-    onSave: (report: PerformanceReport) => void;
+    onSave: (report: PerformanceReport) => Promise<boolean | void>;
     onDelete: (ids: number[]) => void;
     academicYears: string[];
     isSaving: boolean;
@@ -148,7 +150,7 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
 
     const pageConfig = {
         pa: {
-            title: "ระบบรายงานการปฏิบัติงาน (Performance Agreement - PA)",
+            title: "ระบบรายงานการปฏิบัติงาน (PA)",
             reportType: 'pa'
         },
         salary_promotion: {
@@ -183,7 +185,6 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
             return { isOpen: isOpen || isAdminOrPro, round1: { isOpen, start: settings.salaryReportStartDate, end: settings.salaryReportEndDate }, round2: { isOpen: false } };
         }
         
-        // PA Logic
         const round1Open = settings.isPaRound1Open && checkDateRange(settings.paRound1StartDate, settings.paRound1EndDate);
         const round2Open = settings.isPaRound2Open && checkDateRange(settings.paRound2StartDate, settings.paRound2EndDate);
         
@@ -224,7 +225,7 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
     const filteredReports = useMemo(() => {
         return relevantReports.filter(r => {
             const matchesSearch = (r.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesYear = !filterYear || String(r.academicYear) === String(filterYear);
+            const matchesYear = !filterYear || r.academicYear === filterYear;
             const matchesPosition = !filterPosition || r.position === filterPosition;
             const matchesRound = !filterRound || r.round === filterRound;
             return matchesSearch && matchesYear && matchesPosition && matchesRound;
@@ -240,9 +241,12 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
         setIsModalOpen(true);
     };
     
-    const handleSaveReport = (report: PerformanceReport) => {
-        onSave(report);
-        setIsModalOpen(false);
+    const handleSaveReport = async (report: PerformanceReport) => {
+        const success = await onSave(report);
+        if (success) {
+            setIsModalOpen(false);
+            setEditingReport(null);
+        }
     };
 
     const handleDelete = () => {
@@ -313,22 +317,38 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
 
             {activeTab === 'stats' && (
                 <div className="space-y-6 animate-fade-in">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white p-4 rounded-xl shadow border border-gray-100"><p className="text-sm">ทั้งหมด</p><p className="text-3xl font-bold">{stats.total}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow border border-yellow-100"><p className="text-sm text-yellow-600">รอตรวจ</p><p className="text-3xl font-bold text-yellow-700">{stats.pending}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow border border-green-100"><p className="text-sm text-green-600">ผ่าน</p><p className="text-3xl font-bold text-green-700">{stats.approved}</p></div>
-                        <div className="bg-white p-4 rounded-xl shadow border border-red-100"><p className="text-sm text-red-600">ไม่ผ่าน</p><p className="text-3xl font-bold text-red-700">{stats.needs_edit}</p></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <StatsCard title="รายงานทั้งหมด" value={stats.total.toString()} icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>} color="bg-blue-500" />
+                        <StatsCard title="รอตรวจสอบ" value={stats.pending.toString()} icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} color="bg-yellow-500" />
+                        <StatsCard title="ผ่านการประเมิน" value={stats.approved.toString()} icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} color="bg-green-500" />
+                        <StatsCard title="ต้องแก้ไข/ไม่ผ่าน" value={stats.needs_edit.toString()} icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>} color="bg-red-500" />
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow h-80"><h3 className="font-bold mb-2">สถานะรายงาน</h3><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={stats.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" isAnimationActive={false}>{stats.statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
-                        <div className="bg-white p-6 rounded-xl shadow h-80"><h3 className="font-bold mb-2">จำนวนตามวิทยฐานะ</h3><ResponsiveContainer width="100%" height="100%"><BarChart data={stats.standingData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{fontSize: 12}} /><YAxis /><Tooltip /><Bar dataKey="value" name="จำนวน" fill="#8884d8" /></BarChart></ResponsiveContainer></div>
+                        <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 h-96">
+                            <h3 className="font-bold text-navy mb-4">สถานะรายงาน</h3>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={stats.statusData} cx="50%" cy="50%" innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" isAnimationActive={false}>
+                                        {stats.statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                                    </Pie>
+                                    <Tooltip />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 h-96">
+                            <h3 className="font-bold text-navy mb-4">จำนวนตามวิทยฐานะ</h3>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats.standingData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{fontSize: 12}} /><YAxis /><Tooltip /><Bar dataKey="value" name="จำนวน" fill="#8884d8" /></BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
             )}
             
             {activeTab === 'list' && (
                 <div className="animate-fade-in space-y-4">
-                    <div className={`p-4 rounded-lg mb-4 text-sm ${submissionStatus.isOpen ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    <div className={`p-4 rounded-lg text-sm ${submissionStatus.isOpen ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                         <p className="font-bold">{submissionStatus.isOpen ? '🟢 ระบบเปิดรับรายงาน' : '🔴 ระบบปิดรับรายงาน'}</p>
                         <ul className="list-disc list-inside mt-1 text-xs">
                            {submissionStatus.round1.isOpen && <li>{mode === 'pa' ? 'รอบที่ 1:' : ''} เปิดรับ {submissionStatus.round1.start && submissionStatus.round1.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round1.start)} ถึง ${formatThaiDate(submissionStatus.round1.end)}` : ''}</li>}

@@ -4,7 +4,7 @@ import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Student, Personnel, LeaveRecord, PerformanceReport, SARReport, AcademicPlan, Page, EducationBackground, Achievement } from '../types';
 import { getFirstImageSource, safeParseArray, formatThaiDate, getDriveViewUrl, getCurrentThaiDate, normalizeDate, toThaiNumerals, getDriveDownloadUrl, getDirectDriveImageSrc, parseThaiDateForSort } from '../utils';
 
-type Tab = 'profile' | 'advisory' | 'leave' | 'pa' | 'sar' | 'plans' | 'achievements';
+type Tab = 'profile' | 'advisory' | 'leave' | 'pa' | 'salary_promotion' | 'sar' | 'plans' | 'achievements';
 
 interface ViewPersonnelModalProps {
     personnel: Personnel;
@@ -33,7 +33,8 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
     // Data Filtering
     const myAdvisoryStudents = useMemo(() => students.filter(s => safeParseArray(s.homeroomTeachers).includes(personnel.id)), [students, personnel.id]);
     const myLeaveRecords = useMemo(() => leaveRecords.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [leaveRecords, personnel.id]);
-    const myPaReports = useMemo(() => performanceReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [performanceReports, personnel.id]);
+    const myPaReports = useMemo(() => performanceReports.filter(r => r.personnelId === personnel.id && (r.reportType === 'pa' || !r.reportType)).sort((a,b) => b.id - a.id), [performanceReports, personnel.id]);
+    const mySalaryPromoReports = useMemo(() => performanceReports.filter(r => r.personnelId === personnel.id && r.reportType === 'salary_promotion').sort((a,b) => b.id - a.id), [performanceReports, personnel.id]);
     const mySarReports = useMemo(() => sarReports.filter(r => r.personnelId === personnel.id).sort((a,b) => b.id - a.id), [sarReports, personnel.id]);
     const myAcademicPlans = useMemo(() => academicPlans.filter(p => p.teacherId === personnel.id).sort((a,b) => b.id - a.id), [academicPlans, personnel.id]);
     const myAchievements = useMemo(() => (achievements || []).filter(a => a.personnelId === personnel.id).sort((a, b) => parseThaiDateForSort(b.date) - parseThaiDateForSort(a.date)), [achievements, personnel.id]);
@@ -76,14 +77,14 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
         const p = personnel;
         const row = [p.id, p.personnelTitle, p.personnelName, p.position, p.academicStanding, p.idCard, p.dob, p.phone, p.email, p.appointmentDate];
         
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Excel
         csvContent += headers.join(",") + "\r\n";
         csvContent += row.map(d => `"${String(d || '').replace(/"/g, '""')}"`).join(",") + "\r\n";
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `personnel_${p.id}.csv`);
+        link.setAttribute("download", `personnel_info_${p.id}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -323,14 +324,49 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
             <h3 className="font-bold text-lg text-navy mb-4">ประวัติการส่งรายงาน PA</h3>
             <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
-                     <thead className="bg-gray-50"><tr><th className="p-2">ปีการศึกษา</th><th className="p-2">รอบ</th><th className="p-2">หัวข้อ</th><th className="p-2">สถานะ</th></tr></thead>
+                     <thead className="bg-gray-50"><tr><th className="p-2">ปีการศึกษา</th><th className="p-2">รอบ</th><th className="p-2">ไฟล์แนบ</th><th className="p-2">สถานะ</th></tr></thead>
                      <tbody>
                         {myPaReports.map(r => (
-                            <tr key={r.id} className="border-b"><td className="p-2">{r.academicYear}</td><td className="p-2">{r.round}</td><td className="p-2">{r.agreementTitle}</td><td className="p-2"><StatusBadge status={r.status}/></td></tr>
+                            <tr key={r.id} className="border-b">
+                                <td className="p-2">{r.academicYear}</td>
+                                <td className="p-2">{r.round}</td>
+                                <td className="p-2">
+                                    {safeParseArray(r.file).length > 0 ? (
+                                        <a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">ดูไฟล์</a>
+                                    ) : '-'}
+                                </td>
+                                <td className="p-2"><StatusBadge status={r.status}/></td>
+                            </tr>
                         ))}
                      </tbody>
                 </table>
                 {myPaReports.length === 0 && <p className="text-gray-500 p-4 text-center">ไม่พบข้อมูลรายงาน PA</p>}
+            </div>
+        </div>
+    );
+
+    const renderSalaryPromoTab = () => (
+        <div>
+            <h3 className="font-bold text-lg text-navy mb-4">ประวัติการส่งรายงานผลงาน (เพื่อเลื่อนเงินเดือน)</h3>
+            <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                    <thead className="bg-gray-50"><tr><th className="p-2">ปีการศึกษา</th><th className="p-2">รอบ</th><th className="p-2">ไฟล์แนบ</th><th className="p-2">สถานะ</th></tr></thead>
+                    <tbody>
+                        {mySalaryPromoReports.map(r => (
+                            <tr key={r.id} className="border-b">
+                                <td className="p-2">{r.academicYear}</td>
+                                <td className="p-2">{r.round}</td>
+                                <td className="p-2">
+                                    {safeParseArray(r.file).length > 0 ? (
+                                        <a href={getDriveViewUrl(safeParseArray(r.file)[0])} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">ดูไฟล์</a>
+                                    ) : '-'}
+                                </td>
+                                <td className="p-2"><StatusBadge status={r.status}/></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                {mySalaryPromoReports.length === 0 && <p className="text-gray-500 p-4 text-center">ไม่พบข้อมูลรายงานผลงาน</p>}
             </div>
         </div>
     );
@@ -431,6 +467,7 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
         { tab: 'advisory', label: 'ครูที่ปรึกษา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
         { tab: 'leave', label: 'ประวัติการลา', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
         { tab: 'pa', label: 'รายงาน PA', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+        { tab: 'salary_promotion', label: 'ผลงานเลื่อนเงินเดือน', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
         { tab: 'sar', label: 'รายงาน SAR', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
         { tab: 'plans', label: 'แผนการสอน', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg> },
     ];
@@ -464,13 +501,16 @@ const ViewPersonnelModal: React.FC<ViewPersonnelModalProps> = ({
                 </div>
 
                 <div className="flex-grow overflow-y-auto p-4 sm:p-6">
-                    {activeTab === 'profile' && renderProfileTab()}
-                    {activeTab === 'achievements' && renderAchievementsTab()}
-                    {activeTab === 'advisory' && renderAdvisoryTab()}
-                    {activeTab === 'leave' && renderLeaveTab()}
-                    {activeTab === 'pa' && renderPaTab()}
-                    {activeTab === 'sar' && renderSarTab()}
-                    {activeTab === 'plans' && renderPlansTab()}
+                        <div className="pt-6">
+                            {activeTab === 'profile' && renderProfileTab()}
+                            {activeTab === 'achievements' && renderAchievementsTab()}
+                            {activeTab === 'advisory' && renderAdvisoryTab()}
+                            {activeTab === 'leave' && renderLeaveTab()}
+                            {activeTab === 'pa' && renderPaTab()}
+                            {activeTab === 'salary_promotion' && renderSalaryPromoTab()}
+                            {activeTab === 'sar' && renderSarTab()}
+                            {activeTab === 'plans' && renderPlansTab()}
+                        </div>
                 </div>
                  <div className="p-4 border-t bg-light-gray rounded-b-xl flex justify-end items-center gap-3 no-print">
                     <div className="relative" ref={exportMenuRef}>

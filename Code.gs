@@ -1,10 +1,9 @@
-
 /**
  * D-school Management System - Backend Script
  * Version: 2.2 (Complete Feature Parity & Robustness)
  */
 // NEW: Increased version number to reflect changes.
-const SCRIPT_VERSION = "2.2.1";
+const SCRIPT_VERSION = "2.2.2";
 
 const FOLDER_NAME = "D-school_Uploads"; 
 const SCHOOL_NAME = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
@@ -27,6 +26,7 @@ const SHEET_NAMES = {
   CERTIFICATE_REQUESTS: "CertificateRequests",
   MAINTENANCE_REQUESTS: "MaintenanceRequests",
   PERFORMANCE_REPORTS: "PerformanceReports",
+  SALARY_PROMOTION_REPORTS: "SalaryPromotionReports",
   SAR_REPORTS: "SARReports",
   ACHIEVEMENTS: "Achievements",
   DOCUMENTS: "GeneralDocuments",
@@ -140,7 +140,16 @@ function doPost(e) {
         for (const key in SHEET_NAMES) {
           if (key === 'OTP_STORE') continue;
           const sheetName = SHEET_NAMES[key];
-          const keyName = sheetName.charAt(0).toLowerCase() + sheetName.slice(1);
+          let keyName = sheetName.charAt(0).toLowerCase() + sheetName.slice(1);
+          
+          // Fix for sheet names with initialisms (e.g., SAR, SDQ)
+          if (sheetName === "SARReports") {
+            keyName = "sarReports";
+          }
+          if (sheetName === "SDQRecords") {
+            keyName = "sdqRecords";
+          }
+          
           allData[keyName] = readSheet(getSheet(sheetName));
         }
         const settingsList = readSheet(getSheet(SHEET_NAMES.SETTINGS));
@@ -349,12 +358,14 @@ function routeGenericAction(action, request, uploadFolder) {
      const sheetMap = {
         'deleteReports': SHEET_NAMES.REPORTS, 'deleteStudents': SHEET_NAMES.STUDENTS,
         'deletePersonnel': SHEET_NAMES.PERSONNEL, 'deleteServiceRecords': SHEET_NAMES.SERVICE_RECORDS,
-        'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS, // NEW: Added missing delete action.
+        'deleteDutyRecords': SHEET_NAMES.DUTY_RECORDS,
         'deleteLeaveRecords': SHEET_NAMES.LEAVE_RECORDS, 'deleteSupplyItems': SHEET_NAMES.SUPPLY_ITEMS,
+        'deleteSupplyRequests': SHEET_NAMES.SUPPLY_REQUESTS,
         'deleteDurableGoods': SHEET_NAMES.DURABLE_GOODS, 'deleteCertificateProjects': SHEET_NAMES.CERTIFICATE_PROJECTS,
         'deleteCertificateRequests': SHEET_NAMES.CERTIFICATE_REQUESTS,
         'deleteMaintenanceRequests': SHEET_NAMES.MAINTENANCE_REQUESTS,
         'deletePerformanceReports': SHEET_NAMES.PERFORMANCE_REPORTS,
+        'deleteSalaryPromotionReports': SHEET_NAMES.SALARY_PROMOTION_REPORTS,
         'deleteSARReports': SHEET_NAMES.SAR_REPORTS, 'deleteDocuments': SHEET_NAMES.DOCUMENTS,
         'deleteConstructionRecords': SHEET_NAMES.CONSTRUCTION_RECORDS,
         'deleteProjectProposals': SHEET_NAMES.PROJECT_PROPOSALS,
@@ -385,6 +396,7 @@ function routeGenericAction(action, request, uploadFolder) {
     'saveCertificateRequest': SHEET_NAMES.CERTIFICATE_REQUESTS,
     'saveMaintenanceRequest': SHEET_NAMES.MAINTENANCE_REQUESTS,
     'savePerformanceReport': SHEET_NAMES.PERFORMANCE_REPORTS,
+    'saveSalaryPromotionReport': SHEET_NAMES.SALARY_PROMOTION_REPORTS,
     'saveSARReport': SHEET_NAMES.SAR_REPORTS,
     'saveAchievement': SHEET_NAMES.ACHIEVEMENTS,
     'saveDocument': SHEET_NAMES.DOCUMENTS,
@@ -461,13 +473,20 @@ function ensureHeadersExist(sheet, dataObj) {
     sheet.appendRow(Object.keys(dataObj));
     return;
   }
-  const headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const existingHeaders = new Set(headers);
+  const newHeaders = [];
+  
   Object.keys(dataObj).forEach(key => {
-    if (headers.indexOf(key) === -1) {
-      sheet.getRange(1, headers.length + 1).setValue(key);
-      headers.push(key);
+    if (!existingHeaders.has(key)) {
+      newHeaders.push(key);
     }
   });
+
+  if (newHeaders.length > 0) {
+    const lastCol = sheet.getLastColumn();
+    sheet.getRange(1, lastCol + 1, 1, newHeaders.length).setValues([newHeaders]);
+  }
 }
 
 function saveRecord(sheet, dataObj, uploadFolder) {
@@ -476,18 +495,28 @@ function saveRecord(sheet, dataObj, uploadFolder) {
     if (Array.isArray(val)) {
       dataObj[key] = val.map(item => {
         if (item && item.data && item.filename) {
-          const blob = Utilities.newBlob(Utilities.base64Decode(item.data), item.mimeType, item.filename);
-          const file = uploadFolder.createFile(blob);
-          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-          return file.getUrl();
+          try {
+            const blob = Utilities.newBlob(Utilities.base64Decode(item.data), item.mimeType, item.filename);
+            const file = uploadFolder.createFile(blob);
+            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+            return file.getUrl();
+          } catch(e) {
+            Logger.log("Error uploading file array item for key " + key + ": " + e.toString());
+            return item; // return original object on failure
+          }
         }
         return item;
       });
     } else if (val && val.data && val.filename) {
-       const blob = Utilities.newBlob(Utilities.base64Decode(val.data), val.mimeType, val.filename);
-       const file = uploadFolder.createFile(blob);
-       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-       dataObj[key] = file.getUrl();
+       try {
+         const blob = Utilities.newBlob(Utilities.base64Decode(val.data), val.mimeType, val.filename);
+         const file = uploadFolder.createFile(blob);
+         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+         dataObj[key] = file.getUrl();
+       } catch (e) {
+         Logger.log("Error uploading file for key " + key + ": " + e.toString());
+         // Keep original object in dataObj on failure
+       }
     }
   }
 
@@ -497,16 +526,29 @@ function saveRecord(sheet, dataObj, uploadFolder) {
   
   if (sheet.getName() === SHEET_NAMES.SETTINGS) {
     if (sheet.getLastRow() > 1) rowIndex = 2;
-  } else if (idIndex !== -1 && sheet.getLastRow() > 1) {
-    const ids = sheet.getRange(2, idIndex + 1, sheet.getLastRow() - 1, 1).getValues().flat();
-    const matchIdx = ids.map(String).indexOf(String(dataObj.id));
-    if (matchIdx !== -1) rowIndex = matchIdx + 2;
+  } else if (idIndex !== -1 && dataObj.id && sheet.getLastRow() > 1) {
+    // OPTIMIZATION: Use TextFinder to find the row instead of reading all IDs
+    const idColumn = idIndex + 1;
+    const range = sheet.getRange(2, idColumn, sheet.getLastRow() - 1, 1);
+    const textFinder = range.createTextFinder(String(dataObj.id)).matchEntireCell(true);
+    const foundCell = textFinder.findNext();
+    if (foundCell) {
+      rowIndex = foundCell.getRow();
+    }
   }
 
   const rowData = headers.map(h => {
     const val = dataObj[h];
     if (val === undefined || val === null) return '';
-    return (typeof val === 'object') ? JSON.stringify(val) : val;
+    // Improved stringification for objects and arrays
+    if (typeof val === 'object') {
+        try {
+            return JSON.stringify(val);
+        } catch (e) {
+            return String(val); // Fallback
+        }
+    }
+    return val;
   });
 
   if (rowIndex > 0) {
