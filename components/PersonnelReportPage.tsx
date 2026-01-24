@@ -182,19 +182,19 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
 
         if (mode === 'salary_promotion') {
             const isOpen = settings.isSalaryReportOpen && checkDateRange(settings.salaryReportStartDate, settings.salaryReportEndDate);
-            return { isOpen: isOpen || isAdminOrPro, round1: { isOpen, start: settings.salaryReportStartDate, end: settings.salaryReportEndDate }, round2: { isOpen: false } };
+            return { isOpen: isOpen, round1: { isOpen, start: settings.salaryReportStartDate, end: settings.salaryReportEndDate }, round2: { isOpen: false } };
         }
         
         const round1Open = settings.isPaRound1Open && checkDateRange(settings.paRound1StartDate, settings.paRound1EndDate);
         const round2Open = settings.isPaRound2Open && checkDateRange(settings.paRound2StartDate, settings.paRound2EndDate);
         
         return { 
-            isOpen: round1Open || round2Open || isAdminOrPro,
+            isOpen: round1Open || round2Open,
             round1: { isOpen: settings.isPaRound1Open, start: settings.paRound1StartDate, end: settings.paRound1EndDate },
             round2: { isOpen: settings.isPaRound2Open, start: settings.paRound2StartDate, end: settings.paRound2EndDate },
         };
 
-    }, [settings, isAdminOrPro, mode]);
+    }, [settings, mode]);
 
     const stats = useMemo(() => {
         const total = relevantReports.length;
@@ -351,10 +351,15 @@ const PersonnelReportPage: React.FC<PersonnelReportPageProps> = ({
                     <div className={`p-4 rounded-lg text-sm ${submissionStatus.isOpen ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                         <p className="font-bold">{submissionStatus.isOpen ? '🟢 ระบบเปิดรับรายงาน' : '🔴 ระบบปิดรับรายงาน'}</p>
                         <ul className="list-disc list-inside mt-1 text-xs">
-                           {submissionStatus.round1.isOpen && <li>{mode === 'pa' ? 'รอบที่ 1:' : ''} เปิดรับ {submissionStatus.round1.start && submissionStatus.round1.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round1.start)} ถึง ${formatThaiDate(submissionStatus.round1.end)}` : ''}</li>}
-                           {mode === 'pa' && submissionStatus.round2.isOpen && <li>รอบที่ 2: เปิดรับ {submissionStatus.round2.start && submissionStatus.round2.end ? `ตั้งแต่ ${formatThaiDate(submissionStatus.round2.start)} ถึง ${formatThaiDate(submissionStatus.round2.end)}` : ''}</li>}
-                           {!submissionStatus.isOpen && !isAdminOrPro && <li>กรุณารอช่วงเวลาที่กำหนด หรือติดต่อผู้ดูแลระบบ</li>}
-                           {isAdminOrPro && <li className="text-purple-700">ผู้ดูแลระบบสามารถส่งรายงานได้ตลอดเวลา</li>}
+                            {mode === 'pa' ? (
+                                <>
+                                    <li>รอบที่ 1: {submissionStatus.round1.isOpen ? 'เปิด' : 'ปิด'} {submissionStatus.round1.start && submissionStatus.round1.end ? `(${formatThaiDate(submissionStatus.round1.start)} - ${formatThaiDate(submissionStatus.round1.end)})` : ''}</li>
+                                    <li>รอบที่ 2: {submissionStatus.round2.isOpen ? 'เปิด' : 'ปิด'} {submissionStatus.round2.start && submissionStatus.round2.end ? `(${formatThaiDate(submissionStatus.round2.start)} - ${formatThaiDate(submissionStatus.round2.end)})` : ''}</li>
+                                </>
+                            ) : (
+                                <li>ช่วงเวลา: {submissionStatus.round1.start && submissionStatus.round1.end ? `${formatThaiDate(submissionStatus.round1.start)} ถึง ${formatThaiDate(submissionStatus.round1.end)}` : 'ไม่ได้กำหนด'}</li>
+                            )}
+                            {!submissionStatus.isOpen && <li>กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดระบบ</li>}
                         </ul>
                     </div>
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">

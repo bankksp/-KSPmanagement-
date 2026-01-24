@@ -300,9 +300,37 @@ const App: React.FC = () => {
 
             if (data.settings) {
                 const apiSettings = { ...data.settings };
-                if (typeof apiSettings.autoHideSidebar === 'string') {
-                    apiSettings.autoHideSidebar = apiSettings.autoHideSidebar.toLowerCase() === 'true';
-                }
+                
+                // Helper to safely convert sheet values to boolean
+                const toBoolean = (val: any): boolean | undefined => {
+                    if (val === undefined || val === null) return undefined;
+                    if (typeof val === 'boolean') return val;
+                    if (typeof val === 'string') {
+                        const s = val.toLowerCase().trim();
+                        if (s === 'true') return true;
+                        if (s === 'false' || s === '') return false;
+                    }
+                    if (typeof val === 'number') {
+                        return val !== 0;
+                    }
+                    // If we can't determine, return undefined so default from DEFAULT_SETTINGS applies
+                    return undefined; 
+                };
+
+                const booleanKeys: (keyof Settings)[] = ['autoHideSidebar', 'isPaRound1Open', 'isPaRound2Open', 'isSalaryReportOpen', 'isSarOpen'];
+                
+                booleanKeys.forEach(key => {
+                    if (key in apiSettings) {
+                        const boolVal = toBoolean(apiSettings[key]);
+                        if (typeof boolVal === 'boolean') {
+                            (apiSettings as any)[key] = boolVal;
+                        } else {
+                            // If value is ambiguous, remove it to let the default from spread operator apply
+                            delete (apiSettings as any)[key]; 
+                        }
+                    }
+                });
+
                 setSettings({ ...DEFAULT_SETTINGS, ...apiSettings });
             }
             
