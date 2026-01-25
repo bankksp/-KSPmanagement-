@@ -1,9 +1,8 @@
 /**
  * D-school Management System - Backend Script
- * Version: 2.2 (Complete Feature Parity & Robustness)
+ * Version: 2.3 (On-Demand Fetching)
  */
-// NEW: Increased version number to reflect changes.
-const SCRIPT_VERSION = "2.2.2";
+const SCRIPT_VERSION = "2.3.0";
 
 const FOLDER_NAME = "D-school_Uploads"; 
 const SCHOOL_NAME = "โรงเรียนกาฬสินธุ์ปัญญานุกูล";
@@ -42,10 +41,6 @@ const SHEET_NAMES = {
 };
 
 
-/**
- * NEW: Helper function to find a specific record by its ID.
- * This is useful for retrieving data for notifications without needing it from the client.
- */
 function findRecordById(sheet, id) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return null;
@@ -74,11 +69,6 @@ function findRecordById(sheet, id) {
   return null;
 }
 
-
-/**
- * NEW: Helper to update specific fields of a record without rewriting the whole row.
- * More efficient and safer for partial updates.
- */
 function updateRecordFields(sheet, id, fieldsToUpdate) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
@@ -103,7 +93,6 @@ function updateRecordFields(sheet, id, fieldsToUpdate) {
   }
 }
 
-
 function doPost(e) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return responseJSON({ status: 'error', message: 'Server busy, please try again.' });
@@ -127,7 +116,6 @@ function doPost(e) {
         
         const actualPass = user.password || user.idCard;
         if (String(actualPass) === String(request.password)) {
-            // NEW: Added server-side status check for security.
             if (user.status === 'pending') return responseJSON({ status: 'error', message: 'บัญชีของท่านยังไม่ได้รับอนุมัติ' });
             if (user.status === 'blocked') return responseJSON({ status: 'error', message: 'บัญชีของท่านถูกระงับการใช้งาน' });
             return responseJSON({ status: 'success', data: user });
@@ -135,26 +123,53 @@ function doPost(e) {
             return responseJSON({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' });
         }
 
-      case 'getAllData':
-        const allData = {};
-        for (const key in SHEET_NAMES) {
-          if (key === 'OTP_STORE') continue;
-          const sheetName = SHEET_NAMES[key];
-          let keyName = sheetName.charAt(0).toLowerCase() + sheetName.slice(1);
-          
-          // Fix for sheet names with initialisms (e.g., SAR, SDQ)
-          if (sheetName === "SARReports") {
-            keyName = "sarReports";
-          }
-          if (sheetName === "SDQRecords") {
-            keyName = "sdqRecords";
-          }
-          
-          allData[keyName] = readSheet(getSheet(sheetName));
-        }
-        const settingsList = readSheet(getSheet(SHEET_NAMES.SETTINGS));
-        allData.settings = settingsList.length > 0 ? settingsList[0] : null;
-        return responseJSON({ status: 'success', data: allData });
+      case 'getDashboardData':
+        const dashboardData = {
+          reports: readSheet(getSheet(SHEET_NAMES.REPORTS)),
+          students: readSheet(getSheet(SHEET_NAMES.STUDENTS)),
+          personnel: readSheet(getSheet(SHEET_NAMES.PERSONNEL)),
+          studentAttendance: readSheet(getSheet(SHEET_NAMES.STUDENT_ATTENDANCE)),
+          personnelAttendance: readSheet(getSheet(SHEET_NAMES.PERSONNEL_ATTENDANCE)),
+          homeVisits: readSheet(getSheet(SHEET_NAMES.HOME_VISITS)),
+          settings: readSheet(getSheet(SHEET_NAMES.SETTINGS))[0] || null
+        };
+        return responseJSON({ status: 'success', data: dashboardData });
+
+      case 'getStudents': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.STUDENTS)) });
+      case 'getPersonnel': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.PERSONNEL)) });
+      case 'getReports': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.REPORTS)) });
+      case 'getAttendanceData': 
+        return responseJSON({ status: 'success', data: {
+            studentAttendance: readSheet(getSheet(SHEET_NAMES.STUDENT_ATTENDANCE)),
+            personnelAttendance: readSheet(getSheet(SHEET_NAMES.PERSONNEL_ATTENDANCE))
+        }});
+      case 'getDutyRecords': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.DUTY_RECORDS)) });
+      case 'getLeaveRecords': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.LEAVE_RECORDS)) });
+      case 'getAchievements': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.ACHIEVEMENTS)) });
+      case 'getAcademicPlans': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.ACADEMIC_PLANS)) });
+      case 'getServiceRecords': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.SERVICE_RECORDS)) });
+      case 'getSupplyRequests': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.SUPPLY_REQUESTS)) });
+      case 'getProjectProposals': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.PROJECT_PROPOSALS)) });
+      case 'getDurableGoods': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.DURABLE_GOODS)) });
+      case 'getPerformanceReports': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.PERFORMANCE_REPORTS)) });
+      case 'getSalaryPromotionReports': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.SALARY_PROMOTION_REPORTS)) });
+      case 'getSarReports': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.SAR_REPORTS)) });
+      case 'getGeneralDocuments': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.DOCUMENTS)) });
+      case 'getMaintenanceRequests': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.MAINTENANCE_REQUESTS)) });
+      case 'getCertificateData':
+        return responseJSON({ status: 'success', data: {
+            projects: readSheet(getSheet(SHEET_NAMES.CERTIFICATE_PROJECTS)),
+            requests: readSheet(getSheet(SHEET_NAMES.CERTIFICATE_REQUESTS))
+        }});
+      case 'getConstructionRecords': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.CONSTRUCTION_RECORDS)) });
+      case 'getNutritionData':
+        return responseJSON({ status: 'success', data: {
+            mealPlans: readSheet(getSheet(SHEET_NAMES.MEAL_PLANS)),
+            ingredients: readSheet(getSheet(SHEET_NAMES.INGREDIENTS))
+        }});
+      case 'getHomeVisits': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.HOME_VISITS)) });
+      case 'getSdqRecords': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.SDQ_RECORDS)) });
+      case 'getWorkflowDocs': return responseJSON({ status: 'success', data: readSheet(getSheet(SHEET_NAMES.WORKFLOW_DOCS)) });
 
       case 'getChatMessages':
         const messages = readSheet(getSheet(SHEET_NAMES.CHAT_MESSAGES));
@@ -212,12 +227,11 @@ function doPost(e) {
           return responseJSON({ status: 'error', message: 'เกิดข้อผิดพลาดในการส่ง: ' + e.toString() });
         }
       
-      // NEW: Added handler for partial updates on Academic Plans.
       case 'updateAcademicPlanStatus': {
         const planSheet = getSheet(SHEET_NAMES.ACADEMIC_PLANS);
         const { id, status, comment, approverName, approvedDate } = data;
         
-        const originalRecord = findRecordById(planSheet, id); // Get full record for notification
+        const originalRecord = findRecordById(planSheet, id); 
         updateRecordFields(planSheet, id, { status, comment, approverName, approvedDate });
 
         if (originalRecord) {
@@ -301,7 +315,6 @@ function triggerNotification(action, data, settings) {
     webhookUrl = settings.webhookAcademic;
     msg = `📚 *มีการส่งแผนการจัดการเรียนรู้ใหม่*\n📖 วิชา: ${first.subjectName} (${first.subjectCode})\n👨‍🏫 ผู้สอน: ${first.teacherName}\n📂 กลุ่มสาระ: ${first.learningArea}`;
   } 
-  // NEW: Added notification for plan status updates.
   else if (action === 'updateAcademicPlanStatus') {
     webhookUrl = settings.webhookAcademic;
     msg = `✅ *แผนการสอนได้รับการตรวจสอบ*\n` +
@@ -335,7 +348,6 @@ function triggerNotification(action, data, settings) {
     msg = `🏠 *บันทึกการเยี่ยมบ้านนักเรียน*\n👤 นักเรียน: ${first.studentName}\n👨‍🏫 ครูผู้เยี่ยม: ${first.visitorName}`;
   }
 
-  // ส่งข้อมูล (สำคัญ: ตรวจสอบ URL)
   if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.trim().startsWith('http') && msg) {
     try {
       UrlFetchApp.fetch(webhookUrl.trim(), {
@@ -540,7 +552,6 @@ function saveRecord(sheet, dataObj, uploadFolder) {
   const rowData = headers.map(h => {
     const val = dataObj[h];
     if (val === undefined || val === null) return '';
-    // Improved stringification for objects and arrays
     if (typeof val === 'object') {
         try {
             return JSON.stringify(val);

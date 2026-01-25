@@ -59,7 +59,7 @@ const safeJsonParse = (input: any) => {
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('stats');
     const [isSaving, setIsSaving] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // Set to true initially for dashboard load
     const [isSyncing, setIsSyncing] = useState(false); 
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -67,7 +67,6 @@ const App: React.FC = () => {
     
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
     const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); 
-    const [isMouseInSidebarZone, setIsMouseInSidebarZone] = useState(false);
 
     const [reports, setReports] = useState<Report[]>([]);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
@@ -170,41 +169,23 @@ const App: React.FC = () => {
         return `${day}/${month}/${year}`;
     };
 
-    const fetchData = useCallback(async (isBackground: boolean = false) => {
+    const fetchDashboardData = useCallback(async () => {
         if (!isAuthenticated) return;
+        if (hasInitialData) { setIsLoading(false); return; } // Don't re-fetch initial data
 
-        if (isBackground) {
-            setIsSyncing(true);
-        } else if (!hasInitialData) {
-            setIsLoading(true);
-            setFetchError(null);
-        }
+        setIsLoading(true);
+        setFetchError(null);
         
         try {
-            const response = await postToGoogleScript({ action: 'getAllData' });
+            const response = await postToGoogleScript({ action: 'getDashboardData' });
             const data = response.data || {};
-            
-            const normalizedReports = (data.reports || []).map((r: any) => {
-                if (r.studentDetails && typeof r.studentDetails !== 'string') {
-                    r.studentDetails = JSON.stringify(r.studentDetails);
-                }
-                r.reportDate = normalizeDateString(r.reportDate);
-                return r;
-            });
-            setReports(normalizedReports);
 
-            setStudents(data.students || []);
-            
-            let fetchedPersonnel: Personnel[] = data.personnel || [];
-            fetchedPersonnel = fetchedPersonnel.map(p => {
-                const normalizeId = (id: any) => id ? String(id).replace(/[^0-9]/g, '') : '';
-                if (normalizeId(p.idCard) === '1469900181659') {
+            // PERSONNEL first to find current user
+            let fetchedPersonnel: Personnel[] = (data.personnel || []).map((p: any) => {
+                if (String(p.idCard).replace(/[^0-9]/g, '') === '1469900181659') {
                     return { ...p, role: 'admin' as const, status: 'approved' as const };
                 }
                 if (!p.status) p.status = 'approved';
-                p.dob = normalizeDateString(p.dob);
-                p.appointmentDate = normalizeDateString(p.appointmentDate);
-                p.highestDecorationDate = normalizeDateString(p.highestDecorationDate);
                 return p;
             });
             setPersonnel(fetchedPersonnel);
@@ -216,190 +197,83 @@ const App: React.FC = () => {
                     localStorage.setItem('dschool_user', JSON.stringify({ ...currentUser, ...updatedMe }));
                 }
             }
-
-            const normStudentAtt = (data.studentAttendance || []).map((r: any) => ({ 
-                ...r, 
-                date: normalizeDateString(r.date) 
-            }));
-            setStudentAttendance(normStudentAtt);
-
-            const normPersAtt = (data.personnelAttendance || []).map((r: any) => ({ 
-                ...r, 
-                date: normalizeDateString(r.date) 
-            }));
-            setPersonnelAttendance(normPersAtt);
-
-            setDutyRecords((data.dutyRecords || []).map((r: any) => ({ ...r, date: normalizeDateString(r.date) })));
             
-            const normLeaveRecords = (data.leaveRecords || []).map((r: any) => ({
-                ...r,
-                date: normalizeDateString(r.date),
-                startDate: normalizeDateString(r.startDate),
-                endDate: normalizeDateString(r.endDate),
-                submissionDate: normalizeDateString(r.submissionDate),
-                approvedDate: normalizeDateString(r.approvedDate)
-            }));
-            setLeaveRecords(normLeaveRecords);
+            setReports((data.reports || []).map((r: any) => ({...r, reportDate: normalizeDateString(r.reportDate)})));
+            setStudents(data.students || []);
+            setStudentAttendance((data.studentAttendance || []).map((r: any) => ({ ...r, date: normalizeDateString(r.date) })));
+            setPersonnelAttendance((data.personnelAttendance || []).map((r: any) => ({ ...r, date: normalizeDateString(r.date) })));
+            setHomeVisits((data.homeVisits || []).map((v: any) => ({...v, date: normalizeDateString(v.date)})));
 
-            setAcademicPlans((data.academicPlans || []).map((p: any) => ({ ...p, date: normalizeDateString(p.date) })));
-            setSupplyItems(data.supplyItems || []);
-            
-            const rawSupplyData = data.supplyRequests || []; 
-            setProcurementRecords(rawSupplyData.map((r: any) => ({
-                ...r,
-                docDate: normalizeDateString(r.docDate),
-                totalPrice: Number(r.totalPrice) || 0,
-                items: safeJsonParse(r.items) || []
-            })));
-
-            setDurableGoods(data.durableGoods || []); 
-            
-            setCertificateProjects(data.certificateProjects || []);
-            setCertificateRequests(data.certificateRequests || []); 
-            setMaintenanceRequests(data.maintenanceRequests || []);
-
-            // Split Performance Reports into PA and Salary Promotion
-            const allPerfReports = (data.performanceReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate), academicYear: String(r.academicYear || '') }));
-            setPerformanceReports(allPerfReports.filter(r => r.reportType !== 'salary_promotion'));
-            const oldSalaryReports = allPerfReports.filter(r => r.reportType === 'salary_promotion');
-            const newSalaryReportsRaw = (data.salaryPromotionReports || []);
-            const newSalaryReports = newSalaryReportsRaw.map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate), academicYear: String(r.academicYear || '') }));
-            setSalaryPromotionReports([...oldSalaryReports, ...newSalaryReports]);
-
-            setSarReports((data.sarReports || []).map((r: any) => ({ ...r, submissionDate: normalizeDateString(r.submissionDate), academicYear: String(r.academicYear || '') })));
-            setAchievements((data.achievements || []).map((a: any) => ({ ...a, date: normalizeDateString(a.date) })));
-            setDocuments(data.generalDocuments || data.documents || []); 
-            setWorkflowDocuments(data.workflowDocuments || []);
-            setServiceRecords(data.serviceRecords || []);
-            setConstructionRecords(data.constructionRecords || []); 
-            setProjectProposals(data.projectProposals || []); 
-            
-            const normalizedHomeVisits = (data.homeVisits || []).map((v: any) => {
-                v.date = normalizeDateString(v.date);
-                if (v.studentId) v.studentId = Number(v.studentId);
-                v.image = safeParseArray(v.image);
-                return v;
-            });
-            setHomeVisits(normalizedHomeVisits);
-
-            if (data.sdqRecords) {
-                 const normSDQ = data.sdqRecords.map((r: any) => {
-                     if (typeof r.scores === 'string') {
-                         try { r.scores = JSON.parse(r.scores); } catch(e) { r.scores = {}; }
-                     }
-                     r.date = normalizeDateString(r.date);
-                     return r;
-                 });
-                 setSdqRecords(normSDQ);
-            } else {
-                setSdqRecords([]);
-            }
-
-            if (data.mealPlans) setMealPlans(data.mealPlans.map((p:any) => ({ ...p, date: normalizeDateString(p.date) })));
-            if (data.ingredients) setIngredients(data.ingredients);
-
-            if (data.settings) {
-                const apiSettings = { ...data.settings };
-                
-                // Helper to safely convert sheet values to boolean
-                const toBoolean = (val: any): boolean | undefined => {
-                    if (val === undefined || val === null) return undefined;
-                    if (typeof val === 'boolean') return val;
-                    if (typeof val === 'string') {
-                        const s = val.toLowerCase().trim();
-                        if (s === 'true') return true;
-                        if (s === 'false' || s === '') return false;
-                    }
-                    if (typeof val === 'number') {
-                        return val !== 0;
-                    }
-                    // If we can't determine, return undefined so default from DEFAULT_SETTINGS applies
-                    return undefined; 
-                };
-
-                const booleanKeys: (keyof Settings)[] = ['autoHideSidebar', 'isPaRound1Open', 'isPaRound2Open', 'isSalaryReportOpen', 'isSarOpen'];
-                
-                booleanKeys.forEach(key => {
-                    if (key in apiSettings) {
-                        const boolVal = toBoolean(apiSettings[key]);
-                        if (typeof boolVal === 'boolean') {
-                            (apiSettings as any)[key] = boolVal;
-                        } else {
-                            // If value is ambiguous, remove it to let the default from spread operator apply
-                            delete (apiSettings as any)[key]; 
-                        }
-                    }
-                });
-
-                setSettings({ ...DEFAULT_SETTINGS, ...apiSettings });
-            }
+            if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
             
             setHasInitialData(true);
             setFetchError(null);
 
         } catch (error: any) {
-            console.error("Failed to fetch data:", error);
-            const msg = error instanceof Error ? error.message : "Unknown network error";
-            if (!isBackground) {
-                setFetchError(msg);
-            }
+            console.error("Failed to fetch initial data:", error);
+            setFetchError(error instanceof Error ? error.message : "Unknown network error");
         } finally {
             setIsLoading(false);
-            setIsSyncing(false);
-            if (isBackground && !fetchError) {
-                setShowSyncToast(true);
-                setTimeout(() => setShowSyncToast(false), 4000);
-            }
         }
-    }, [isAuthenticated, currentUser?.id, hasInitialData, fetchError]);
-
-    const isUIBusy = useMemo(() => {
-        return isSaving ||
-               isReportModalOpen || 
-               isStudentModalOpen || 
-               isPersonnelModalOpen || 
-               isLoginModalOpen || 
-               isRegisterModalOpen ||
-               !!editingReport ||
-               !!editingStudent ||
-               !!editingPersonnel;
-    }, [
-        isSaving,
-        isReportModalOpen, isStudentModalOpen, isPersonnelModalOpen, 
-        isLoginModalOpen, isRegisterModalOpen, 
-        editingReport, editingStudent, editingPersonnel
-    ]);
+    }, [isAuthenticated, hasInitialData, currentUser]);
 
     useEffect(() => {
         if (isAuthenticated) {
-            fetchData(false);
+            fetchDashboardData();
         }
-    }, [isAuthenticated, fetchData]);
+    }, [isAuthenticated, fetchDashboardData]);
+    
+    const fetchDataForPage = useCallback(async (page: Page) => {
+        if (!isAuthenticated) return;
 
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            if (!isAuthenticated || document.hidden || isUIBusy) {
-                return;
+        const getActionAndSetter = () => {
+            switch (page) {
+                case 'students': return students.length === 0 ? { action: 'getStudents', setter: setStudents } : null;
+                case 'personnel': return personnel.length === 0 ? { action: 'getPersonnel', setter: setPersonnel } : null;
+                case 'reports': return reports.length === 0 ? { action: 'getReports', setter: setReports } : null;
+                case 'attendance': case 'attendance_personnel':
+                     return (studentAttendance.length === 0 || personnelAttendance.length === 0) 
+                     ? { action: 'getAttendanceData', setter: (d: any) => { setStudentAttendance(d.studentAttendance || []); setPersonnelAttendance(d.personnelAttendance || []); } } : null;
+                case 'personnel_duty': return dutyRecords.length === 0 ? { action: 'getDutyRecords', setter: setDutyRecords } : null;
+                case 'personnel_leave': return leaveRecords.length === 0 ? { action: 'getLeaveRecords', setter: setLeaveRecords } : null;
+                case 'personnel_achievements': return achievements.length === 0 ? { action: 'getAchievements', setter: setAchievements } : null;
+                case 'academic_plans': return academicPlans.length === 0 ? { action: 'getAcademicPlans', setter: setAcademicPlans } : null;
+                case 'academic_service': return serviceRecords.length === 0 ? { action: 'getServiceRecords', setter: setServiceRecords } : null;
+                case 'finance_supplies': return procurementRecords.length === 0 ? { action: 'getSupplyRequests', setter: setProcurementRecords } : null;
+                case 'finance_projects': return projectProposals.length === 0 ? { action: 'getProjectProposals', setter: setProjectProposals } : null;
+                case 'durable_goods': return durableGoods.length === 0 ? { action: 'getDurableGoods', setter: setDurableGoods } : null;
+                case 'personnel_report': return performanceReports.length === 0 ? { action: 'getPerformanceReports', setter: setPerformanceReports } : null;
+                case 'personnel_salary_report': return salaryPromotionReports.length === 0 ? { action: 'getSalaryPromotionReports', setter: setSalaryPromotionReports } : null;
+                case 'personnel_sar': return sarReports.length === 0 ? { action: 'getSarReports', setter: setSarReports } : null;
+                case 'general_docs': return documents.length === 0 ? { action: 'getGeneralDocuments', setter: setDocuments } : null;
+                case 'general_repair': return maintenanceRequests.length === 0 ? { action: 'getMaintenanceRequests', setter: setMaintenanceRequests } : null;
+                case 'general_certs': return (certificateProjects.length === 0 || certificateRequests.length === 0) ? { action: 'getCertificateData', setter: (d: any) => { setCertificateProjects(d.projects || []); setCertificateRequests(d.requests || []); } } : null;
+                case 'general_construction': return constructionRecords.length === 0 ? { action: 'getConstructionRecords', setter: setConstructionRecords } : null;
+                case 'general_nutrition': return mealPlans.length === 0 ? { action: 'getNutritionData', setter: (d: any) => { setMealPlans(d.mealPlans || []); setIngredients(d.ingredients || DEFAULT_INGREDIENTS); } } : null;
+                case 'student_home_visit': return homeVisits.length === 0 ? { action: 'getHomeVisits', setter: setHomeVisits } : null;
+                case 'student_sdq': return sdqRecords.length === 0 ? { action: 'getSdqRecords', setter: setSdqRecords } : null;
+                case 'workflow_docs': return workflowDocuments.length === 0 ? { action: 'getWorkflowDocs', setter: setWorkflowDocuments } : null;
+                default: return null;
             }
+        };
 
-            const activeEl = document.activeElement;
-            const isTyping = activeEl && (
-                activeEl.tagName === 'INPUT' ||
-                activeEl.tagName === 'TEXTAREA' ||
-                activeEl.tagName === 'SELECT' ||
-                activeEl.getAttribute('contenteditable') === 'true'
-            );
+        const config = getActionAndSetter();
+        if (!config) return;
 
-            if (isTyping) {
-                console.log('User is typing. Skipping background sync.');
-                return;
+        setIsLoading(true);
+        try {
+            const response = await postToGoogleScript({ action: config.action });
+            if (response.data) {
+                config.setter(response.data);
             }
-            
-            fetchData(true);
-        }, 60000); 
+        } catch (error) {
+            console.error(`Failed to fetch data for ${page}:`, error);
+            alert(`ไม่สามารถโหลดข้อมูลสำหรับหน้านี้ได้: ${error}`);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [isAuthenticated, students, personnel, reports, studentAttendance, personnelAttendance, dutyRecords, leaveRecords, achievements, academicPlans, serviceRecords, procurementRecords, projectProposals, durableGoods, performanceReports, salaryPromotionReports, sarReports, documents, maintenanceRequests, certificateProjects, certificateRequests, constructionRecords, mealPlans, homeVisits, sdqRecords, workflowDocuments]);
 
-        return () => clearInterval(intervalId);
-    }, [fetchData, isUIBusy, isAuthenticated]);
 
     const handleSaveAttendance = async (t: 'student' | 'personnel', d: any) => { 
         setIsSaving(true);
@@ -600,9 +474,18 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800 mb-2">ไม่สามารถดึงข้อมูลได้</h3>
                     <p className="text-gray-600 mb-6 max-w-md">{fetchError}</p>
-                    <button onClick={() => fetchData()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow shadow-blue-200 transition">
+                    <button onClick={() => fetchDashboardData()} className="bg-primary-blue hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg shadow shadow-blue-200 transition">
                         ลองใหม่อีกครั้ง
                     </button>
+                </div>
+            )
+        }
+
+        if (isLoading) {
+            return (
+                <div className="flex flex-col justify-center items-center h-full">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary-blue mb-4"></div>
+                    <p className="text-lg text-secondary-gray font-medium">กำลังโหลดข้อมูลหน้า...</p>
                 </div>
             )
         }
@@ -621,9 +504,9 @@ const App: React.FC = () => {
                             homeVisits={homeVisits} 
                         />;
             case 'attendance':
-                return <AttendancePage mode="student" students={students} personnel={personnel} studentAttendance={studentAttendance} personnelAttendance={personnelAttendance} onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)} onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)} onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)} isSaving={isSaving} currentUser={currentUser} settings={settings} onRefresh={() => fetchData(true)} />;
+                return <AttendancePage mode="student" students={students} personnel={personnel} studentAttendance={studentAttendance} personnelAttendance={personnelAttendance} onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)} onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)} onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)} isSaving={isSaving} currentUser={currentUser} settings={settings} onRefresh={() => fetchDataForPage('attendance')} />;
             case 'attendance_personnel':
-                return <AttendancePage mode="personnel" students={students} personnel={personnel} studentAttendance={studentAttendance} personnelAttendance={personnelAttendance} onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)} onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)} onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)} isSaving={isSaving} currentUser={currentUser} settings={settings} onRefresh={() => fetchData(true)} />;
+                return <AttendancePage mode="personnel" students={students} personnel={personnel} studentAttendance={studentAttendance} personnelAttendance={personnelAttendance} onSaveStudentAttendance={(data) => handleSaveAttendance('student', data)} onSavePersonnelAttendance={(data) => handleSaveAttendance('personnel', data)} onDeleteAttendance={(type, ids) => handleDeleteAttendance(type, ids)} isSaving={isSaving} currentUser={currentUser} settings={settings} onRefresh={() => fetchDataForPage('attendance_personnel')} />;
             case 'reports':
                 return <ReportPage reports={reports} deleteReports={(ids) => handleGenericDelete('deleteReports', ids, setReports)} onViewReport={(r) => setViewingReport(r)} onEditReport={(r) => { setEditingReport(r); setIsReportModalOpen(true); }} onAddReport={() => { setEditingReport(null); setIsReportModalOpen(true); }} />;
             case 'students':
@@ -774,11 +657,15 @@ const App: React.FC = () => {
         );
     }
 
-    const navigateTo = (page: Page) => {
+    const navigateTo = async (page: Page) => {
         if (page === 'admin' && currentUser?.role !== 'admin') {
             alert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น');
             return;
         }
+
+        // Fetch data for the new page if it's not already loaded
+        await fetchDataForPage(page);
+
         setCurrentPage(page);
         setIsSidebarOpen(false); 
         if (settings.autoHideSidebar) {
